@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "akshare>=1.17.44",
     "jupyter>=1.1.1",
+    "mplfinance>=0.12.10b0",
     "pandas>=2.3.2",
     "tqdm>=4.67.1",
 ]
