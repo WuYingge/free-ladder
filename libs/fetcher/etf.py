@@ -1,8 +1,6 @@
 import datetime
 import akshare as ak
 
-from fetcher.etf import get_etf_last_n_day_data
-from data_manager.etf_data_manager import save_etf_data
 from utils.interval_utils import retry_with_intervals, intervals
 
 def get_all_ETF_fund(all_funds):

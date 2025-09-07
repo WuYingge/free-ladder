@@ -1,6 +1,7 @@
 import os
 import shutil
 import datetime
+import tqdm
 import pandas as pd
 
 from config import DataPath
@@ -48,3 +49,13 @@ def update(code, name):
         print(f"Can't update {code}-{name} because: {err}")
         return False
     
+def etf_data_iter():
+    files = os.listdir(DataPath.DEFAULT_PATH)
+    for f in tqdm.tqdm_notebook(files):
+        if not f.endswith(".csv"):
+            continue
+        fp = os.path.join(DataPath.DEFAULT_PATH, f)
+        yield *get_symbol_name_from_fp(fp), pd.read_csv(fp)
+    
+def save_res_df_to_windows(df, relative_fp):
+    df.to_excel(os.path.join(DataPath.DEFAULT_WINDOWS_PATH, relative_fp), index=False)

@@ -13,5 +13,5 @@ wheels/
 data/*
 
 # notebooks
-*.ipynb_checkpoints/*
+*.ipynb_checkpoints
 playgrounds
