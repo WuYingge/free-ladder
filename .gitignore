@@ -15,3 +15,6 @@ data/*
 # notebooks
 *.ipynb_checkpoints
 playgrounds
+
+# env
+.env

@@ -2,9 +2,10 @@ from __future__ import annotations
 import pandas as pd
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional, Union, Tuple, Self
+from typing import Any, Callable, Dict, List, Optional, Union, Tuple, Self, Mapping
 import copy
 import warnings
+from factors.base_factor import BaseFactor
 
 class FinancialData(ABC):
     """
@@ -23,6 +24,7 @@ class FinancialData(ABC):
         """
         self._data = data.copy()  # 始终保存数据的副本
         self._metadata = metadata.copy() if metadata else {}
+        self.factors: List[BaseFactor] = []
         
     @property
     def data(self) -> pd.DataFrame:
@@ -110,6 +112,15 @@ class FinancialData(ABC):
         new_metadata = self._metadata.copy()
         new_metadata[key] = value
         return self.__class__(self._data.copy(), new_metadata)
+    
+    def add_factors(self, factor: BaseFactor):
+        self.factors.append(factor)
+        
+    def calc_factors(self) -> pd.DataFrame:
+        factor_results = []
+        for factor in self.factors:
+            factor_results.append(pd.Series(factor(self.data), name=factor.name))
+        return self.data.join(factor_results)
     
     @abstractmethod
     def validate_data(self) -> bool:

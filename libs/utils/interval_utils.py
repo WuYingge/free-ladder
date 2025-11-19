@@ -2,7 +2,7 @@ import time
 import datetime
 from functools import wraps
 
-def intervals(seconds=60):
+def intervals(seconds=1.0):
     time.sleep(seconds)
 
 def retry_with_intervals(max_retries=10, interval_func=None):

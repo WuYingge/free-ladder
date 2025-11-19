@@ -1,7 +1,9 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class DataPath:
-    DEFAULT_PATH = "/home/gouzi/projects/invest/data/etf_data"
-    BAK_PATH = "/home/gouzi/projects/invest/data/data-bak"
-    DEFAULT_WINDOWS_PATH = "/mnt/c/Users/wyg/Documents/invest"
-
-
+    DEFAULT_PATH = os.getenv("DEFAULT_PATH")
+    BAK_PATH = os.getenv("BAK_PATH")
+    DEFAULT_WINDOWS_PATH = os.getenv("DEFAULT_WINDOWS_PATH")
