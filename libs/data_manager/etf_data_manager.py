@@ -20,30 +20,30 @@ def transer_em_etf_to_model(df: pd.DataFrame) -> pd.DataFrame:
     res["date"] = pd.to_datetime(res["date"])
     return res.set_index("date", drop=True)
 
-def get_symbol_fp(symbol, name):
-    return os.path.join(DataPath.DEFAULT_PATH, f"{name}-{symbol}.csv")
+def get_symbol_fp(symbol):
+    return os.path.join(DataPath.DEFAULT_PATH, f"{symbol}.csv")
 
-def save_etf_data(symbol, name, df):
-    transer_em_etf_to_model(df).to_csv(get_symbol_fp(symbol, name), encoding="utf-8_sig", index=True)
+def save_etf_data(symbol, df):
+    transer_em_etf_to_model(df).to_csv(get_symbol_fp(symbol), encoding="utf-8_sig", index=True)
     
 def sync_backup(src, dest):
     files = shutil.copytree(src, dest, dirs_exist_ok=True)
 
 @retry_with_intervals(interval_func=intervals)
-def get_and_save(symbol, name, n=40):
+def get_and_save(symbol, n=40):
     try: 
         cur_df = get_etf_last_n_day_data(symbol, n)
-        save_etf_data(symbol, name, cur_df)
+        save_etf_data(symbol, cur_df)
         return True
     except Exception as err:
         print(f"Can't get and save because {err}")
         return False
       
 @retry_with_intervals(interval_func=intervals)
-def update(code, name):
+def update(code):
     try:
         # get the last date
-        fp = get_symbol_fp(code, name)
+        fp = get_symbol_fp(code)
         df = pd.read_csv(fp, parse_dates=True, index_col=0)
         last_update = df.tail(1).index.date[0] # type: ignore
         now = datetime.datetime.now()
@@ -53,13 +53,13 @@ def update(code, name):
         update_df = transer_em_etf_to_model(update_df)
         update_df = update_df.combine_first(df,)
         update_df.drop_duplicates().to_csv(fp, index=True, encoding="utf-8-sig")
-        print(f"update {code}-{name} in {fp}")
+        print(f"update {code} in {fp}")
         return True
     except pd.errors.EmptyDataError as err:
-        return get_and_save(code, name, 120)
+        return get_and_save(code, 120)
     except Exception as err:
         traceback.print_exc()
-        print(f"Can't update {code}-{name} because: {err}")
+        print(f"Can't update {code} because: {err}")
         return False
     
 def etf_data_iter() -> Iterator[EtfData]:
@@ -79,10 +79,10 @@ def save_res_df_to_windows(df, relative_fp):
 
 def update_etf_data():
     all_etf = get_all_etf_code()[["代码", "名称"]]
-    for code, name in tqdm.tqdm_notebook(all_etf.values):
-        fp = get_symbol_fp(code, name)
+    for code, _ in tqdm.tqdm_notebook(all_etf.values):
+        fp = get_symbol_fp(code)
         if os.path.exists(fp):
-            update(code, name)
+            update(code)
         else:
-            get_and_save(code, name, 120)
+            get_and_save(code, 120)
             intervals(0.01)

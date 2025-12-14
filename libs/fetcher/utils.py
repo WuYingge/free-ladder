@@ -1,7 +1,8 @@
 import pandas as pd
-from typing import Dict
+from typing import Dict, List, Tuple
 import requests
 import math
+from datetime import datetime, timedelta
 from proxy.proxy import get_proxy
 from utils.interval_utils import intervals
 
@@ -46,3 +47,42 @@ def fetch_paginated_data(url: str, base_params: Dict, timeout: int = 15):
     temp_df.reset_index(inplace=True)
     temp_df["index"] = temp_df["index"].astype(int) + 1
     return temp_df
+
+
+def generate_time_slices_alternative(
+    days_back: int, 
+    max_slice_days: int = 50
+) -> List[Tuple[str, str]]:
+    """
+    使用range函数的替代实现，更简洁
+    
+    Args:
+        days_back: 需要回溯的总天数
+        max_slice_days: 每个切片的最大天数，默认为50
+    
+    Returns:
+        时间切片列表，每个切片为(start_date_str, end_date_str)格式
+    """
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=days_back - 1)
+    
+    slices = []
+    
+    # 使用range函数按最大切片天数步进
+    for i in range(0, days_back, max_slice_days):
+        # 当前切片的开始日期
+        slice_start = start_date + timedelta(days=i)
+        
+        # 当前切片的结束日期
+        slice_end = slice_start + timedelta(days=min(max_slice_days, days_back - i) - 1)
+        
+        # 确保不超过总结束日期
+        if slice_end > end_date:
+            slice_end = end_date
+        
+        start_str = slice_start.strftime("%Y%m%d")
+        end_str = slice_end.strftime("%Y%m%d")
+        
+        slices.append((start_str, end_str))
+    
+    return slices

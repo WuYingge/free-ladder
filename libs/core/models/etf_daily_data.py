@@ -1,6 +1,7 @@
 from __future__ import annotations
 import warnings
 from typing import Optional, Dict, Any, Self
+import os
 import pandas as pd
 import numpy as np
 from core.models.data_base import FinancialData
@@ -42,6 +43,10 @@ class EtfData(FinancialData):
     @classmethod
     def from_csv(cls: type[EtfData], fp: str) -> EtfData:
         df = pd.read_csv(fp)
-        symbol, name = get_symbol_name_from_fp(fp)
-        return cls(df, symbol=symbol, name=name)
+        symbol = get_symbol_name_from_fp(fp)
+        return cls(df, symbol=symbol)
     
+    def output_with_factors_to(self, path) -> None:
+        """将包含因子结果的数据保存到CSV文件"""
+        df = self.output_with_factors()
+        df.to_csv(os.path.join(path, f"{self.symbol}.csv"), index=False, header=True, encoding="utf-8-sig")

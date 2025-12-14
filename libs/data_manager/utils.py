@@ -1,6 +1,4 @@
 import os
 
-def get_symbol_name_from_fp(fp: str) -> tuple[str, str]:
-    pre = os.path.splitext(os.path.basename(fp))[0].split("-")
-    name, symbol = pre
-    return symbol, name
+def get_symbol_name_from_fp(fp: str) -> str:
+    return os.path.splitext(os.path.basename(fp))[0]

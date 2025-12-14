@@ -2,7 +2,7 @@ from __future__ import annotations
 import pandas as pd
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional, Union, Tuple, Self, Mapping
+from typing import Any, Callable, Dict, List, Optional, Union, Tuple, Self, MutableMapping
 import copy
 import warnings
 from factors.base_factor import BaseFactor
@@ -25,6 +25,7 @@ class FinancialData(ABC):
         self._data = data.copy()  # 始终保存数据的副本
         self._metadata = metadata.copy() if metadata else {}
         self.factors: List[BaseFactor] = []
+        self.factor_results: MutableMapping[str, pd.Series] = {}
         
     @property
     def data(self) -> pd.DataFrame:
@@ -120,7 +121,15 @@ class FinancialData(ABC):
         factor_results = []
         for factor in self.factors:
             factor_results.append(pd.Series(factor(self.data), name=factor.name))
+            self.factor_results[factor.name] = factor_results[-1]
         return self.data.join(factor_results)
+    
+    def output_with_factors(self) -> pd.DataFrame:
+        """输出包含因子结果的数据"""
+        if not self.factor_results:
+            self.calc_factors()
+        factor_dfs = [series for series in self.factor_results.values()]
+        return self.data.join(factor_dfs) # type: ignore
     
     @abstractmethod
     def validate_data(self) -> bool:
