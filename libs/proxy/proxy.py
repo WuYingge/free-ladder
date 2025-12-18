@@ -45,17 +45,26 @@ class ProxyPool:
         self.pool = self._get_proxies()
     
     # 计算sign
-    def _get_proxies(self):
-        txt = "orderId=" + ProxyAccount.orderId + "&" + "secret=" + ProxyAccount.secret + "&" + "time=" + str(self.start_time) # type: ignore
-        sign = hashlib.md5(txt.encode()).hexdigest()
-        # 访问URL获取IP
-        url = "http://api.hailiangip.com:8422/api/getIp?type=1" + "&num=" + ProxyAccount.num + "&pid=" + ProxyAccount.pid + "&unbindTime=" + str(self.unbindTime) + "&cid=" + ProxyAccount.cid +  "&orderId=" + ProxyAccount.orderId + "&time=" + str(self.start_time) + "&sign=" + sign + "&dataType=0" + "&lineSeparator=" + ProxyAccount.lineSeparator + "&noDuplicate=" + ProxyAccount.noDuplicate
-        my_response = requests.get(url).content
-        js_res = json.loads(my_response)
-        return [
-            {'http': f"http://{dic['ip']}:{dic['port']}","https": f"http://{dic['ip']}:{dic['port']}"}
-            for dic in js_res["data"]
-        ]
+    def _get_proxies(self) -> list[dict[str, str]]:
+        success = False
+        while not success:
+            try:
+                txt = "orderId=" + ProxyAccount.orderId + "&" + "secret=" + ProxyAccount.secret + "&" + "time=" + str(self.start_time) # type: ignore
+                sign = hashlib.md5(txt.encode()).hexdigest()
+                # 访问URL获取IP
+                url = "http://api.hailiangip.com:8422/api/getIp?type=1" + "&num=" + ProxyAccount.num + "&pid=" + ProxyAccount.pid + "&unbindTime=" + str(self.unbindTime) + "&cid=" + ProxyAccount.cid +  "&orderId=" + ProxyAccount.orderId + "&time=" + str(self.start_time) + "&sign=" + sign + "&dataType=0" + "&lineSeparator=" + ProxyAccount.lineSeparator + "&noDuplicate=" + ProxyAccount.noDuplicate
+                my_response = requests.get(url).content
+                js_res = json.loads(my_response)
+                success = True
+            except Exception as err:
+                print(f"Can't get proxy due to {err}, retrying...")
+                time.sleep(1.5)
+                continue
+            return [
+                {'http': f"http://{dic['ip']}:{dic['port']}","https": f"http://{dic['ip']}:{dic['port']}"}
+                for dic in js_res["data"]
+            ]
+        return []
         
     def get_proxy(self):
         if self._check_timeout() or not self.pool:

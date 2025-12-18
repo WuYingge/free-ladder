@@ -5,11 +5,13 @@ import tqdm
 import traceback
 import pandas as pd
 from typing import Iterator
+from multiprocessing import Pool
 
 from config import DataPath
 from core.models.etf_daily_data import EtfData
 from fetcher.etf import get_etf_certain_date_data, get_etf_last_n_day_data, get_all_etf_code
 from utils.interval_utils import retry_with_intervals, intervals
+from fetcher.utils import generate_time_slices_alternative
 
 
 def transer_em_etf_to_model(df: pd.DataFrame) -> pd.DataFrame:
@@ -39,8 +41,8 @@ def get_and_save(symbol, n=40):
         print(f"Can't get and save because {err}")
         return False
       
-@retry_with_intervals(interval_func=intervals)
-def update(code):
+@retry_with_intervals(max_retries=1000, interval_func=intervals)
+def update(code) -> bool:
     try:
         # get the last date
         fp = get_symbol_fp(code)
@@ -56,7 +58,11 @@ def update(code):
         print(f"update {code} in {fp}")
         return True
     except pd.errors.EmptyDataError as err:
-        return get_and_save(code, 120)
+        df = get_with_retry(code, 4000)
+        if df is not None:
+            save_etf_data(code, df)
+            return True
+        return False
     except Exception as err:
         traceback.print_exc()
         print(f"Can't update {code} because: {err}")
@@ -79,10 +85,64 @@ def save_res_df_to_windows(df, relative_fp):
 
 def update_etf_data():
     all_etf = get_all_etf_code()[["代码", "名称"]]
-    for code, _ in tqdm.tqdm_notebook(all_etf.values):
-        fp = get_symbol_fp(code)
-        if os.path.exists(fp):
-            update(code)
+    with Pool(15) as p:
+        res = p.map(update_single_etf_data, all_etf["代码"].values)
+    for code, result in res:
+        if result:
+            print(f"Successfully updated data for {code}")
         else:
-            get_and_save(code, 120)
-            intervals(0.01)
+            print(f"Failed to update data for {code}")
+    
+            
+def update_single_etf_data(code: str) -> tuple[str, bool]:
+    fp = get_symbol_fp(code)
+    if os.path.exists(fp):
+        update(code)
+        return code, True
+    else:
+        df = get_with_retry(code, 4000)
+        if df is not None:
+            save_etf_data(code, df)
+            return code, True
+    return code, False
+
+
+def batch_acquire_etf_data(codes: list[str], last_n_days: int, save_path: str):
+    os.makedirs(save_path, exist_ok=True)
+    with Pool(15) as p:
+        results = p.starmap(save_etf_data_to_windows, [(code, last_n_days, save_path, True) for code in codes])
+    with open(os.path.join(save_path, "acquire_results.txt"), "w") as f:
+        for code, res in zip(codes, results):
+            f.write(f"{code}: {res}\n")
+        
+def save_etf_data_to_windows(code: str, last_n_days: int, save_path: str, check_exists: bool = True) -> str:
+    try:
+        if check_exists and os.path.exists(os.path.join(save_path, f"{code}.csv")):
+            return "Already exists"
+        df = get_with_retry(code, last_n_days)
+        if df is None:
+            return f"Can't acquire data for {code} due to empty data"
+        df = transer_em_etf_to_model(df)
+        df.to_csv(os.path.join(save_path, f"{code}.csv"), encoding="utf-8-sig", index=True)
+        return "OK"
+    except Exception as err:
+        return f"Can't acquire data for {code} due to {err}"
+    
+        
+def get_with_retry(code, last_n_days: int) -> pd.DataFrame | None:
+    count = 1000
+    dfs = []
+    for s, e in generate_time_slices_alternative(last_n_days):
+        df = None
+        while count:
+            try:
+                df = get_etf_certain_date_data(code, datetime.datetime.strptime(s, "%Y%m%d"), datetime.datetime.strptime(e, "%Y%m%d"))
+                dfs.append(df)
+                break
+            except Exception as err:
+                count -= 1
+                if count < 990:
+                    print(f"Retrying to get data for {code} from {s} to {e} due to {err}, {count} retries left")
+    if not dfs:
+        return None
+    return pd.concat(dfs).drop_duplicates()
