@@ -79,6 +79,16 @@ def etf_data_iter() -> Iterator[EtfData]:
         except Exception as err:
             print(f"can't iter {fp} due to {err}")
             continue
+        
+def get_etf_data_by_symbol(symbol: str) -> EtfData:
+    fp = get_symbol_fp(symbol)
+    return EtfData.from_csv(fp)
+
+def get_etf_data_by_symbols(symbols: list[str]) -> list[EtfData]:
+    res = []
+    for symbol in symbols:
+        res.append(get_etf_data_by_symbol(symbol))
+    return res
     
 def save_res_df_to_windows(df, relative_fp):
     df.to_excel(os.path.join(DataPath.DEFAULT_WINDOWS_PATH, relative_fp), index=False)

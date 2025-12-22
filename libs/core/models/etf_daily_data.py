@@ -29,6 +29,8 @@ class EtfData(FinancialData):
         symbol: 股票代码
         """
         super().__init__(data, metadata)
+        
+        # todo move to base class?
         self.symbol = symbol
         self.name = name
         
