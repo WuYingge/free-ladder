@@ -36,7 +36,6 @@ def cal_ratio_of_interest_risk(df: pd.DataFrame, k=1, n=20) -> float:
     c = cal_volatility_n_day(df["close"], n) * 0.5
     slope = use_data[f"predict_interest_{n}_slope"].values[0]
     max_loss = use_data[f"max_loss_ma{n}"].values[0]
-    print(max_loss, slope, c)
     return k*slope / (abs(max_loss) + c)
 
 def cal_one_etf(df: pd.DataFrame, k=1, n=20) -> float:
