@@ -10,6 +10,7 @@ dependencies = [
     "mplfinance>=0.12.10b0",
     "pandas>=2.3.2",
     "python-dotenv>=1.2.1",
+    "scikit-learn>=1.8.0",
     "scipy>=1.16.2",
     "tqdm>=4.67.1",
 ]
