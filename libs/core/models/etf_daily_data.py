@@ -46,6 +46,7 @@ class EtfData(FinancialData):
     def from_csv(cls: type[EtfData], fp: str) -> EtfData:
         df = pd.read_csv(fp)
         symbol = get_symbol_name_from_fp(fp)
+        # todo make date as index
         return cls(df, symbol=symbol)
     
     def output_with_factors_to(self, path) -> None:

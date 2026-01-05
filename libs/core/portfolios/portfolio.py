@@ -58,6 +58,8 @@ class Portfolio:
         total_value = sum(
             pos.market_value for pos in self._positions.values() if pos.market_value is not None
         )
+        
+        # todo use backward-adjustment price may lead to error
         if total_value > self._all_money:
             raise ValueError("Portfolio value exceeds available funds.")
         
