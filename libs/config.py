@@ -10,3 +10,4 @@ class DataPath:
     DATA_DIR: str = os.getenv("DATA_DIR") # type: ignore
     CALANDAR_DF: str = os.getenv("CALANDAR_DF") # type: ignore
     CLUSTERING_DF: str = os.getenv("CLUSTERING_DF") # type: ignore
+    ETF_NAME_LIST_DF: str = os.getenv("ETF_NAME_LIST_DF") # type: ignore

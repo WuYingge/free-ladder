@@ -1,18 +1,21 @@
 from __future__ import annotations
+from typing import override
 from typing_extensions import Self
 import pandas as pd
 from config import DataPath
+from data_manager.providers.base_provider import BaseProvider
 
-class _ClusterProvider:
+class _ClusterProvider(BaseProvider):
     
-    def __new__(cls) -> Self:
-        if not hasattr(cls, 'instance'):
-            cls.instance = super(_ClusterProvider, cls).__new__(cls)
-        return cls.instance
-    
-    def __init__(self) -> None:
+    @override
+    def init(self) -> None:
         self._clusters: dict[str, int] = {}
         self._initialize_clusters()
+    
+    @override
+    @classmethod
+    def get_instance(cls) -> Self:
+        return cls()
         
     def _initialize_clusters(self) -> None:
         df = pd.read_excel(DataPath.CLUSTERING_DF, index_col=0)
@@ -22,4 +25,4 @@ class _ClusterProvider:
     def get_cluster(self, symbol: str) -> int:
         return self._clusters.get(symbol, -1)
 
-ClusterInfo = _ClusterProvider()
+ClusterInfo = _ClusterProvider.get_instance()

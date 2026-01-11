@@ -120,12 +120,12 @@ def update_single_etf_data(code: str) -> tuple[str, bool]:
 def batch_acquire_etf_data(codes: list[str], last_n_days: int, save_path: str):
     os.makedirs(save_path, exist_ok=True)
     with Pool(15) as p:
-        results = p.starmap(save_etf_data_to_windows, [(code, last_n_days, save_path, True) for code in codes])
+        results = p.starmap(save_etf_data_to_path, [(code, last_n_days, save_path, True) for code in codes])
     with open(os.path.join(save_path, "acquire_results.txt"), "w") as f:
         for code, res in zip(codes, results):
             f.write(f"{code}: {res}\n")
         
-def save_etf_data_to_windows(code: str, last_n_days: int, save_path: str, check_exists: bool = True) -> str:
+def save_etf_data_to_path(code: str, last_n_days: int, save_path: str, check_exists: bool = True) -> str:
     try:
         if check_exists and os.path.exists(os.path.join(save_path, f"{code}.csv")):
             return "Already exists"

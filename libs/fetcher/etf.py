@@ -1,11 +1,13 @@
 import os
 import datetime
 import requests
+import json
 from random import choice
 import akshare as ak
 import pandas as pd
 from proxy.proxy import get_proxy
 from fetcher.utils import fetch_paginated_data
+from fetcher.consts import headers
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -330,3 +332,18 @@ def fund_etf_spot_em() -> pd.DataFrame:
         .dt.tz_convert("Asia/Shanghai")
     )
     return temp_df
+
+def fund_etf_name_em() -> pd.DataFrame:
+    """
+    东方财富网站-天天基金网-基金数据-所有基金的名称和类型
+    https://fund.eastmoney.com/manager/default.html#dt14;mcreturnjson;ftall;pn20;pi1;scabbname;stasc
+    :return: 所有基金的名称和类型
+    :rtype: pandas.DataFrame
+    """
+    url = "https://fund.eastmoney.com/js/fundcode_search.js"
+    r = requests.get(url, headers=headers, proxies=get_proxy())
+    text_data = r.text.strip("var r = ").strip(";")
+    data_json = json.loads(text_data)
+    df = pd.DataFrame(data_json, columns=["symbol", "pinyin_abbr", "name", "type", "full_pinyin"])
+    df = df[df["name"].str.contains("ETF") & ~df["name"].str.contains("联接") & df["type"].isin(["指数型-股票", "指数型-海外股票", "指数型-固收", "指数型-其他"])]
+    return df[["symbol", "name", "type"]].reset_index(drop=True)

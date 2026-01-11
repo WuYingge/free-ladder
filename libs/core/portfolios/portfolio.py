@@ -8,7 +8,7 @@ from core.models.etf_daily_data import EtfData
 from data_manager.etf_data_manager import get_etf_data_by_symbol
 from factors.average_true_range import AverageTrueRange
 from factors.portfolio.correlation import CorrelationFactor
-from data_manager.cluster_provider import ClusterInfo
+from data_manager.providers.cluster_provider import ClusterInfo
 
 class Portfolio:
     
