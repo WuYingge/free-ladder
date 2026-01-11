@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional, Mapping
 import pandas as pd
 from core.models.etf_daily_data import EtfData
 from data_manager.etf_data_manager import get_etf_data_by_symbol
 from factors.average_true_range import AverageTrueRange
 from factors.portfolio.correlation import CorrelationFactor
+from data_manager.cluster_provider import ClusterInfo
 
 class Portfolio:
     
@@ -92,7 +94,7 @@ class Portfolio:
         core_matrix = corr(*( [pos.data for pos in self._positions.values()] + [etf_data]))
         core_matrix["name"] = name_dict.get(symbol, symbol) if name_dict else symbol
         core_matrix["symbol"] = symbol
-        return core_matrix.set_index(["symbol"])
+        return core_matrix.set_index(["symbol"]).reindex(columns=["average_correlation", "name"])
     
     def calc_corrs_with_current_position(self, symbols: list[str], name_dict: Mapping[str, str]|None = None) -> pd.DataFrame:
         corr = CorrelationFactor()
@@ -101,12 +103,37 @@ class Portfolio:
         for symbol in symbols:
             corr_analysis.append(self.calc_corr_with_current_position(symbol, name_dict))
 
-        return pd.concat(corr_analysis, axis=0).sort_values(by="effective_diversification_number", ascending=False)
+        return pd.concat(corr_analysis, axis=0).sort_values(by="average_correlation", ascending=True)
+    
+    def calc_clustering_distribution(self, name_dict: Mapping[str, str]|None = None) -> pd.DataFrame:
+        res = []
+        if name_dict is None:
+            name_dict = {}
+        for symbol, pos in self.positions.items():
+            symbol_label = ClusterInfo.get_cluster(symbol)
+            res.append({"symbol": symbol, "cluster": symbol_label, "value": pos.market_value, "name": name_dict.get(symbol, "")})
+        dist = pd.DataFrame(res)
+        percent = dist.groupby("cluster")["value"].sum() / dist["value"].sum()
+        percent.name = "percent"
+        percent = percent.apply(lambda x: f"{round(x * 100, 2)}%")
+        value_counts = dist.groupby("cluster").size()
+        name_list = dist.groupby("cluster")["name"].sum()
+        analysis_df = pd.concat([name_list, percent, value_counts], axis=1)
+        analysis_df.reset_index(drop=False, inplace=True)
+        return analysis_df
+
+    def analyze_with_add_to_list(self, add_to_list: list[str], name_dict: Mapping[str, str]|None=None):
+        corr_add = self.calc_corrs_with_current_position(add_to_list, name_dict=name_dict)
+        corr_add = corr_add.join(pd.Series([self.max_money_for_symbol_by_ATR(i) for i in corr_add.index], index=corr_add.index, name="max_value"))
+        corr_add["cluster"] = corr_add.apply(lambda x: ClusterInfo.get_cluster(str(x.name)), axis=1)
+        corr_add["newCluster"] = corr_add["cluster"].apply(lambda x: "No" if x in [pos.cluster for pos in self.positions.values()] else "Yes")
+        return corr_add
 
 @dataclass
 class Position:
     symbol: str
     quantity: int
+    _cluster: Optional[int] = field(default=None, init=False)
     _current_price: Optional[float] = field(default=None, init=False)
     _data: Optional[EtfData] = None
 
@@ -125,4 +152,10 @@ class Position:
         if self._current_price is None:
             self._current_price = self.data.data.iloc[-1]['close']
         return self._current_price # type: ignore
+    
+    @property
+    def cluster(self) -> int:
+        if self._cluster is None:
+            self._cluster = ClusterInfo.get_cluster(self.symbol)
+        return self._cluster
     
