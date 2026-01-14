@@ -328,7 +328,7 @@ def fund_etf_spot_em() -> pd.DataFrame:
     )
     temp_df["更新时间"] = (
         pd.to_datetime(temp_df["更新时间"], unit="s", errors="coerce")
-        .dt.tz_localize("UTC")
+        .dt.tz_localize("UTC") # type: ignore
         .dt.tz_convert("Asia/Shanghai")
     )
     return temp_df
