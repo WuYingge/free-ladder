@@ -25,7 +25,7 @@ dotenv.load_dotenv()
 class ProxyAccount:
     orderId: str = os.getenv("PROXY_ORDER_ID") or ""
     secret: str = os.getenv("PROXY_SECRET") or ""
-    num = "200"
+    num = "20"
     pid = "-1"
     cid = ""
     type = "1"
@@ -48,17 +48,19 @@ class ProxyPool:
     def _get_proxies(self) -> list[dict[str, str]]:
         success = False
         while not success:
+            response = None
             try:
                 txt = "orderId=" + ProxyAccount.orderId + "&" + "secret=" + ProxyAccount.secret + "&" + "time=" + str(self.start_time) # type: ignore
                 sign = hashlib.md5(txt.encode()).hexdigest()
                 # 访问URL获取IP
                 url = "http://api.hailiangip.com:8422/api/getIp?type=1" + "&num=" + ProxyAccount.num + "&pid=" + ProxyAccount.pid + "&unbindTime=" + str(self.unbindTime) + "&cid=" + ProxyAccount.cid +  "&orderId=" + ProxyAccount.orderId + "&time=" + str(self.start_time) + "&sign=" + sign + "&dataType=0" + "&lineSeparator=" + ProxyAccount.lineSeparator + "&noDuplicate=" + ProxyAccount.noDuplicate
-                my_response = requests.get(url).content
+                response = requests.get(url)
+                my_response = response.content
                 js_res = json.loads(my_response)
                 success = True
             except Exception as err:
-                print(f"Can't get proxy due to {err}, retrying...")
-                time.sleep(1.5)
+                print(f"Can't get proxy due to {err}, response is {response.text if response else 'None'}")
+                time.sleep(15)
                 continue
             return [
                 {'http': f"http://{dic['ip']}:{dic['port']}","https": f"http://{dic['ip']}:{dic['port']}"}

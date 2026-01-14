@@ -12,11 +12,16 @@ from core.models.etf_daily_data import EtfData
 from fetcher.etf import get_etf_certain_date_data, get_etf_last_n_day_data, get_all_etf_code
 from utils.interval_utils import retry_with_intervals, intervals
 from fetcher.utils import generate_time_slices_alternative
+from data_manager.providers.etf_list_provider import ETF_LIST
 
 
 def transer_em_etf_to_model(df: pd.DataFrame) -> pd.DataFrame:
     origin_col = ['日期', '开盘', '收盘', '最高', '最低', '成交量', '成交额', '振幅', '涨跌幅', '涨跌额', '换手率']
     target_col = ["date", "open", "close", "high", "low",  "volume", "value", "range", "gain", "change", "turnOver"]
+    if len(df) == 0:
+        res = pd.DataFrame(columns=target_col)
+        res["date"] = pd.to_datetime(res["date"])
+        return res.set_index("date", drop=True)
     mapper = dict(zip(origin_col, target_col))
     res = df.rename(columns=mapper)
     res["date"] = pd.to_datetime(res["date"])
@@ -47,9 +52,12 @@ def update(code) -> bool:
         # get the last date
         fp = get_symbol_fp(code)
         df = pd.read_csv(fp, parse_dates=True, index_col=0)
+        if len(df) == 0: # some of the etf has no data because it is newly listed
+            raise pd.errors.EmptyDataError("Empty data")
         last_update = df.tail(1).index.date[0] # type: ignore
         now = datetime.datetime.now()
         if now.date() - last_update < datetime.timedelta(days=1):
+            print(f"already updated {code}")
             return True
         update_df = get_etf_certain_date_data(code, last_update, now)
         update_df = transer_em_etf_to_model(update_df)
@@ -94,9 +102,9 @@ def save_res_df_to_windows(df, relative_fp):
     df.to_excel(os.path.join(DataPath.DEFAULT_WINDOWS_PATH, relative_fp), index=False)
 
 def update_etf_data():
-    all_etf = get_all_etf_code()[["代码", "名称"]]
+    all_etf = ETF_LIST.get_all_symbol()
     with Pool(15) as p:
-        res = p.map(update_single_etf_data, all_etf["代码"].values)
+        res = p.map(update_single_etf_data, all_etf)
     for code, result in res:
         if result:
             print(f"Successfully updated data for {code}")
@@ -140,6 +148,7 @@ def save_etf_data_to_path(code: str, last_n_days: int, save_path: str, check_exi
     
         
 def get_with_retry(code, last_n_days: int) -> pd.DataFrame | None:
+    print("Acquiring data for", code, "for last", last_n_days, "days")
     count = 1000
     dfs = []
     for s, e in generate_time_slices_alternative(last_n_days):

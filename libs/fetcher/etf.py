@@ -346,4 +346,14 @@ def fund_etf_name_em() -> pd.DataFrame:
     data_json = json.loads(text_data)
     df = pd.DataFrame(data_json, columns=["symbol", "pinyin_abbr", "name", "type", "full_pinyin"])
     df = df[df["name"].str.contains("ETF") & ~df["name"].str.contains("联接") & df["type"].isin(["指数型-股票", "指数型-海外股票", "指数型-固收", "指数型-其他"])]
+    df = pd.concat([
+        df, 
+        pd.DataFrame({
+            'symbol': {0: '513170', 1: '588690', 2: '588710'},
+            'pinyin_abbr': {0: 'PHHSZGYQQDII', 1: 'KZZZ', 2: 'KBDT'},
+            'name': {0: '鹏华恒生中国央企(QDII)', 1: '科综指增', 2: '科半导体'},
+            'type': {0: '指数型-海外股票', 1: '指数型-股票', 2: '指数型-股票'},
+            'full_pinyin': {0: 'PENGHUAHENGSHENGZHONGGUOYANGQIQDII', 1: 'KEZONGZHIZENG', 2: 'KEBANDAOTI'}
+            })
+        ], ignore_index=True)
     return df[["symbol", "name", "type"]].reset_index(drop=True)

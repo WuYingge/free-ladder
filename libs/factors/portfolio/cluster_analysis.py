@@ -21,6 +21,7 @@ from scipy.spatial.distance import squareform
 import matplotlib.pyplot as plt
 
 from core.models.calandar_df import CALANDAR
+from data_manager.providers.etf_list_provider import ETF_LIST
 
 class ClusterAnalysis(BaseCrossSectionFactor):
     name = "ClusterAnalysis"
@@ -56,7 +57,7 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         if approach not in self.APPROACHES:
             raise ValueError(f"Invalid approach. Choose from {self.APPROACHES}")
 
-    def __call__(self, *data: EtfData, name_dict: None|dict=None) -> pd.DataFrame:
+    def __call__(self, *data: EtfData) -> pd.DataFrame:
         print("开始聚类分析...")
         self._check(data)
         print("生成特征矩阵...")
@@ -69,7 +70,7 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         elif self.approach == "corr_agglomerative":
             print("使用相关性层次聚类方法...")
             final_labels = self.corr_agglomerative_clustering(processed_data)
-        res_df = self.generate_result(name_dict, final_labels)
+        res_df = self.generate_result(final_labels)
         return res_df
 
     def pca_dbscan_kmeans(self, processed_data:pd.DataFrame):
@@ -136,11 +137,9 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         print(f"建议在此距离（或略低于此值）进行切割。")
         return recommended_distance
 
-    def generate_result(self, name_dict: None|dict, final_labels: list) -> pd.DataFrame:
+    def generate_result(self, final_labels: list) -> pd.DataFrame:
         res_df = pd.DataFrame(final_labels, index=self.features.index, columns=['ClusterLabel']).sort_values(by='ClusterLabel')
-        if name_dict is None:
-            name_dict = {}
-        res_df["name"] = res_df.apply(lambda x: name_dict.get(x.name, "UNKNOWN"), axis=1)
+        res_df["name"] = res_df.apply(lambda x: ETF_LIST.get_name(x.name), axis=1)
         return res_df
 
     def _check(self, data: Iterable[EtfData]) -> None:
