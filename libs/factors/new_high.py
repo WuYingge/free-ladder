@@ -10,6 +10,7 @@ from factors.common.ma_filter import long_ma_filter
 """
 class NewHigh(BaseFactor):
     
+    first_buy = 2 # todo don't know why it is needed leave there for further investigation
     buy = 1
     hold = 0
     sell = -1
@@ -34,7 +35,7 @@ class NewHigh(BaseFactor):
         def judge(row):
             if row["close"] >= row["new_high"] and row["long_filter"]:
                 return self.buy
-            elif row["close"] <= row["low_recent"] or not row["long_filter"]:
+            elif row["close"] <= row["low_recent"]:
                 return self.sell
             else:
                 return self.hold
