@@ -127,7 +127,7 @@ class Portfolio:
         corr_add = corr_add.join(pd.Series([self.max_money_for_symbol_by_ATR(i) for i in corr_add.index], index=corr_add.index, name="max_value"))
         corr_add["cluster"] = corr_add.apply(lambda x: ClusterInfo.get_cluster(str(x.name)), axis=1)
         corr_add["newCluster"] = corr_add["cluster"].apply(lambda x: "No" if x in [pos.cluster for pos in self.positions.values()] else "Yes")
-        return corr_add
+        return corr_add.sort_values(by=["newCluster", "cluster", "average_correlation"], ascending=[False, True, True])
 
 @dataclass
 class Position:
