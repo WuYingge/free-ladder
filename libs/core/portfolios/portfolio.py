@@ -81,7 +81,7 @@ class Portfolio:
         atr_calculator = AverageTrueRange(window=50)
         etf_data.add_factors(atr_calculator)
         etf_data.calc_factors()
-        res = etf_data.factor_results.get(atr_calculator.name)
+        res = etf_data.factor_results.get(atr_calculator)
         latest_atr = res.iloc[-1] if res is not None else None
         if latest_atr is None or latest_atr <= 0:
             raise ValueError("Invalid ATR value.")

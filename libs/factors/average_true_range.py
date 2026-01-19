@@ -13,6 +13,7 @@ class AverageTrueRange(BaseFactor):
         self, 
         window: int = 25 # ATR计算的默认窗口大小，取newHigh短周期同样的值
         ):
+        super().__init__()
         self.window = window
     
     def __call__(self, data: pd.DataFrame) -> pd.Series:

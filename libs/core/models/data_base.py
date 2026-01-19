@@ -25,7 +25,7 @@ class FinancialData(ABC):
         self._data = data.copy()  # 始终保存数据的副本
         self._metadata = metadata.copy() if metadata else {}
         self.factors: List[BaseFactor] = []
-        self.factor_results: MutableMapping[str, pd.Series] = {}
+        self.factor_results: MutableMapping[BaseFactor, pd.Series] = {}
         
     @property
     def data(self) -> pd.DataFrame:
@@ -119,10 +119,31 @@ class FinancialData(ABC):
         
     def calc_factors(self) -> pd.DataFrame:
         factor_results = []
-        for factor in self.factors:
+        for factor in self.sort_factors_by_dependency():
             factor_results.append(pd.Series(factor(self.data), name=factor.name))
-            self.factor_results[factor.name] = factor_results[-1]
+            self.factor_results[factor] = factor_results[-1]
         return self.data.join(factor_results)
+    
+    def sort_factors_by_dependency(self) -> List[BaseFactor]:
+        """根据依赖关系对因子进行排序"""
+        sorted_factors: List[BaseFactor] = []
+        visited: Dict[BaseFactor, bool] = {}
+        
+        def visit(factor: BaseFactor):
+            if factor in visited:
+                if not visited[factor]:
+                    raise ValueError(f"Circular dependency detected for factor {factor.name}")
+                return
+            visited[factor] = False
+            for dep in factor.dependencies:
+                visit(dep)
+            visited[factor] = True
+            sorted_factors.append(factor)
+        
+        for factor in self.factors:
+            visit(factor)
+        
+        return sorted_factors
     
     def output_with_factors(self) -> pd.DataFrame:
         """输出包含因子结果的数据"""
