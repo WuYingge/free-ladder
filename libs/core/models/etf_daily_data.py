@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from core.models.data_base import FinancialData
 from data_manager.utils import get_symbol_name_from_fp
+from data_manager.providers.etf_list_provider import ETF_LIST
 
 class EtfData(FinancialData):
     """股票数据类"""
@@ -46,8 +47,9 @@ class EtfData(FinancialData):
     def from_csv(cls: type[EtfData], fp: str) -> EtfData:
         df = pd.read_csv(fp)
         symbol = get_symbol_name_from_fp(fp)
+        name = ETF_LIST.get_name(symbol=symbol)
         # todo make date as index
-        return cls(df, symbol=symbol)
+        return cls(df, symbol=symbol, name=name)
     
     def output_with_factors_to(self, path) -> None:
         """将包含因子结果的数据保存到CSV文件"""
