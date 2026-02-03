@@ -74,7 +74,7 @@ class Portfolio:
     def max_money_for_symbol_by_ATR(
         self, 
         symbol: str,
-        tolerance: float = 0.003,
+        tolerance: float = 0.002,
         atr_multiplier: float = 1
         ) -> float:
         etf_data = get_etf_data_by_symbol(symbol)
