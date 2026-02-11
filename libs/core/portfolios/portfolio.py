@@ -9,6 +9,7 @@ from data_manager.etf_data_manager import get_etf_data_by_symbol
 from factors.average_true_range import AverageTrueRange
 from factors.portfolio.correlation import CorrelationFactor
 from data_manager.providers.cluster_provider import ClusterInfo
+from factors.change_since_new_high import ChangeSinceNewHigh
 
 class Portfolio:
     
@@ -125,9 +126,17 @@ class Portfolio:
     def analyze_with_add_to_list(self, add_to_list: list[str], name_dict: Mapping[str, str]|None=None):
         corr_add = self.calc_corrs_with_current_position(add_to_list, name_dict=name_dict)
         corr_add = corr_add.join(pd.Series([self.max_money_for_symbol_by_ATR(i) for i in corr_add.index], index=corr_add.index, name="max_value"))
+        corr_add = corr_add.join(pd.Series([self.calc_change_since_new_high(i).iloc[-1] for i in corr_add.index], index=corr_add.index, name="change_since_new_high"))
         corr_add["cluster"] = corr_add.apply(lambda x: ClusterInfo.get_cluster(str(x.name)), axis=1)
         corr_add["newCluster"] = corr_add["cluster"].apply(lambda x: "No" if x in [pos.cluster for pos in self.positions.values()] else "Yes")
         return corr_add.sort_values(by=["newCluster", "cluster", "average_correlation"], ascending=[False, True, True])
+    
+    def calc_change_since_new_high(self, symbol: str) -> pd.Series:
+        etf_data = get_etf_data_by_symbol(symbol)
+        change_factor = ChangeSinceNewHigh(long_period=50, short_period=25)
+        etf_data.add_factors(change_factor)
+        etf_data.calc_factors()
+        return etf_data.factor_results[change_factor]
 
 @dataclass
 class Position:
