@@ -29,34 +29,36 @@ class ChangeSinceNewHigh(BaseFactor):
     
     def calc_returns_from_first_high(self, df: pd.DataFrame) -> pd.Series:
         """
-        对于df中NewHigh=1的行，计算自所在组第一个1以来的涨幅。
+        对于df中的每一行，计算自所在组第一个1以来的涨幅。
+        如果遇到了-1则归零，并且不参与后续的涨幅计算。
+        组的划分方式是：每遇到一个-1，开始一个新的组，-1行本身不参与分组。
         参数:
             df : DataFrame，必须包含'NewHigh'和'close'列
         返回:
             Series，索引同df，对应位置为涨幅，非1行为NaN
         """
-        df = df.copy()  # 避免修改原始数据
-        
-        # 1. 生成组号：每个-1之后开始新组，-1行本身不参与分组
-        df['group'] = (df['NewHigh'] == -1).cumsum().shift(1).fillna(0)
-        df.loc[df['NewHigh'] == -1, 'group'] = np.nan   # 剔除-1行
-        
-        # 2. 对NewHigh=1的行，按组取第一个收盘价作为该组基准
-        first_close = (
-            df[df['NewHigh'] == 1]
-            .groupby('group')['close']
-            .first()
-        )
-        
-        # 3. 将基准价格映射回NewHigh=1的行
-        mask_high = df['NewHigh'] == 1
-        df['benchmark'] = np.nan
-        df.loc[mask_high, 'benchmark'] = df.loc[mask_high, 'group'].map(first_close)
-        
-        # 4. 计算涨幅（今日 / 基准 - 1）
-        change =  (df['close'] / df['benchmark'] - 1).where(mask_high)
-        
-        # 5. 格式化为2位小数的百分比字符串
-        change = change.apply(lambda x: f"{x:.2%}" if pd.notna(x) else np.nan)
-        return change
+        df = df.copy()
     
+        # 1. 按 -1 进行分组（每个 -1 开始新组）
+        group = (df["NewHigh"] == -1).cumsum()
+        
+        # 2. 标记每个组内的第一个 1
+        df["is_one"] = df["NewHigh"] == 1
+        first_one = df["is_one"] & (df.groupby(group)["is_one"].cumsum() == 1)
+        
+        # 3. 创建基准价格列：只在第一个 1 的位置填入 close
+        base = df["close"].where(first_one)
+        
+        # 4. 在每组内向前填充基准（从第一个 1 向后传播）
+        base_filled = base.groupby(group).ffill()
+        
+        # 5. 计算涨幅（除法，结果可能为 inf 但 close 通常非零）
+        pct = (df["close"] - base_filled) / base_filled
+        
+        # 6. 生成结果字符串：仅当有基准且不是第一个 1 本身时格式化
+        df["change_since_new_high"] = np.where(
+            base_filled.notna(),
+            pct.apply(lambda x: f"{x:.2%}"),  # 格式化为百分比字符串
+            ""                                 # 其余行留空
+        )
+        return df["change_since_new_high"]

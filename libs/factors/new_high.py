@@ -34,19 +34,25 @@ class NewHigh(BaseFactor):
         self.add_dependency(AverageTrueRange(window=50))
         
     def __call__(self, data: DataFrame) -> Series:
+        # todo 性能优化
         long_filter = long_ma_filter(data)
         new_high = data["close"].rolling(window=self.high_window).max()
-        low_recent = data["close"].rolling(window=self.low_window).min()
+        low_rolling = data["close"].rolling(window=self.low_window)
+        low_recent = low_rolling.min()
+        low_count = low_rolling.apply(lambda x: (x == x.min()).sum())
+        is_unique_low = (data["close"] == low_recent) & (low_count == 1)
         temp_df = DataFrame({
             "close": data["close"],
             "new_high": new_high,
             "low_recent": low_recent,
-            "long_filter": long_filter
+            "long_filter": long_filter,
+            "is_unique_low": is_unique_low
         })
         def judge(row):
             if row["close"] >= row["new_high"] and row["long_filter"]:
                 return self.buy
-            elif row["close"] <= row["low_recent"]:
+            # 如果收盘价小于等于短周期新低，且为短周期中的唯一一个新低，则卖出
+            elif row["close"] <= row["low_recent"] and row["is_unique_low"]:
                 return self.sell
             else:
                 return self.hold
