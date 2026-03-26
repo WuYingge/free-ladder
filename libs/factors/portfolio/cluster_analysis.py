@@ -95,16 +95,16 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         print("绘制层次聚类树状图...")
         linked = linkage(condensed_dist, method='ward')
         print("层次聚类树状图绘制完成.")
-        plt.figure(figsize=(12, 6))
-        plt.title('ETF Hierarchical Clustering Dendrogram')
-        plt.xlabel('ETF Ticker')
-        plt.ylabel('Distance')
-        dendrogram(linked, 
-                labels=dist_matrix.columns,
-                leaf_rotation=90,
-                leaf_font_size=10)
-        plt.tight_layout()
-        plt.show()
+        # plt.figure(figsize=(12, 6))
+        # plt.title('ETF Hierarchical Clustering Dendrogram')
+        # plt.xlabel('ETF Ticker')
+        # plt.ylabel('Distance')
+        # dendrogram(linked, 
+        #         labels=dist_matrix.columns,
+        #         leaf_rotation=90,
+        #         leaf_font_size=10)
+        # plt.tight_layout()
+        # plt.show()
         print("before cutting the dendrogram:")
         distance = self.calc_elbow_point(linked)
         print(f"选择切割距离: {distance:.4f}")
@@ -112,7 +112,7 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         n_clusters = len(np.unique(final_labels))
         while n_clusters <= self.min_clusters:
             print(f"聚类数量 {n_clusters} 小于最小要求 {self.min_clusters}，尝试增加切割距离。")
-            distance *= 0.8  # 增加切割距离
+            distance *= 0.95  # 增加切割距离
             final_labels = fcluster(linked, t=distance, criterion='distance') - 1
             n_clusters = len(np.unique(final_labels))
             print(f"调整后聚类数量: {n_clusters}，切割距离: {distance:.4f}")
