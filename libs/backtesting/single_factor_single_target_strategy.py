@@ -6,7 +6,9 @@ import backtrader as bt
 class SingleFactorSingleTargetDataFeed(bt.feeds.PandasData):
     # Expose custom factor signal line to strategy.
     lines = ("signal",)
-    params = (("signal", -1),)
+    # Default mapping reads from a column literally named "signal".
+    # Engine can override it dynamically, e.g. signal="NewHigh".
+    params = (("signal", "signal"),)
 
 
 class SingleFactorSingleTargetStrategy(bt.Strategy):

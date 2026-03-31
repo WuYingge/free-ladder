@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterable, Optional, cast
 
 import backtrader as bt
 
@@ -30,6 +30,11 @@ class SingleFactorSingleTargetBacktestConfig:
     data_dir: Optional[str | Path] = None
     buy_signal: float = 1.0
     sell_signal: float = -1.0
+    # If None, engine uses factor.name as the source signal column.
+    signal_column: Optional[str] = None
+    strategy_cls: type[bt.Strategy] = SingleFactorSingleTargetStrategy
+    data_feed_cls: type[bt.feeds.PandasData] = SingleFactorSingleTargetDataFeed
+    strategy_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -52,16 +57,6 @@ class SingleFactorSingleTargetBacktestResult:
     trades_lost: int
     analyzer_raw: dict[str, Any]
 
-
-@dataclass(slots=True)
-class SingleFactorSingleTargetBatchBacktestResult:
-    total_symbols: int
-    success_count: int
-    failure_count: int
-    results: list[SingleFactorSingleTargetBacktestResult]
-    errors: list[dict[str, str]]
-
-
 def _safe_extract_sharpe(analysis: dict[str, Any]) -> Optional[float]:
     value = analysis.get("sharperatio") if analysis else None
     if value is None:
@@ -69,26 +64,96 @@ def _safe_extract_sharpe(analysis: dict[str, Any]) -> Optional[float]:
     return float(value)
 
 
+def _extract_strategy_param_names(strategy_cls: type[bt.Strategy]) -> set[str]:
+    params = getattr(strategy_cls, "params", None)
+    if params is None:
+        return set()
+
+    get_keys = getattr(params, "_getkeys", None)
+    if callable(get_keys):
+        try:
+            keys = cast(Iterable[Any], get_keys())
+            return {str(key) for key in keys}
+        except TypeError:
+            return set()
+
+    try:
+        return {str(name) for name, _ in params}
+    except TypeError:
+        return set()
+
+
+def _extract_datafeed_param_names(data_feed_cls: type[bt.feeds.PandasData]) -> set[str]:
+    params = getattr(data_feed_cls, "params", None)
+    if params is None:
+        return set()
+
+    get_keys = getattr(params, "_getkeys", None)
+    if callable(get_keys):
+        try:
+            keys = cast(Iterable[Any], get_keys())
+            return {str(key) for key in keys}
+        except TypeError:
+            return set()
+
+    try:
+        return {str(name) for name, _ in params}
+    except TypeError:
+        return set()
+
+
+def _resolve_signal_column(config: SingleFactorSingleTargetBacktestConfig) -> str:
+    if config.signal_column:
+        return config.signal_column
+
+    factor_name = getattr(config.factor, "name", None)
+    if isinstance(factor_name, str) and factor_name.strip():
+        return factor_name.strip()
+
+    return "signal"
+
+
+def _build_strategy_kwargs(
+    config: SingleFactorSingleTargetBacktestConfig,
+) -> dict[str, Any]:
+    strategy_kwargs = dict(config.strategy_kwargs)
+    accepted_params = _extract_strategy_param_names(config.strategy_cls)
+    default_strategy_kwargs = {
+        "stake": config.stake,
+        "buy_signal": config.buy_signal,
+        "sell_signal": config.sell_signal,
+    }
+
+    for key, value in default_strategy_kwargs.items():
+        if key in accepted_params and key not in strategy_kwargs:
+            strategy_kwargs[key] = value
+
+    return strategy_kwargs
+
+
 def run_single_factor_single_target_backtest(
     config: SingleFactorSingleTargetBacktestConfig,
 ) -> SingleFactorSingleTargetBacktestResult:
+    signal_column = _resolve_signal_column(config)
+
     # 1) Load CSV and compute factor signal into a Backtrader-compatible DataFrame.
     feed_df = build_bt_feed_dataframe(
         symbol=config.symbol,
         factor=config.factor,
         data_dir=config.data_dir,
+        signal_name=signal_column,
     )
 
     cerebro = bt.Cerebro()
-    data_feed = SingleFactorSingleTargetDataFeed(dataname=feed_df)  # type: ignore[call-arg]
+    data_feed_kwargs: dict[str, Any] = {}
+    data_feed_param_names = _extract_datafeed_param_names(config.data_feed_cls)
+    if "signal" in data_feed_param_names:
+        data_feed_kwargs["signal"] = signal_column
+
+    data_feed = config.data_feed_cls(dataname=feed_df, **data_feed_kwargs)  # type: ignore[call-arg]
     cerebro.adddata(data_feed, name=config.symbol)
-    # 2) Strategy only consumes `signal` and converts it to orders.
-    cerebro.addstrategy(
-        SingleFactorSingleTargetStrategy,
-        stake=config.stake,
-        buy_signal=config.buy_signal,
-        sell_signal=config.sell_signal,
-    )
+    # 2) Strategy consumes feed lines and converts them into orders.
+    cerebro.addstrategy(config.strategy_cls, **_build_strategy_kwargs(config))
 
     cerebro.broker.setcash(config.cash)
     cerebro.broker.setcommission(commission=config.commission)
@@ -101,6 +166,11 @@ def run_single_factor_single_target_backtest(
         cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe")
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
+    # TimeReturn provides daily portfolio value changes needed for IR / excess return.
+    if timeframe is not None:
+        cerebro.addanalyzer(bt.analyzers.TimeReturn, _name="time_return", timeframe=timeframe)
+    else:
+        cerebro.addanalyzer(bt.analyzers.TimeReturn, _name="time_return")
 
     start_value = float(cerebro.broker.getvalue())
     result = cerebro.run()[0]
@@ -111,6 +181,7 @@ def run_single_factor_single_target_backtest(
     sharpe_analysis = result.analyzers.sharpe.get_analysis()
     drawdown_analysis = result.analyzers.drawdown.get_analysis()
     trade_analysis = result.analyzers.trades.get_analysis()
+    time_return_analysis = result.analyzers.time_return.get_analysis()
 
     max_dd = drawdown_analysis.get("max", {}).get("drawdown")
     trades_total = int(trade_analysis.get("total", {}).get("total", 0) or 0)
@@ -133,74 +204,7 @@ def run_single_factor_single_target_backtest(
             "sharpe": sharpe_analysis,
             "drawdown": drawdown_analysis,
             "trades": trade_analysis,
+            # keyed by datetime.date → daily return fraction (e.g. 0.01 = +1%)
+            "time_return": {str(k): v for k, v in time_return_analysis.items()},
         },
     )
-
-
-def _discover_etf_symbols(data_dir: Optional[str | Path]) -> list[str]:
-    if data_dir is None:
-        project_root = Path(__file__).resolve().parents[2]
-        candidate = project_root / "data" / "etf_data"
-    else:
-        candidate = Path(data_dir)
-
-    if not candidate.exists() or not candidate.is_dir():
-        raise FileNotFoundError(f"ETF data directory not found: {candidate}")
-
-    return sorted(path.stem for path in candidate.glob("*.csv"))
-
-
-def run_single_factor_single_target_backtest_all_etfs(
-    factor: BaseFactor,
-    *,
-    symbols: Optional[list[str]] = None,
-    cash: float = 100000.0,
-    commission: float = 0.0005,
-    stake: int = 100,
-    data_dir: Optional[str | Path] = None,
-    buy_signal: float = 1.0,
-    sell_signal: float = -1.0,
-) -> SingleFactorSingleTargetBatchBacktestResult:
-    """Run a single-factor strategy backtest for all ETF symbols.
-
-    By default, symbols are auto-discovered from `data/etf_data/*.csv`.
-    You can pass `symbols` to limit scope and/or `data_dir` to override source.
-    """
-
-    symbol_list = symbols if symbols is not None else _discover_etf_symbols(data_dir)
-    results: list[SingleFactorSingleTargetBacktestResult] = []
-    errors: list[dict[str, str]] = []
-
-    for symbol in symbol_list:
-        try:
-            result = run_single_factor_single_target_backtest(
-                SingleFactorSingleTargetBacktestConfig(
-                    symbol=symbol,
-                    factor=factor,
-                    cash=cash,
-                    commission=commission,
-                    stake=stake,
-                    data_dir=data_dir,
-                    buy_signal=buy_signal,
-                    sell_signal=sell_signal,
-                )
-            )
-            results.append(result)
-        except Exception as exc:
-            errors.append({"symbol": symbol, "error": str(exc)})
-
-    return SingleFactorSingleTargetBatchBacktestResult(
-        total_symbols=len(symbol_list),
-        success_count=len(results),
-        failure_count=len(errors),
-        results=results,
-        errors=errors,
-    )
-
-
-# Backward-compatible aliases for existing imports.
-BacktestConfig = SingleFactorSingleTargetBacktestConfig
-BacktestResult = SingleFactorSingleTargetBacktestResult
-BatchBacktestResult = SingleFactorSingleTargetBatchBacktestResult
-run_backtest = run_single_factor_single_target_backtest
-run_backtest_all_etfs = run_single_factor_single_target_backtest_all_etfs
