@@ -6,7 +6,7 @@ from typing import Any, Iterable, Optional, cast
 
 import backtrader as bt
 
-from .custom_strategy_example import ExampleCustomTimingStrategy
+from .strategies import ExampleCustomTimingStrategy
 from .data import build_bt_feed_dataframe
 
 

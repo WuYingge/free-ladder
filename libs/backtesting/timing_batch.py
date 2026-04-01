@@ -16,7 +16,7 @@ Typical notebook usage
 ::
 
     from backtesting.timing_batch import run_timing_backtest_batch, TimingBatchConfig
-    from backtesting.custom_strategy_example import ExampleCustomTimingStrategy
+    from backtesting.strategies import ExampleCustomTimingStrategy
 
     batch_cfg = TimingBatchConfig(
         cash=100_000,
@@ -53,7 +53,7 @@ from backtesting.performance import (
     build_equity_curves,
     compute_performance_metrics,
 )
-from backtesting.custom_strategy_example import ExampleCustomTimingStrategy
+from backtesting.strategies import ExampleCustomTimingStrategy
 from backtesting.data import load_etf_dataframe
 from core.models.etf_daily_data import EtfData
 
