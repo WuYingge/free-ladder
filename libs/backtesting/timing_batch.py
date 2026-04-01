@@ -7,8 +7,8 @@ Design principles
 -----------------
 * Filter logic runs in the **main process** (notebook-defined functions are not
   picklable and cannot be sent to worker processes).
-* Only fully-serialisable objects (config dataclasses, BaseFactor instances) are
-  sent to worker processes.
+* Only fully-serialisable config and strategy objects are sent to worker
+    processes.
 * Each worker task is fully independent: one symbol → one Cerebro run.
 
 Typical notebook usage
@@ -16,13 +16,13 @@ Typical notebook usage
 ::
 
     from backtesting.timing_batch import run_timing_backtest_batch, TimingBatchConfig
-    from factors.new_high import NewHigh
+    from backtesting.custom_strategy_example import ExampleCustomTimingStrategy
 
     batch_cfg = TimingBatchConfig(
-        factor=NewHigh(high_window=50, low_window=25),
         cash=100_000,
         commission=0.0005,
         max_workers=8,
+        strategy_cls=ExampleCustomTimingStrategy,
         output_dir="data/backtest_results/timing_run_01",
     )
 
@@ -53,13 +53,9 @@ from backtesting.performance import (
     build_equity_curves,
     compute_performance_metrics,
 )
+from backtesting.custom_strategy_example import ExampleCustomTimingStrategy
 from backtesting.data import load_etf_dataframe
-from backtesting.single_factor_single_target_strategy import (
-    SingleFactorSingleTargetDataFeed,
-    SingleFactorSingleTargetStrategy,
-)
 from core.models.etf_daily_data import EtfData
-from factors.base_factor import BaseFactor
 
 
 # ---------------------------------------------------------------------------
@@ -70,12 +66,9 @@ from factors.base_factor import BaseFactor
 class TimingBatchConfig:
     """Configuration shared across all single-symbol timing backtests in a batch."""
 
-    factor: BaseFactor
     cash: float = 100_000.0
     commission: float = 0.0005
     stake: int = 100
-    buy_signal: float = 1.0
-    sell_signal: float = -1.0
     # Parallel worker count.  None → os.cpu_count()
     max_workers: int = 4
     # Where to write summary.csv, details.json, run_metadata.json.
@@ -83,8 +76,8 @@ class TimingBatchConfig:
     output_dir: Optional[str | Path] = None
     # Optional path override for ETF CSV data (forwarded to engine).
     data_dir: Optional[str | Path] = None
-    strategy_cls: type = SingleFactorSingleTargetStrategy
-    data_feed_cls: type = SingleFactorSingleTargetDataFeed
+    strategy_cls: type = ExampleCustomTimingStrategy
+    data_feed_cls: Optional[type] = None
     strategy_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -114,15 +107,12 @@ class TimingSymbolResult:
 
 def _backtest_worker(
     symbol: str,
-    factor: BaseFactor,
     cash: float,
     commission: float,
     stake: int,
-    buy_signal: float,
-    sell_signal: float,
     data_dir: Optional[str | Path],
     strategy_cls: type,
-    data_feed_cls: type,
+    data_feed_cls: Optional[type],
     strategy_kwargs: dict[str, Any],
 ) -> tuple[str, Optional[SingleFactorSingleTargetBacktestResult], Optional[str]]:
     """Run one single-symbol backtest; returns (symbol, result, error_str)."""
@@ -130,13 +120,10 @@ def _backtest_worker(
         result = run_single_factor_single_target_backtest(
             SingleFactorSingleTargetBacktestConfig(
                 symbol=symbol,
-                factor=factor,
                 cash=cash,
                 commission=commission,
                 stake=stake,
                 data_dir=data_dir,
-                buy_signal=buy_signal,
-                sell_signal=sell_signal,
                 strategy_cls=strategy_cls,
                 data_feed_cls=data_feed_cls,
                 strategy_kwargs=strategy_kwargs,
@@ -179,7 +166,8 @@ def _validate_parallel_payload(payload: Any, label: str, workers: int) -> None:
 
 def _validate_parallel_config(config: TimingBatchConfig, workers: int) -> None:
     _validate_parallel_class(config.strategy_cls, "strategy_cls", workers)
-    _validate_parallel_class(config.data_feed_cls, "data_feed_cls", workers)
+    if config.data_feed_cls is not None:
+        _validate_parallel_class(config.data_feed_cls, "data_feed_cls", workers)
     _validate_parallel_payload(config.strategy_kwargs, "strategy_kwargs", workers)
 
 
@@ -236,12 +224,9 @@ def run_timing_backtest_batch(
             executor.submit(
                 _backtest_worker,
                 sym,
-                config.factor,
                 config.cash,
                 config.commission,
                 config.stake,
-                config.buy_signal,
-                config.sell_signal,
                 config.data_dir,
                 config.strategy_cls,
                 config.data_feed_cls,
@@ -380,16 +365,17 @@ def _save_results(
         "success_count": int(summary_df["error"].isna().sum()) if "error" in summary_df.columns else total_symbols,
         "failure_count": len(error_list),
         "config": {
-            "factor": repr(config.factor),
             "cash": config.cash,
             "commission": config.commission,
             "stake": config.stake,
-            "buy_signal": config.buy_signal,
-            "sell_signal": config.sell_signal,
             "max_workers": config.max_workers,
             "data_dir": str(config.data_dir) if config.data_dir else None,
             "strategy_cls": f"{config.strategy_cls.__module__}.{config.strategy_cls.__qualname__}",
-            "data_feed_cls": f"{config.data_feed_cls.__module__}.{config.data_feed_cls.__qualname__}",
+            "data_feed_cls": (
+                f"{config.data_feed_cls.__module__}.{config.data_feed_cls.__qualname__}"
+                if config.data_feed_cls is not None
+                else None
+            ),
             "strategy_kwargs": config.strategy_kwargs,
         },
     }

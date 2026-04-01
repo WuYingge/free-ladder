@@ -6,34 +6,27 @@ from typing import Any, Iterable, Optional, cast
 
 import backtrader as bt
 
-from factors.base_factor import BaseFactor
+from .custom_strategy_example import ExampleCustomTimingStrategy
 from .data import build_bt_feed_dataframe
-from .single_factor_single_target_strategy import (
-    SingleFactorSingleTargetDataFeed,
-    SingleFactorSingleTargetStrategy,
-)
 
 
 @dataclass(slots=True)
 class SingleFactorSingleTargetBacktestConfig:
     """Single-instrument backtest configuration.
 
-    `factor` is the strategy signal source and should return a Series aligned
-    with the ETF price index, typically with buy/sell values such as 1/-1.
+    The engine only loads data and runs strategy execution.
+    Any factor combination and signal logic should be implemented in
+    ``strategy_cls.next()`` based on feed lines.
     """
 
     symbol: str
-    factor: BaseFactor
     cash: float = 100000.0
     commission: float = 0.0005
     stake: int = 100
     data_dir: Optional[str | Path] = None
-    buy_signal: float = 1.0
-    sell_signal: float = -1.0
-    # If None, engine uses factor.name as the source signal column.
-    signal_column: Optional[str] = None
-    strategy_cls: type[bt.Strategy] = SingleFactorSingleTargetStrategy
-    data_feed_cls: type[bt.feeds.PandasData] = SingleFactorSingleTargetDataFeed
+    strategy_cls: type[bt.Strategy] = ExampleCustomTimingStrategy
+    # If None, engine creates a PandasData subclass exposing all extra columns.
+    data_feed_cls: Optional[type[bt.feeds.PandasData]] = None
     strategy_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -102,15 +95,22 @@ def _extract_datafeed_param_names(data_feed_cls: type[bt.feeds.PandasData]) -> s
         return set()
 
 
-def _resolve_signal_column(config: SingleFactorSingleTargetBacktestConfig) -> str:
-    if config.signal_column:
-        return config.signal_column
+def _build_auto_data_feed_cls(feed_df_columns: Iterable[str]) -> type[bt.feeds.PandasData]:
+    reserved_columns = {"open", "high", "low", "close", "volume", "openinterest"}
+    extra_columns = tuple(column for column in feed_df_columns if column not in reserved_columns)
+    params = tuple((column, column) for column in extra_columns)
 
-    factor_name = getattr(config.factor, "name", None)
-    if isinstance(factor_name, str) and factor_name.strip():
-        return factor_name.strip()
-
-    return "signal"
+    return cast(
+        type[bt.feeds.PandasData],
+        type(
+            "AutoFactorPandasDataFeed",
+            (bt.feeds.PandasData,),
+            {
+                "lines": extra_columns,
+                "params": params,
+            },
+        ),
+    )
 
 
 def _build_strategy_kwargs(
@@ -120,8 +120,6 @@ def _build_strategy_kwargs(
     accepted_params = _extract_strategy_param_names(config.strategy_cls)
     default_strategy_kwargs = {
         "stake": config.stake,
-        "buy_signal": config.buy_signal,
-        "sell_signal": config.sell_signal,
     }
 
     for key, value in default_strategy_kwargs.items():
@@ -134,23 +132,21 @@ def _build_strategy_kwargs(
 def run_single_factor_single_target_backtest(
     config: SingleFactorSingleTargetBacktestConfig,
 ) -> SingleFactorSingleTargetBacktestResult:
-    signal_column = _resolve_signal_column(config)
-
-    # 1) Load CSV and compute factor signal into a Backtrader-compatible DataFrame.
+    # 1) Load CSV into a Backtrader-compatible DataFrame.
     feed_df = build_bt_feed_dataframe(
         symbol=config.symbol,
-        factor=config.factor,
         data_dir=config.data_dir,
-        signal_name=signal_column,
     )
 
     cerebro = bt.Cerebro()
+    data_feed_cls = config.data_feed_cls or _build_auto_data_feed_cls(feed_df.columns)
+    data_feed_param_names = _extract_datafeed_param_names(data_feed_cls)
     data_feed_kwargs: dict[str, Any] = {}
-    data_feed_param_names = _extract_datafeed_param_names(config.data_feed_cls)
-    if "signal" in data_feed_param_names:
-        data_feed_kwargs["signal"] = signal_column
+    # Keep signal mapping compatibility when feed exposes a signal param.
+    if "signal" in data_feed_param_names and "signal" in feed_df.columns:
+        data_feed_kwargs["signal"] = "signal"
 
-    data_feed = config.data_feed_cls(dataname=feed_df, **data_feed_kwargs)  # type: ignore[call-arg]
+    data_feed = data_feed_cls(dataname=feed_df, **data_feed_kwargs)  # type: ignore[call-arg]
     cerebro.adddata(data_feed, name=config.symbol)
     # 2) Strategy consumes feed lines and converts them into orders.
     cerebro.addstrategy(config.strategy_cls, **_build_strategy_kwargs(config))

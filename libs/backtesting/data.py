@@ -6,7 +6,6 @@ from typing import Optional
 import pandas as pd
 
 from data_manager.etf_data_manager import get_etf_data_by_symbol, get_etf_data_by_symbols
-from factors.base_factor import BaseFactor
 
 
 DEFAULT_COLUMNS = ["open", "high", "low", "close", "volume"]
@@ -57,17 +56,21 @@ def load_etf_dataframes(symbols: list[str]) -> dict[str, pd.DataFrame]:
 
 def build_bt_feed_dataframe(
     symbol: str,
-    factor: BaseFactor,
     data_dir: Optional[str | Path] = None,
-    signal_name: str = "signal",
 ) -> pd.DataFrame:
     df = load_etf_dataframe(symbol=symbol, data_dir=data_dir)
-    # Keep factor execution decoupled from original frame to avoid side effects.
-    signal = pd.Series(factor(df.copy()), index=df.index, name=signal_name)
-    signal = pd.to_numeric(signal, errors="coerce").fillna(0)
 
     # Extra `openinterest` is required by PandasData default schema.
     bt_df = df[["open", "high", "low", "close", "volume"]].copy()
     bt_df["openinterest"] = 0.0
-    bt_df[signal_name] = signal.astype(float)
+
+    # Keep all additional numeric columns (e.g. value/turnOver/factor columns)
+    # so strategy.next() can compose arbitrary entry/exit logic.
+    reserved = set(DEFAULT_COLUMNS + ["openinterest"])
+    extra_columns = [column for column in df.columns if column not in reserved]
+    for column in extra_columns:
+        numeric_series = pd.to_numeric(df[column], errors="coerce")
+        if numeric_series.notna().any():
+            bt_df[column] = numeric_series.fillna(0.0).astype(float)
+
     return bt_df
