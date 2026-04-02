@@ -54,7 +54,7 @@ from backtesting.performance import (
     compute_performance_metrics,
 )
 from backtesting.strategies import ExampleCustomTimingStrategy
-from backtesting.data import load_etf_dataframe
+from backtesting.data import build_bt_feed_dataframe_from_etf_data, load_etf_dataframe
 from core.models.etf_daily_data import EtfData
 
 
@@ -111,6 +111,7 @@ def _backtest_worker(
     commission: float,
     stake: int,
     data_dir: Optional[str | Path],
+    feed_df: Optional[pd.DataFrame],
     strategy_cls: type,
     data_feed_cls: Optional[type],
     strategy_kwargs: dict[str, Any],
@@ -124,6 +125,7 @@ def _backtest_worker(
                 commission=commission,
                 stake=stake,
                 data_dir=data_dir,
+                feed_df=feed_df,
                 strategy_cls=strategy_cls,
                 data_feed_cls=data_feed_cls,
                 strategy_kwargs=strategy_kwargs,
@@ -219,21 +221,34 @@ def run_timing_backtest_batch(
     if workers > 1:
         _validate_parallel_config(config, workers)
 
+    feed_df_by_symbol: dict[str, Optional[pd.DataFrame]] = {}
+    for sym in filtered_symbols:
+        etf = etf_data_map.get(sym)
+        if etf is None:
+            feed_df_by_symbol[sym] = None
+            continue
+        try:
+            feed_df_by_symbol[sym] = build_bt_feed_dataframe_from_etf_data(etf)
+        except Exception:
+            # Fall back to worker-side disk loading for malformed in-memory payload.
+            feed_df_by_symbol[sym] = None
+
     with ProcessPoolExecutor(max_workers=workers) as executor:
-        future_to_symbol = {
-            executor.submit(
+        future_to_symbol = {}
+        for sym in filtered_symbols:
+            future = executor.submit(
                 _backtest_worker,
                 sym,
                 config.cash,
                 config.commission,
                 config.stake,
                 config.data_dir,
+                feed_df_by_symbol.get(sym),
                 config.strategy_cls,
                 config.data_feed_cls,
                 dict(config.strategy_kwargs),
-            ): sym
-            for sym in filtered_symbols
-        }
+            )
+            future_to_symbol[future] = sym
         done = 0
         for future in as_completed(future_to_symbol):
             sym, result, err = future.result()

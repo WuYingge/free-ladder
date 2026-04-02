@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Any, Iterable, Optional, cast
 
 import backtrader as bt
+import pandas as pd
 
 from .strategies import ExampleCustomTimingStrategy
-from .data import build_bt_feed_dataframe
+from .data import build_bt_feed_dataframe, build_bt_feed_dataframe_from_dataframe
 
 
 @dataclass(slots=True)
@@ -28,6 +29,8 @@ class SingleFactorSingleTargetBacktestConfig:
     # If None, engine creates a PandasData subclass exposing all extra columns.
     data_feed_cls: Optional[type[bt.feeds.PandasData]] = None
     strategy_kwargs: dict[str, Any] = field(default_factory=dict)
+    # Optional in-memory source (usually from preprocessed EtfData with factors).
+    feed_df: Optional[pd.DataFrame] = None
 
 
 @dataclass(slots=True)
@@ -133,10 +136,16 @@ def run_single_factor_single_target_backtest(
     config: SingleFactorSingleTargetBacktestConfig,
 ) -> SingleFactorSingleTargetBacktestResult:
     # 1) Load CSV into a Backtrader-compatible DataFrame.
-    feed_df = build_bt_feed_dataframe(
-        symbol=config.symbol,
-        data_dir=config.data_dir,
-    )
+    if config.feed_df is not None:
+        feed_df = build_bt_feed_dataframe_from_dataframe(
+            config.feed_df,
+            source=f"in_memory:{config.symbol}",
+        )
+    else:
+        feed_df = build_bt_feed_dataframe(
+            symbol=config.symbol,
+            data_dir=config.data_dir,
+        )
 
     cerebro = bt.Cerebro()
     data_feed_cls = config.data_feed_cls or _build_auto_data_feed_cls(feed_df.columns)
