@@ -47,6 +47,7 @@ class RsrsFactor(BaseFactor):
         # output 控制这个因子最终返回哪一层结果，既可返回最终 signal，
         # 也可返回中间结果用于调试或分析。
         self.output = output
+        self.warmup_period = int(max(regression_window, zscore_window))
         self.params = {
             "regression_window": regression_window,
             "zscore_window": zscore_window,

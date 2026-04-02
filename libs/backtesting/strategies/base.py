@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 import backtrader as bt
+from factors.base_factor import BaseFactor
 
 
 class BaseFactorTimingStrategy(bt.Strategy):
@@ -11,11 +12,46 @@ class BaseFactorTimingStrategy(bt.Strategy):
     Convention:
     - Strategy params that map to feed factor columns should use ``*_column``.
     - Column params can be required or optional.
+    - ``factor_warmup_bars`` declares per-factor warm-up bars; batch metrics
+      use the maximum declared value as the analysis warm-up period.
     """
+
+    # Per-factor warm-up bars declared by subclass, for example:
+    # {"RSRS": 600, "ATR_50": 50}
+    factor_warmup_bars: dict[str, int] = {}
+    # Preferred: declare concrete factor instances used by strategy so warm-up
+    # can be derived from factor definitions and dependencies.
+    involved_factors: tuple[BaseFactor, ...] = ()
 
     params = (
         ("target_percent", 0.95),
     )
+
+    @classmethod
+    def get_max_warmup_bars(cls) -> int:
+        """Return strategy warm-up bars derived from factors or legacy map."""
+        if cls.involved_factors:
+            max_warmup = 0
+            for factor in cls.involved_factors:
+                factor_warmup = int(factor.get_max_warmup_period())
+                if factor_warmup > max_warmup:
+                    max_warmup = factor_warmup
+            return max_warmup
+
+        if not cls.factor_warmup_bars:
+            return 0
+
+        max_warmup = 0
+        for factor_name, bars in cls.factor_warmup_bars.items():
+            bars_int = int(bars)
+            if bars_int < 0:
+                raise ValueError(
+                    f"Invalid warm-up bars for factor '{factor_name}': {bars_int}. "
+                    "Expected a non-negative integer."
+                )
+            if bars_int > max_warmup:
+                max_warmup = bars_int
+        return max_warmup
 
     def bind_required_line(self, data: bt.LineSeries, column: str):
         """Bind and validate a required feed line by column name."""

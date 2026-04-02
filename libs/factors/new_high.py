@@ -27,6 +27,7 @@ class NewHigh(BaseFactor):
         super().__init__()
         self.high_window = high_window
         self.low_window = low_window
+        self.warmup_period = int(max(high_window, low_window))
         self.params = {
             "high_window": high_window,
             "low_window": low_window

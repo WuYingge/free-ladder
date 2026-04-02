@@ -4,6 +4,7 @@ from .strategies import (
     ExampleCustomTimingStrategy,
     MinimalFactorTimingStrategyTemplate,
     MultiFactorTimingStrategy,
+    NewHighBATRSTimingStrategy,
 )
 from .engine import (
     SingleFactorSingleTargetBacktestConfig,
@@ -26,6 +27,7 @@ __all__ = [
     "ExampleCustomTimingStrategy",
     "MinimalFactorTimingStrategyTemplate",
     "MultiFactorTimingStrategy",
+    "NewHighBATRSTimingStrategy",
     "SingleFactorSingleTargetBacktestConfig",
     "SingleFactorSingleTargetBacktestResult",
     "run_single_factor_single_target_backtest",

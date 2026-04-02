@@ -19,7 +19,7 @@ which records the fractional change in total portfolio value each day
 from __future__ import annotations
 
 import math
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -54,6 +54,17 @@ def _compute_bnh_returns(price_df: pd.DataFrame) -> pd.Series:
     return returns.astype(float)
 
 
+def _apply_analysis_start_date(
+    returns: pd.Series,
+    analysis_start_date: Optional[pd.Timestamp],
+) -> pd.Series:
+    """Trim return series to dates on/after ``analysis_start_date`` when provided."""
+    if analysis_start_date is None or len(returns) == 0:
+        return returns
+    start = pd.to_datetime(analysis_start_date)
+    return returns.loc[returns.index >= start]
+
+
 # ---------------------------------------------------------------------------
 # Core metrics  (operate on a single return Series, 252 trading days / year)
 # ---------------------------------------------------------------------------
@@ -63,8 +74,9 @@ def annualised_return(returns: pd.Series) -> float:
     n = len(returns)
     if n == 0:
         return float("nan")
-    cumulative = (1.0 + returns).prod()
-    return float(cumulative ** (TRADING_DAYS_PER_YEAR / n) - 1.0)
+    cumulative_raw: Any = (1.0 + returns).prod()
+    cumulative = float(cumulative_raw)
+    return cumulative ** (TRADING_DAYS_PER_YEAR / n) - 1.0
 
 
 def annualised_volatility(returns: pd.Series) -> float:
@@ -119,7 +131,9 @@ def cumulative_return(returns: pd.Series) -> float:
     """Total cumulative return over all periods."""
     if len(returns) == 0:
         return float("nan")
-    return float((1.0 + returns).prod() - 1.0)
+    cumulative_raw: Any = (1.0 + returns).prod()
+    cumulative = float(cumulative_raw)
+    return cumulative - 1.0
 
 
 def equity_curve(returns: pd.Series, start: float = 1.0) -> pd.Series:
@@ -141,6 +155,7 @@ def compute_performance_metrics(
     trades_won: int = 0,
     trades_lost: int = 0,
     max_drawdown_pct_from_engine: Optional[float] = None,
+    analysis_start_date: Optional[pd.Timestamp] = None,
 ) -> dict:
     """Return a flat dict of all performance metrics for one symbol.
 
@@ -158,9 +173,15 @@ def compute_performance_metrics(
     max_drawdown_pct_from_engine:
         Engine-level max drawdown (from Backtrader ``DrawDown`` analyser) used as
         a cross-check fallback; if None we compute it from the return series.
+    analysis_start_date:
+        Optional backtest analysis start date. When provided, strategy and
+        benchmark return series are both trimmed to this date and later.
     """
     strat_ret = _to_series(strategy_time_return)
     bench_ret = _compute_bnh_returns(price_df)
+
+    strat_ret = _apply_analysis_start_date(strat_ret, analysis_start_date)
+    bench_ret = _apply_analysis_start_date(bench_ret, analysis_start_date)
 
     # Align to common date window (strategy determines the active period).
     if len(strat_ret) >= 2:
@@ -218,6 +239,7 @@ def compute_performance_metrics(
 def build_equity_curves(
     strategy_time_return: dict[str, float],
     price_df: pd.DataFrame,
+    analysis_start_date: Optional[pd.Timestamp] = None,
 ) -> pd.DataFrame:
     """Build a DataFrame with ``strategy`` and ``benchmark`` equity curves.
 
@@ -226,6 +248,9 @@ def build_equity_curves(
     """
     strat_ret = _to_series(strategy_time_return)
     bench_ret = _compute_bnh_returns(price_df)
+
+    strat_ret = _apply_analysis_start_date(strat_ret, analysis_start_date)
+    bench_ret = _apply_analysis_start_date(bench_ret, analysis_start_date)
 
     if len(strat_ret) == 0:
         return pd.DataFrame(columns=["strategy", "benchmark"])

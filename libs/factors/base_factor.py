@@ -6,6 +6,7 @@ class BaseFactor(ABC):
     
     name: str
     params: dict[str, Any] = {}
+    warmup_period: int = 0
     
     def __init__(self) -> None:
         self._dependencies: list[BaseFactor] = []
@@ -40,3 +41,22 @@ class BaseFactor(ABC):
         for dependency in self._dependencies:
             results[dependency] = dependency(data)
         return results
+
+    def get_warmup_period(self) -> int:
+        """Return this factor's own warm-up period in bars."""
+        warmup = int(self.warmup_period)
+        if warmup < 0:
+            raise ValueError(
+                f"Invalid warmup_period for factor {self.name}: {warmup}. "
+                "Expected a non-negative integer."
+            )
+        return warmup
+
+    def get_max_warmup_period(self) -> int:
+        """Return max warm-up across this factor and all dependencies."""
+        max_warmup = self.get_warmup_period()
+        for dependency in self._dependencies:
+            dep_warmup = dependency.get_max_warmup_period()
+            if dep_warmup > max_warmup:
+                max_warmup = dep_warmup
+        return max_warmup

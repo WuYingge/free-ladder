@@ -15,6 +15,7 @@ class AverageTrueRange(BaseFactor):
         ):
         super().__init__()
         self.window = window
+        self.warmup_period = int(window)
     
     def __call__(self, data: pd.DataFrame) -> pd.Series:
         high = data['high']

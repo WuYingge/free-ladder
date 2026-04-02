@@ -79,6 +79,12 @@ class TimingBatchConfig:
     strategy_cls: type = ExampleCustomTimingStrategy
     data_feed_cls: Optional[type] = None
     strategy_kwargs: dict[str, Any] = field(default_factory=dict)
+    # Prefer providing factors from notebook/preprocessing pipeline so strategy
+    # logic remains stable while factor params change frequently.
+    analysis_factors: tuple[Any, ...] = field(default_factory=tuple)
+    # Explicit warm-up bars override. If None, infer from analysis_factors,
+    # then fall back to strategy_cls.get_max_warmup_bars().
+    analysis_warmup_bars: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +179,65 @@ def _validate_parallel_config(config: TimingBatchConfig, workers: int) -> None:
     _validate_parallel_payload(config.strategy_kwargs, "strategy_kwargs", workers)
 
 
+def _max_warmup_from_factors(factors: tuple[Any, ...]) -> Optional[int]:
+    """Return max warm-up bars from factor instances exposing get_max_warmup_period()."""
+    if not factors:
+        return None
+
+    max_warmup = 0
+    seen_valid_factor = False
+    for factor in factors:
+        getter = getattr(factor, "get_max_warmup_period", None)
+        if not callable(getter):
+            continue
+        seen_valid_factor = True
+        warmup_raw: Any = getter()
+        warmup = int(warmup_raw)
+        if warmup < 0:
+            raise ValueError(f"Invalid factor warm-up bars: {warmup}. Expected >= 0.")
+        if warmup > max_warmup:
+            max_warmup = warmup
+
+    if not seen_valid_factor:
+        return None
+    return max_warmup
+
+
+def _resolve_analysis_warmup_bars(config: TimingBatchConfig) -> int:
+    """Resolve warm-up bars with priority: explicit > factors > strategy fallback."""
+    if config.analysis_warmup_bars is not None:
+        warmup = int(config.analysis_warmup_bars)
+        if warmup < 0:
+            raise ValueError("analysis_warmup_bars must be a non-negative integer.")
+        return warmup
+
+    warmup_from_factors = _max_warmup_from_factors(config.analysis_factors)
+    if warmup_from_factors is not None:
+        return warmup_from_factors
+
+    get_max_warmup_bars = getattr(config.strategy_cls, "get_max_warmup_bars", None)
+    if callable(get_max_warmup_bars):
+        warmup_raw: Any = get_max_warmup_bars()
+        warmup = int(warmup_raw)
+        if warmup < 0:
+            raise ValueError("strategy warm-up bars must be a non-negative integer.")
+        return warmup
+
+    return 0
+
+
+def _analysis_start_date_from_warmup_bars(
+    warmup_bars: int,
+    price_df: pd.DataFrame,
+) -> Optional[pd.Timestamp]:
+    """Convert resolved warm-up bars into analysis start date for one symbol."""
+    if len(price_df) == 0 or warmup_bars <= 0:
+        return None
+    if len(price_df.index) <= warmup_bars:
+        return None
+    return pd.to_datetime(price_df.index[warmup_bars])
+
+
 # ---------------------------------------------------------------------------
 # Public orchestration entry point
 # ---------------------------------------------------------------------------
@@ -220,6 +285,8 @@ def run_timing_backtest_batch(
     workers = min(config.max_workers, total) if total > 0 else 1
     if workers > 1:
         _validate_parallel_config(config, workers)
+
+    analysis_warmup_bars = _resolve_analysis_warmup_bars(config)
 
     feed_df_by_symbol: dict[str, Optional[pd.DataFrame]] = {}
     for sym in filtered_symbols:
@@ -295,6 +362,11 @@ def run_timing_backtest_batch(
             equity_curves[sym] = pd.DataFrame(columns=["strategy", "benchmark"])
             continue
 
+        analysis_start_date = _analysis_start_date_from_warmup_bars(
+            warmup_bars=analysis_warmup_bars,
+            price_df=price_df,
+        )
+
         metrics = compute_performance_metrics(
             strategy_time_return=engine_res.analyzer_raw.get("time_return", {}),
             price_df=price_df,
@@ -304,12 +376,14 @@ def run_timing_backtest_batch(
             trades_won=engine_res.trades_won,
             trades_lost=engine_res.trades_lost,
             max_drawdown_pct_from_engine=engine_res.max_drawdown_pct,
+            analysis_start_date=analysis_start_date,
         )
         metrics["error"] = None
         rows.append(metrics)
         equity_curves[sym] = build_equity_curves(
             strategy_time_return=engine_res.analyzer_raw.get("time_return", {}),
             price_df=price_df,
+            analysis_start_date=analysis_start_date,
         )
 
     summary_df = pd.DataFrame(rows)
@@ -392,6 +466,11 @@ def _save_results(
                 else None
             ),
             "strategy_kwargs": config.strategy_kwargs,
+            "analysis_warmup_bars": _resolve_analysis_warmup_bars(config),
+            "analysis_factors": [
+                f"{factor.__class__.__module__}.{factor.__class__.__qualname__}"
+                for factor in config.analysis_factors
+            ],
         },
     }
     with open(output_dir / "run_metadata.json", "w", encoding="utf-8") as f:
