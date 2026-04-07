@@ -34,6 +34,13 @@ class FactorCalcResult:
     errors: list[PreprocessError]
 
 
+@dataclass
+class DateRangeSliceResult:
+    etf_data_map: dict[str, EtfData]
+    filtered_symbols: list[str]
+    dropped_symbols: list[str]
+
+
 def _load_symbol_worker(symbol: str) -> tuple[str, Optional[EtfData], Optional[str]]:
     try:
         etf_data = get_etf_data_by_symbol(symbol)
@@ -271,6 +278,50 @@ def parallel_calc_factors_for_map(
             ]
 
     return FactorCalcResult(etf_data_map=etf_data_map, errors=errors)
+
+
+def slice_etf_data_map_by_date_range(
+    etf_data_map: dict[str, EtfData],
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    symbols: Optional[list[str]] = None,
+    drop_empty: bool = True,
+) -> DateRangeSliceResult:
+    target_symbols = symbols or list(etf_data_map.keys())
+
+    if start_date and end_date:
+        start_ts = pd.to_datetime(start_date)
+        end_ts = pd.to_datetime(end_date)
+        if start_ts > end_ts:
+            raise ValueError("start_date must be earlier than or equal to end_date")
+
+    sliced_map: dict[str, EtfData] = {}
+    filtered_symbols: list[str] = []
+    dropped_symbols: list[str] = []
+
+    for symbol in target_symbols:
+        etf_data = etf_data_map.get(symbol)
+        if etf_data is None:
+            dropped_symbols.append(symbol)
+            continue
+
+        sliced_etf_data = etf_data.slice_date_range(
+            start_date=start_date,
+            end_date=end_date,
+        )
+        has_rows = sliced_etf_data.data is not None and len(sliced_etf_data.data) > 0
+        if drop_empty and not has_rows:
+            dropped_symbols.append(symbol)
+            continue
+
+        sliced_map[symbol] = sliced_etf_data
+        filtered_symbols.append(symbol)
+
+    return DateRangeSliceResult(
+        etf_data_map=sliced_map,
+        filtered_symbols=filtered_symbols,
+        dropped_symbols=dropped_symbols,
+    )
 
 
 def ensure_output_compatibility(

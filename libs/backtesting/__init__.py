@@ -19,6 +19,15 @@ from .preprocessing import (
     parallel_calc_factors_for_map,
     parallel_load_filter_etf_data,
 )
+from .summary_compare import (
+    ComparisonMetricSpec,
+    DEFAULT_METRICS,
+    TIMING_SINGLE_FACTOR_DEFAULT_METRICS,
+    build_comparison_text_report,
+    build_timing_comparison_report,
+    compare_summary_dfs,
+    compare_timing_summary_dfs,
+)
 
 __all__ = [
     "load_etf_dataframe",
@@ -37,4 +46,11 @@ __all__ = [
     "parallel_load_filter_etf_data",
     "parallel_calc_factors_for_map",
     "ensure_output_compatibility",
+    "ComparisonMetricSpec",
+    "TIMING_SINGLE_FACTOR_DEFAULT_METRICS",
+    "DEFAULT_METRICS",
+    "compare_timing_summary_dfs",
+    "compare_summary_dfs",
+    "build_timing_comparison_report",
+    "build_comparison_text_report",
 ]
