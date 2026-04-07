@@ -79,12 +79,8 @@ class TimingBatchConfig:
     strategy_cls: type = ExampleCustomTimingStrategy
     data_feed_cls: Optional[type] = None
     strategy_kwargs: dict[str, Any] = field(default_factory=dict)
-    # Prefer providing factors from notebook/preprocessing pipeline so strategy
-    # logic remains stable while factor params change frequently.
+    # Warm-up length is derived from these factors via get_max_warmup_period().
     analysis_factors: tuple[Any, ...] = field(default_factory=tuple)
-    # Explicit warm-up bars override. If None, infer from analysis_factors,
-    # then fall back to strategy_cls.get_max_warmup_bars().
-    analysis_warmup_bars: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -179,51 +175,25 @@ def _validate_parallel_config(config: TimingBatchConfig, workers: int) -> None:
     _validate_parallel_payload(config.strategy_kwargs, "strategy_kwargs", workers)
 
 
-def _max_warmup_from_factors(factors: tuple[Any, ...]) -> Optional[int]:
-    """Return max warm-up bars from factor instances exposing get_max_warmup_period()."""
-    if not factors:
-        return None
+def _resolve_analysis_warmup_bars(config: TimingBatchConfig) -> int:
+    """Resolve warm-up bars from analysis factors only."""
+    if not config.analysis_factors:
+        return 0
 
     max_warmup = 0
-    seen_valid_factor = False
-    for factor in factors:
-        getter = getattr(factor, "get_max_warmup_period", None)
-        if not callable(getter):
-            continue
-        seen_valid_factor = True
-        warmup_raw: Any = getter()
+    for factor in config.analysis_factors:
+        try:
+            warmup_raw: Any = factor.get_max_warmup_period()
+        except AttributeError:
+            warmup_raw = 0
+
         warmup = int(warmup_raw)
         if warmup < 0:
             raise ValueError(f"Invalid factor warm-up bars: {warmup}. Expected >= 0.")
         if warmup > max_warmup:
             max_warmup = warmup
 
-    if not seen_valid_factor:
-        return None
     return max_warmup
-
-
-def _resolve_analysis_warmup_bars(config: TimingBatchConfig) -> int:
-    """Resolve warm-up bars with priority: explicit > factors > strategy fallback."""
-    if config.analysis_warmup_bars is not None:
-        warmup = int(config.analysis_warmup_bars)
-        if warmup < 0:
-            raise ValueError("analysis_warmup_bars must be a non-negative integer.")
-        return warmup
-
-    warmup_from_factors = _max_warmup_from_factors(config.analysis_factors)
-    if warmup_from_factors is not None:
-        return warmup_from_factors
-
-    get_max_warmup_bars = getattr(config.strategy_cls, "get_max_warmup_bars", None)
-    if callable(get_max_warmup_bars):
-        warmup_raw: Any = get_max_warmup_bars()
-        warmup = int(warmup_raw)
-        if warmup < 0:
-            raise ValueError("strategy warm-up bars must be a non-negative integer.")
-        return warmup
-
-    return 0
 
 
 def _analysis_start_date_from_warmup_bars(
