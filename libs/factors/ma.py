@@ -49,6 +49,10 @@ def cal_one_etf(df: pd.DataFrame, k=1, n=20) -> float:
 
 class SlopeRiskRatio(BaseFactor):
     name = "SlopeRiskRatio"
+    params = {}
+
+    def __init__(self) -> None:
+        super().__init__()
     
     def __call__(self, data: pd.DataFrame) -> pd.Series:
         data["ratio"] = cal_one_etf(data)

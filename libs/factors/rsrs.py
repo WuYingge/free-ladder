@@ -17,6 +17,14 @@ class RsrsFactor(BaseFactor):
     4. 按阈值将标准化结果映射为买入、观望、卖出信号。
     """
     name = "RSRS"
+    params = {
+        "regression_window": 18,
+        "zscore_window": 200,
+        "buy_threshold": 0.7,
+        "sell_threshold": -0.7,
+        "use_r2_adjustment": True,
+        "output": "signal",
+    }
 
     def __init__(
         self,
@@ -48,14 +56,14 @@ class RsrsFactor(BaseFactor):
         # 也可返回中间结果用于调试或分析。
         self.output = output
         self.warmup_period = int(max(regression_window, zscore_window))
-        self.params = {
-            "regression_window": regression_window,
-            "zscore_window": zscore_window,
-            "buy_threshold": buy_threshold,
-            "sell_threshold": sell_threshold,
-            "use_r2_adjustment": use_r2_adjustment,
-            "output": output,
-        }
+        self._set_params(
+            regression_window=regression_window,
+            zscore_window=zscore_window,
+            buy_threshold=buy_threshold,
+            sell_threshold=sell_threshold,
+            use_r2_adjustment=use_r2_adjustment,
+            output=output,
+        )
 
     def __call__(self, data: pd.DataFrame) -> pd.Series:
         # 首先校验输入列和参数，避免在 rolling 计算中才暴露低质量错误。

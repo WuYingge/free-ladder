@@ -10,11 +10,16 @@ from factors.new_high import NewHigh
 class ChangeSinceNewHigh(BaseFactor):
     
     name = "ChangeSinceNewHigh"
+    params = {
+        "long_period": 50,
+        "short_period": 25,
+    }
     
-    def __init__(self, long_period, short_period) -> None:
+    def __init__(self, long_period: int, short_period: int) -> None:
         super().__init__()
         self.long_period = long_period
         self.short_period = short_period
+        self._set_params(long_period=long_period, short_period=short_period)
         self.add_dependency(NewHigh(long_period, short_period))
         
     def __call__(self, data: pd.DataFrame) -> pd.Series[Any]:

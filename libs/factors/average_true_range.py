@@ -8,6 +8,9 @@ class AverageTrueRange(BaseFactor):
     """
     
     name = "AverageTrueRange"
+    params = {
+        "window": 25, # ATR计算的默认窗口大小，取newHigh短周期同样的值
+    }
     
     def __init__(
         self, 
@@ -16,6 +19,7 @@ class AverageTrueRange(BaseFactor):
         super().__init__()
         self.window = window
         self.warmup_period = int(window)
+        self._set_params(window=window)
     
     def __call__(self, data: pd.DataFrame) -> pd.Series:
         high = data['high']

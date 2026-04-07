@@ -7,22 +7,36 @@ class BaseFactor(ABC):
     name: str
     params: dict[str, Any] = {}
     warmup_period: int = 0
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if not isinstance(getattr(cls, "params", None), dict):
+            raise TypeError(f"{cls.__name__}.params must be a dict")
     
     def __init__(self) -> None:
+        # Always keep params at instance level so constructor overrides do not
+        # leak across instances through mutable class attributes.
+        self.params = dict(self.__class__.params)
         self._dependencies: list[BaseFactor] = []
         self._dep_res: dict[BaseFactor, pd.Series|None] = {}
+
+    def _set_params(self, **kwargs: Any) -> None:
+        self.params.update(kwargs)
     
     @abstractmethod
     def __call__(self, data: pd.DataFrame) -> pd.Series:
         pass
     
     def __repr__(self) -> str:
-        return f"{self.__class__.name}(name={self.name})"
+        return f"{self.__class__.__name__}(name={self.name})[{', '.join(f'{k}={v}' for k, v in self.params.items())}]"
+    
+    def __str__(self) -> str:
+        return self.__repr__()
     
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
-        return hash(self) == hash(other)
+        return tuple(sorted(self.params.items())) == tuple(sorted(other.params.items()))
     
     def __hash__(self) -> int:
         param_items = tuple(sorted(self.params.items()))

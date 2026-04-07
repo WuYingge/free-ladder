@@ -19,24 +19,27 @@ class NewHigh(BaseFactor):
     name = "NewHigh"
     params = {
         "high_window": 50,
-        "low_window": 25
+        "low_window": 25,
+        "use_long_filter": True,
     }
     
     
-    def __init__(self, high_window=50, low_window=25) -> None:
+    def __init__(self, high_window=50, low_window=25, use_long_filter=True) -> None:
         super().__init__()
         self.high_window = high_window
         self.low_window = low_window
+        self.use_long_filter = use_long_filter
         self.warmup_period = int(max(high_window, low_window))
-        self.params = {
-            "high_window": high_window,
-            "low_window": low_window
-        }
+        self._set_params(
+            high_window=high_window,
+            low_window=low_window,
+            use_long_filter=use_long_filter,
+        )
         self.add_dependency(AverageTrueRange(window=50))
         
     def __call__(self, data: DataFrame) -> Series:
         # todo 性能优化
-        long_filter = long_ma_filter(data)
+        long_filter = long_ma_filter(data) if self.use_long_filter else None
         new_high = data["close"].rolling(window=self.high_window).max()
         low_rolling = data["close"].rolling(window=self.low_window)
         low_recent = low_rolling.min()
@@ -50,7 +53,8 @@ class NewHigh(BaseFactor):
             "is_unique_low": is_unique_low
         })
         def judge(row):
-            if row["close"] >= row["new_high"] and row["long_filter"]:
+            use_long_filter = bool(row["long_filter"]) if self.use_long_filter else True
+            if row["close"] >= row["new_high"] and use_long_filter:
                 return self.buy
             # 如果收盘价小于等于短周期新低，且为短周期中的唯一一个新低，则卖出
             elif row["close"] <= row["low_recent"] and row["is_unique_low"]:

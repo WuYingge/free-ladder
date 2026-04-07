@@ -6,6 +6,10 @@ from factors.utils import sign
 class DailyRebound(BaseFactor):
     
     name = "DailyRebound"
+    params = {}
+
+    def __init__(self) -> None:
+        super().__init__()
     
     def __call__(self, data: pd.DataFrame) -> pd.Series:
         # std = data["close"].rolling(window=20).std()
