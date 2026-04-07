@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from .base import BaseFactorTimingStrategy
-from factors.rsrs import RsrsFactor
 
 
 class RsrsTimingStrategy(BaseFactorTimingStrategy):
@@ -10,10 +9,6 @@ class RsrsTimingStrategy(BaseFactorTimingStrategy):
     Entry rule:  zscore > buy_threshold  -> go long (full position)
     Exit rule:   zscore < sell_threshold -> close position
     """
-
-    involved_factors = (
-        RsrsFactor(regression_window=18, zscore_window=600, output="zscore"),
-    )
 
     params = (
         ("rsrs_column", "RSRS"),
