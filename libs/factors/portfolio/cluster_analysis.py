@@ -1,9 +1,10 @@
 from __future__ import annotations
 from typing import override
+from collections import Counter
 
 import pandas as pd
 import numpy as np
-from typing import Iterable, List
+from typing import Iterable, List, Sequence
 
 import seaborn as sns
 from itertools import combinations
@@ -22,6 +23,7 @@ import matplotlib.pyplot as plt
 
 from core.models.calandar_df import CALANDAR
 from data_manager.providers.etf_list_provider import ETF_LIST
+from data_manager.utils import extract_tracked_index_name, tracked_index_distance
 
 class ClusterAnalysis(BaseCrossSectionFactor):
     name = "ClusterAnalysis"
@@ -36,9 +38,11 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         pca_component:float=0.95,
         standardization_methods:str="standardize",
         approach:str="dbscan_kmeans",
-        min_clusters:int=10
+        min_clusters:int=10,
+        use_index_name_feature: bool = False,
+        index_feature_weight: float = 0.2,
         ):
-        self.validate(standardization_methods, approach)
+        self.validate(standardization_methods, approach, index_feature_weight)
         self.n_days = n
         self.use_pca = use_pca
         self.pca_component = pca_component
@@ -50,12 +54,18 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         self.features: pd.DataFrame = pd.DataFrame()
         self.approach = approach
         self.min_clusters = min_clusters
+        self.use_index_name_feature = use_index_name_feature
+        self.index_feature_weight = index_feature_weight
+        self.etf_name_map: dict[str, str] = {}
+        self.tracked_index_map: dict[str, str] = {}
 
-    def validate(self, standardization_methods, approach):
+    def validate(self, standardization_methods, approach, index_feature_weight):
         if standardization_methods not in self.STANDARDIZATIONS:
             raise ValueError(f"Invalid standardization method. Choose from {self.STANDARDIZATIONS}")
         if approach not in self.APPROACHES:
             raise ValueError(f"Invalid approach. Choose from {self.APPROACHES}")
+        if not 0 <= index_feature_weight <= 1:
+            raise ValueError("index_feature_weight must be between 0 and 1")
 
     def __call__(self, *data: EtfData) -> pd.DataFrame:
         print("开始聚类分析...")
@@ -85,13 +95,15 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         print("计算相关性矩阵和距离矩阵...")
         corr_matrix = processed_data.T.corr()
         print("相关性矩阵样本:")
-        dist_matrix = np.sqrt(1 - corr_matrix)
+        dist_matrix = self._build_return_distance_matrix(corr_matrix)
         print(corr_matrix.iloc[:5, :5])
-        # np.fill_diagonal(dist_matrix, 0)
+        if self.use_index_name_feature:
+            print(f"融合指数名称特征，权重: {self.index_feature_weight:.2f}")
+            index_dist_matrix = self._build_index_distance_matrix(processed_data.index)
+            dist_matrix = self._combine_distance_matrix(dist_matrix, index_dist_matrix)
         print("距离矩阵样本:")
-        dist_matrix = pd.DataFrame(dist_matrix, index=processed_data.index, columns=processed_data.index)
         print(dist_matrix.iloc[:5, :5])
-        condensed_dist = squareform(dist_matrix)
+        condensed_dist = squareform(dist_matrix.to_numpy(), checks=False)
         print("绘制层次聚类树状图...")
         linked = linkage(condensed_dist, method='ward')
         print("层次聚类树状图绘制完成.")
@@ -119,6 +131,39 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         print(f"\n层次聚类结果:")
         print(f"聚类数量: {n_clusters}")
         return final_labels
+
+    def _build_return_distance_matrix(self, corr_matrix: pd.DataFrame) -> pd.DataFrame:
+        clipped_corr = corr_matrix.clip(lower=-1, upper=1)
+        dist_values = np.sqrt((1 - clipped_corr).clip(lower=0))
+        dist_matrix = pd.DataFrame(dist_values, index=corr_matrix.index, columns=corr_matrix.columns)
+        np.fill_diagonal(dist_matrix.values, 0.0)
+        return dist_matrix
+
+    def _build_index_distance_matrix(self, symbols: pd.Index) -> pd.DataFrame:
+        symbol_list = [str(symbol) for symbol in symbols]
+        dist_matrix = pd.DataFrame(0.0, index=symbol_list, columns=symbol_list)
+        for i, symbol_i in enumerate(symbol_list):
+            index_name_i = self.tracked_index_map.get(symbol_i, "")
+            for j in range(i + 1, len(symbol_list)):
+                symbol_j = symbol_list[j]
+                index_name_j = self.tracked_index_map.get(symbol_j, "")
+                distance = tracked_index_distance(index_name_i, index_name_j)
+                dist_matrix.iloc[i, j] = distance
+                dist_matrix.iloc[j, i] = distance
+        return dist_matrix
+
+    def _combine_distance_matrix(
+        self,
+        return_dist_matrix: pd.DataFrame,
+        index_dist_matrix: pd.DataFrame,
+    ) -> pd.DataFrame:
+        hybrid_matrix = (
+            (1 - self.index_feature_weight) * return_dist_matrix
+            + self.index_feature_weight * index_dist_matrix
+        )
+        hybrid_matrix = (hybrid_matrix + hybrid_matrix.T) / 2
+        np.fill_diagonal(hybrid_matrix.values, 0.0)
+        return hybrid_matrix
         
     def calc_elbow_point(self, distances: np.ndarray) -> int:
         # 假设 Z 是您的 linkage 矩阵
@@ -139,7 +184,8 @@ class ClusterAnalysis(BaseCrossSectionFactor):
 
     def generate_result(self, final_labels: list) -> pd.DataFrame:
         res_df = pd.DataFrame(final_labels, index=self.features.index, columns=['ClusterLabel']).sort_values(by='ClusterLabel')
-        res_df["name"] = res_df.apply(lambda x: ETF_LIST.get_name(x.name), axis=1)
+        res_df["name"] = res_df.index.map(lambda symbol: self.etf_name_map.get(str(symbol), ETF_LIST.get_name(str(symbol))))
+        res_df["tracked_index"] = res_df.index.map(lambda symbol: self.tracked_index_map.get(str(symbol), ""))
         return res_df
 
     def _check(self, data: Iterable[EtfData]) -> None:
@@ -152,15 +198,21 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         
     def _gen_feature_df(self, datas: List[EtfData]):
         feature_series = []
+        self.etf_name_map = {}
+        self.tracked_index_map = {}
         for etf in datas:
             data = etf.data.set_index("date", drop=True)
             data.index = pd.to_datetime(data.index)
             data = data.reindex(self.date_index)["gain"]
-            data.name = etf.symbol
+            symbol = str(etf.symbol)
+            etf_name = etf.name or ETF_LIST.get_name(symbol)
+            data.name = symbol
             data.ffill(inplace=True)
             data.bfill(inplace=True)
             if data.isna().any():
                 raise ValueError(f"NaN values found in gain data for ETF {etf.symbol}")
+            self.etf_name_map[symbol] = etf_name
+            self.tracked_index_map[symbol] = extract_tracked_index_name(etf_name)
             feature_series.append(data)
         self.features = pd.concat(feature_series, axis=1).T
 
@@ -384,6 +436,10 @@ class ClusterAnalysis(BaseCrossSectionFactor):
         for group in unique_groups:
             symbols_in_group = [s for s, g in symbol_to_group.items() if g == group]
             n_symbols = len(symbols_in_group)
+            tracked_indexes = [self.tracked_index_map.get(str(symbol), "") for symbol in symbols_in_group]
+            tracked_indexes = [tracked_index for tracked_index in tracked_indexes if tracked_index]
+            tracked_index_counter = Counter(tracked_indexes)
+            dominant_index, dominant_index_count = tracked_index_counter.most_common(1)[0] if tracked_index_counter else ("", 0)
             
             # 获取组内相关性矩阵
             intra_corr_matrix = corr_df.loc[symbols_in_group, symbols_in_group]
@@ -409,6 +465,8 @@ class ClusterAnalysis(BaseCrossSectionFactor):
                 inter_corrs.append(inter_corr_matrix.loc[group, other_group])
             
             inter_mean = np.mean(inter_corrs) if inter_corrs else 0
+
+            same_index_pair_ratio = self._calculate_same_index_pair_ratio(symbols_in_group)
             
             cluster_stats.append({
                 'group': group,
@@ -416,12 +474,33 @@ class ClusterAnalysis(BaseCrossSectionFactor):
                 'intra_corr_mean': intra_mean,
                 'intra_corr_median': intra_median,
                 'inter_corr_mean': inter_mean,
-                'corr_diff': intra_mean - inter_mean  # 组内与组间差异
+                'corr_diff': intra_mean - inter_mean,
+                'unique_tracked_index_count': len(tracked_index_counter),
+                'dominant_tracked_index': dominant_index,
+                'dominant_index_ratio': dominant_index_count / n_symbols if n_symbols else 0,
+                'same_index_pair_ratio': same_index_pair_ratio,
             })
         
         cluster_stats_df = pd.DataFrame(cluster_stats)
         
         return inter_corr_matrix, cluster_stats_df
+
+    def _calculate_same_index_pair_ratio(self, symbols_in_group: Sequence[object]) -> float:
+        if len(symbols_in_group) < 2:
+            return 1.0
+        total_pairs = 0
+        same_index_pairs = 0
+        for left_symbol, right_symbol in combinations(symbols_in_group, 2):
+            left_index = self.tracked_index_map.get(str(left_symbol), "")
+            right_index = self.tracked_index_map.get(str(right_symbol), "")
+            if not left_index or not right_index:
+                continue
+            total_pairs += 1
+            if left_index == right_index:
+                same_index_pairs += 1
+        if total_pairs == 0:
+            return 0.0
+        return same_index_pairs / total_pairs
 
 
     def visualize_inter_cluster_correlation(self, inter_corr_matrix, cluster_stats_df=None):

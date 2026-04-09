@@ -13,14 +13,16 @@ class ChangeSinceNewHigh(BaseFactor):
     params = {
         "long_period": 50,
         "short_period": 25,
+        "use_long_filter": False
     }
     
-    def __init__(self, long_period: int, short_period: int) -> None:
+    def __init__(self, long_period: int, short_period: int, use_long_filter: bool = False) -> None:
         super().__init__()
         self.long_period = long_period
         self.short_period = short_period
-        self._set_params(long_period=long_period, short_period=short_period)
-        self.add_dependency(NewHigh(long_period, short_period))
+        self.use_long_filter = use_long_filter
+        self._set_params(long_period=long_period, short_period=short_period, use_long_filter=use_long_filter)
+        self.add_dependency(NewHigh(long_period, short_period, use_long_filter=use_long_filter))
         
     def __call__(self, data: pd.DataFrame) -> pd.Series[Any]:
         merged_data = self.get_merged_dep_data(data)

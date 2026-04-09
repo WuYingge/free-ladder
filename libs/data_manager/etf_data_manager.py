@@ -4,6 +4,7 @@ import datetime
 import tqdm
 import traceback
 import pandas as pd
+from functools import lru_cache
 from typing import Iterator
 from multiprocessing import Pool
 
@@ -36,6 +37,33 @@ def save_etf_data(symbol, df):
 def sync_backup(src, dest):
     files = shutil.copytree(src, dest, dirs_exist_ok=True)
 
+
+@lru_cache(maxsize=1)
+def _get_listed_etf_symbols() -> set[str]:
+    """Cache currently listed ETF symbols to quickly skip not-yet-listed codes."""
+    try:
+        df = get_all_etf_code()
+    except Exception as err:
+        # Fail open: if listing check fails, keep normal fetching path.
+        print(f"Failed to load listed ETF symbols due to {err}, fallback to normal retry")
+        return set()
+
+    if df is None or df.empty:
+        return set()
+
+    symbol_col = "基金代码" if "基金代码" in df.columns else ("代码" if "代码" in df.columns else None)
+    if symbol_col is None:
+        return set()
+    return set(df[symbol_col].astype(str).str.zfill(6).tolist())
+
+
+def _is_not_listed_yet(code: str) -> bool:
+    listed_symbols = _get_listed_etf_symbols()
+    # If listed_symbols is empty, we don't have reliable listing info.
+    if not listed_symbols:
+        return False
+    return str(code).zfill(6) not in listed_symbols
+
 @retry_with_intervals(interval_func=intervals)
 def get_and_save(symbol, n=40):
     try: 
@@ -66,10 +94,15 @@ def update(code) -> bool:
         print(f"update {code} in {fp}")
         return True
     except pd.errors.EmptyDataError as err:
+        if _is_not_listed_yet(code):
+            print(f"Skip update {code}: symbol not listed yet")
+            return True
+
         df = get_with_retry(code, 4000)
         if df is not None:
             save_etf_data(code, df)
             return True
+        print(f"Failed update {code}: fetch failed, will retry")
         return False
     except Exception as err:
         traceback.print_exc()
@@ -149,6 +182,10 @@ def save_etf_data_to_path(code: str, last_n_days: int, save_path: str, check_exi
         
 def get_with_retry(code, last_n_days: int) -> pd.DataFrame | None:
     print("Acquiring data for", code, "for last", last_n_days, "days")
+    if _is_not_listed_yet(code):
+        print(f"Skip {code}: symbol not listed yet, stop retry")
+        return None
+
     count = 1000
     dfs = []
     for s, e in generate_time_slices_alternative(last_n_days):

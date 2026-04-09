@@ -8,6 +8,7 @@ Use the repository structure knowledge base in .github as the default context ma
 - When uncertain, verify with source files and update assumptions.
 - Treat notebooks as runtime entry points and libs as reusable implementation modules.
 - Do not infer architecture beyond what is documented in code and the repo map.
+- Write code with necessary comments in critical steps.
 
 ## Priority Reading Order
 1. README
