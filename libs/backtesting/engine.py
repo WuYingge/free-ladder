@@ -23,6 +23,9 @@ class SingleFactorSingleTargetBacktestConfig:
     symbol: str
     cash: float = 100000.0
     commission: float = 0.0005
+    # Slippage in decimal form (e.g. 0.0002 = 2 bps).
+    # Applied on both buy/sell market fills, including next-bar open fills.
+    slippage_perc: float = 0.0002
     stake: int = 100
     data_dir: Optional[str | Path] = None
     strategy_cls: type[bt.Strategy] = ExampleCustomTimingStrategy
@@ -162,6 +165,17 @@ def run_single_factor_single_target_backtest(
 
     cerebro.broker.setcash(config.cash)
     cerebro.broker.setcommission(commission=config.commission)
+    if config.slippage_perc < 0:
+        raise ValueError(f"slippage_perc must be >= 0, got {config.slippage_perc}")
+    if config.slippage_perc > 0:
+        # Keep default matching behavior while applying percentage slippage.
+        cerebro.broker.set_slippage_perc(
+            perc=config.slippage_perc,
+            slip_open=True,
+            slip_limit=True,
+            slip_match=True,
+            slip_out=False,
+        )
 
     # 3) Keep analyzer set small and stable for daily tuning workflow.
     timeframe = getattr(bt.TimeFrame, "Days", None)

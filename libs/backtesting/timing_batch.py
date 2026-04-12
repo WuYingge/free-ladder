@@ -68,6 +68,8 @@ class TimingBatchConfig:
 
     cash: float = 100_000.0
     commission: float = 0.0005
+    # Slippage in decimal form (e.g. 0.0002 = 2 bps).
+    slippage_perc: float = 0.0002
     stake: int = 100
     # Parallel worker count.  None → os.cpu_count()
     max_workers: int = 4
@@ -111,6 +113,7 @@ def _backtest_worker(
     symbol: str,
     cash: float,
     commission: float,
+    slippage_perc: float,
     stake: int,
     data_dir: Optional[str | Path],
     feed_df: Optional[pd.DataFrame],
@@ -125,6 +128,7 @@ def _backtest_worker(
                 symbol=symbol,
                 cash=cash,
                 commission=commission,
+                slippage_perc=slippage_perc,
                 stake=stake,
                 data_dir=data_dir,
                 feed_df=feed_df,
@@ -278,6 +282,7 @@ def run_timing_backtest_batch(
                 sym,
                 config.cash,
                 config.commission,
+                config.slippage_perc,
                 config.stake,
                 config.data_dir,
                 feed_df_by_symbol.get(sym),
@@ -426,6 +431,7 @@ def _save_results(
         "config": {
             "cash": config.cash,
             "commission": config.commission,
+            "slippage_perc": config.slippage_perc,
             "stake": config.stake,
             "max_workers": config.max_workers,
             "data_dir": str(config.data_dir) if config.data_dir else None,
