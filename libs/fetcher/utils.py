@@ -3,8 +3,32 @@ from typing import Dict, List, Tuple
 import requests
 import math
 from datetime import datetime, timedelta
+from requests.exceptions import RequestException
 from proxy.proxy import get_proxy
 from utils.interval_utils import intervals
+
+
+def request_get_via_proxy(
+    url: str,
+    timeout: int | tuple[int, int] = 15,
+    max_proxy_retries: int = 3,
+    retry_interval_sec: float = 0.2,
+    **kwargs,
+):
+    """Send request via proxy only, rotating proxy on failure and failing fast."""
+    last_err = None
+    for idx in range(max_proxy_retries):
+        try:
+            response = requests.get(url, timeout=timeout, proxies=get_proxy(), **kwargs)
+            response.raise_for_status()
+            return response
+        except RequestException as err:
+            last_err = err
+            if idx < max_proxy_retries - 1 and retry_interval_sec > 0:
+                intervals(retry_interval_sec)
+    if last_err is not None:
+        raise last_err
+    raise RuntimeError("request_get_via_proxy failed without captured exception")
 
 def fetch_paginated_data(url: str, base_params: Dict, timeout: int = 15):
     """
@@ -22,7 +46,7 @@ def fetch_paginated_data(url: str, base_params: Dict, timeout: int = 15):
     # 复制参数以避免修改原始参数
     params = base_params.copy()
     # 获取第一页数据，用于确定分页信息
-    r = requests.get(url, params=params, timeout=timeout, proxies=get_proxy())
+    r = request_get_via_proxy(url, params=params, timeout=timeout)
     data_json = r.json()
     # 计算分页信息
     per_page_num = len(data_json["data"]["diff"])
@@ -36,7 +60,7 @@ def fetch_paginated_data(url: str, base_params: Dict, timeout: int = 15):
     for page in range(2, total_page + 1):
         intervals(0.5)
         params.update({"pn": page})
-        r = requests.get(url, params=params, timeout=timeout, proxies=get_proxy())
+        r = request_get_via_proxy(url, params=params, timeout=timeout)
         data_json = r.json()
         inner_temp_df = pd.DataFrame(data_json["data"]["diff"])
         temp_list.append(inner_temp_df)

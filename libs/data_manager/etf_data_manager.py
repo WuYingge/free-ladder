@@ -31,6 +31,74 @@ def transer_em_etf_to_model(df: pd.DataFrame) -> pd.DataFrame:
 def get_symbol_fp(symbol):
     return os.path.join(DataPath.DEFAULT_PATH, f"{symbol}.csv")
 
+
+def get_etf_last_local_date(symbol: str) -> datetime.date | None:
+    """Return the last available local data date for a symbol, or None if unavailable."""
+    fp = get_symbol_fp(symbol)
+    if not os.path.exists(fp):
+        return None
+
+    try:
+        df = pd.read_csv(fp, parse_dates=True, index_col=0)
+    except Exception:
+        return None
+
+    if df.empty:
+        return None
+
+    try:
+        return pd.to_datetime(df.index.max()).date()
+    except Exception:
+        return None
+
+
+def is_etf_data_updated_to_date(
+    symbol: str,
+    target_date: str | datetime.date | datetime.datetime | pd.Timestamp,
+) -> bool:
+    """Check if local ETF data has been updated to target_date (inclusive)."""
+    last_date = get_etf_last_local_date(symbol)
+    if last_date is None:
+        return False
+
+    try:
+        expected_date = pd.to_datetime(target_date).date()
+    except Exception:
+        return False
+
+    return last_date >= expected_date
+
+
+def batch_check_etf_data_updated(
+    symbols: list[str],
+    target_date: str | datetime.date | datetime.datetime | pd.Timestamp | None = None,
+) -> pd.DataFrame:
+    """Return per-symbol local update status for a target date (default: today)."""
+    if target_date is None:
+        expected_date = datetime.date.today()
+    else:
+        expected_date = pd.to_datetime(target_date).date()
+
+    rows = []
+    for symbol in symbols:
+        fp = get_symbol_fp(symbol)
+        last_local_date = get_etf_last_local_date(symbol)
+        is_updated = bool(last_local_date and last_local_date >= expected_date)
+        rows.append(
+            {
+                "symbol": str(symbol).zfill(6),
+                "exists": os.path.exists(fp),
+                "last_local_date": last_local_date,
+                "target_date": expected_date,
+                "is_updated": is_updated,
+            }
+        )
+
+    res = pd.DataFrame(rows)
+    if not res.empty:
+        res = res.sort_values(["is_updated", "symbol"], ascending=[True, True]).reset_index(drop=True)
+    return res
+
 def save_etf_data(symbol, df):
     transer_em_etf_to_model(df).to_csv(get_symbol_fp(symbol), encoding="utf-8_sig", index=True)
     
@@ -74,7 +142,7 @@ def get_and_save(symbol, n=40):
         print(f"Can't get and save because {err}")
         return False
       
-@retry_with_intervals(max_retries=1000, interval_func=intervals)
+@retry_with_intervals(max_retries=1, interval_func=intervals)
 def update(code) -> bool:
     try:
         # get the last date
@@ -148,8 +216,7 @@ def update_etf_data():
 def update_single_etf_data(code: str) -> tuple[str, bool]:
     fp = get_symbol_fp(code)
     if os.path.exists(fp):
-        update(code)
-        return code, True
+        return code, update(code)
     else:
         df = get_with_retry(code, 4000)
         if df is not None:
@@ -186,19 +253,25 @@ def get_with_retry(code, last_n_days: int) -> pd.DataFrame | None:
         print(f"Skip {code}: symbol not listed yet, stop retry")
         return None
 
-    count = 1000
+    max_retries_per_slice = 5
     dfs = []
     for s, e in generate_time_slices_alternative(last_n_days):
-        df = None
-        while count:
+        success = False
+        for retry_idx in range(max_retries_per_slice):
             try:
                 df = get_etf_certain_date_data(code, datetime.datetime.strptime(s, "%Y%m%d"), datetime.datetime.strptime(e, "%Y%m%d"))
                 dfs.append(df)
+                success = True
                 break
             except Exception as err:
-                count -= 1
-                if count < 990:
-                    print(f"Retrying to get data for {code} from {s} to {e} due to {err}, {count} retries left")
+                retries_left = max_retries_per_slice - retry_idx - 1
+                print(f"Retrying {code} {s}-{e} due to {err}, {retries_left} retries left")
+                if retries_left > 0:
+                    intervals(0.3)
+        if not success:
+            print(f"Failed to get {code} for slice {s}-{e}, skip this symbol")
+            return None
+
     if not dfs:
         return None
     return pd.concat(dfs).drop_duplicates()

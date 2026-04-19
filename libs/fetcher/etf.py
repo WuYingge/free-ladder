@@ -1,12 +1,10 @@
 import os
 import datetime
-import requests
 import json
 from random import choice
 import akshare as ak
 import pandas as pd
-from proxy.proxy import get_proxy
-from fetcher.utils import fetch_paginated_data
+from fetcher.utils import fetch_paginated_data, request_get_via_proxy
 from fetcher.consts import headers
 from dotenv import load_dotenv
 
@@ -22,11 +20,16 @@ def get_code_of_one_ETF_data(series):
 
 def get_all_etf_code(*filters):
     all_etf = None
-    while all_etf is None:
+    max_retry = 5
+    for _ in range(max_retry):
         try:
             all_etf = fund_etf_spot_em()
+            break
         except Exception as e:
             print(e)
+            intervals(0.3)
+    if all_etf is None:
+        raise RuntimeError("Failed to fetch ETF spot data after retries")
     for _filter in filters:
         all_etf = all_etf[_filter(all_etf)]
     return all_etf
@@ -89,18 +92,18 @@ def fund_etf_hist_em(
     try:
         market_id = "0" if symbol[0] == "1" else "1"
         params.update({"secid": f"{market_id}.{symbol}"})
-        r = requests.get(url, timeout=15, params=params, proxies=get_proxy())
+        r = request_get_via_proxy(url, timeout=15, params=params)
         data_json = r.json()
     except KeyError:
         print(KeyError)
         market_id = 1
         params.update({"secid": f"{market_id}.{symbol}"})
-        r = requests.get(url, timeout=15, params=params, proxies=get_proxy())
+        r = request_get_via_proxy(url, timeout=15, params=params)
         data_json = r.json()
         if not data_json["data"]:
             market_id = 0
             params.update({"secid": f"{market_id}.{symbol}"})
-            r = requests.get(url, timeout=15, params=params, proxies=get_proxy())
+            r = request_get_via_proxy(url, timeout=15, params=params)
             data_json = r.json()
     if not (data_json["data"] and data_json["data"]["klines"]):
         return pd.DataFrame()
@@ -341,7 +344,7 @@ def fund_etf_name_em() -> pd.DataFrame:
     :rtype: pandas.DataFrame
     """
     url = "https://fund.eastmoney.com/js/fundcode_search.js"
-    r = requests.get(url, headers=headers, proxies=get_proxy())
+    r = request_get_via_proxy(url, headers=headers)
     text_data = r.text.strip("var r = ").strip(";")
     data_json = json.loads(text_data)
     df = pd.DataFrame(data_json, columns=["symbol", "pinyin_abbr", "name", "type", "full_pinyin"])

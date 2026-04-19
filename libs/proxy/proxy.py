@@ -42,35 +42,44 @@ class ProxyPool:
     def __init__(self):
         self.unbindTime = 600
         self.start_time = int(time.time()) #时间戳
-        self.pool = self._get_proxies()
+        try:
+            self.pool = self._get_proxies()
+        except Exception as err:
+            print(f"ProxyPool init failed: {err}")
+            self.pool = []
     
     # 计算sign
     def _get_proxies(self) -> list[dict[str, str]]:
-        success = False
-        while not success:
+        max_retries = 5
+        retry_wait_sec = 2
+        for _ in range(max_retries):
             response = None
             try:
                 txt = "orderId=" + ProxyAccount.orderId + "&" + "secret=" + ProxyAccount.secret + "&" + "time=" + str(self.start_time) # type: ignore
                 sign = hashlib.md5(txt.encode()).hexdigest()
                 # 访问URL获取IP
                 url = "http://api.hailiangip.com:8422/api/getIp?type=1" + "&num=" + ProxyAccount.num + "&pid=" + ProxyAccount.pid + "&unbindTime=" + str(self.unbindTime) + "&cid=" + ProxyAccount.cid +  "&orderId=" + ProxyAccount.orderId + "&time=" + str(self.start_time) + "&sign=" + sign + "&dataType=0" + "&lineSeparator=" + ProxyAccount.lineSeparator + "&noDuplicate=" + ProxyAccount.noDuplicate
-                response = requests.get(url)
+                response = requests.get(url, timeout=8)
                 my_response = response.content
                 js_res = json.loads(my_response)
-                success = True
+                data = js_res.get("data", [])
+                if not data:
+                    raise ValueError(f"proxy API returned empty data: {js_res}")
+                return [
+                    {'http': f"http://{dic['ip']}:{dic['port']}","https": f"http://{dic['ip']}:{dic['port']}"}
+                    for dic in data
+                ]
             except Exception as err:
                 print(f"Can't get proxy due to {err}, response is {response.text if response else 'None'}")
-                time.sleep(15)
+                time.sleep(retry_wait_sec)
                 continue
-            return [
-                {'http': f"http://{dic['ip']}:{dic['port']}","https": f"http://{dic['ip']}:{dic['port']}"}
-                for dic in js_res["data"]
-            ]
-        return []
+        raise RuntimeError("Failed to acquire proxies after max retries")
         
     def get_proxy(self):
         if self._check_timeout() or not self.pool:
             self.refresh()
+        if not self.pool:
+            raise RuntimeError("Proxy pool is empty")
         return self.pool.pop(randint(0, len(self.pool)-1))
     
     def _check_timeout(self):
