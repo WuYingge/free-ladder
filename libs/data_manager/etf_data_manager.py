@@ -202,8 +202,11 @@ def get_etf_data_by_symbols(symbols: list[str]) -> list[EtfData]:
 def save_res_df_to_windows(df, relative_fp):
     df.to_excel(os.path.join(DataPath.DEFAULT_WINDOWS_PATH, relative_fp), index=False)
 
-def update_etf_data():
-    all_etf = ETF_LIST.get_all_symbol()
+def update_etf_data(symbols: list[str] | None = None):
+    all_etf = ETF_LIST.get_all_symbol() if symbols is None else [str(symbol).zfill(6) for symbol in symbols]
+    if not all_etf:
+        print("No ETF symbols to update")
+        return
     with Pool(15) as p:
         res = p.map(update_single_etf_data, all_etf)
     for code, result in res:
