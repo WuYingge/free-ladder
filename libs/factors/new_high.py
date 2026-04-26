@@ -4,7 +4,6 @@ from pandas import DataFrame
 from pandas.core.api import Series as Series
 from factors.base_factor import BaseFactor
 from factors.common.ma_filter import long_ma_filter
-from factors.average_true_range import AverageTrueRange
 
 """
 1. 创最近50天新高，且50天均线>100天均线的
@@ -35,7 +34,6 @@ class NewHigh(BaseFactor):
             low_window=low_window,
             use_long_filter=use_long_filter,
         )
-        self.add_dependency(AverageTrueRange(window=50))
         
     def __call__(self, data: DataFrame) -> Series:
         # todo 性能优化

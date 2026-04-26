@@ -1,16 +1,24 @@
 from .data import load_etf_dataframe, build_bt_feed_dataframe
+from .custom_strategy_example import example_equal_weight_momentum_signal
 from .strategies import (
     BaseFactorTimingStrategy,
     ExampleCustomTimingStrategy,
+    FunctionalPortfolioTimingStrategy,
     MinimalFactorTimingStrategyTemplate,
     MultiFactorTimingStrategy,
     NewHighBATRSTimingStrategy,
+    WeightSignalFunction,
 )
 from .engine import (
+    PortfolioBacktestConfig,
+    PortfolioBacktestResult,
     SingleFactorSingleTargetBacktestConfig,
     SingleFactorSingleTargetBacktestResult,
+    run_portfolio_backtest_from_feeds,
     run_single_factor_single_target_backtest,
 )
+from .timing_batch import PortfolioBatchConfig, run_portfolio_backtest_batch
+from .rotation_signal import make_rotation_signal
 from .preprocessing import (
     FactorCalcResult,
     LoadFilterResult,
@@ -18,6 +26,8 @@ from .preprocessing import (
     ensure_output_compatibility,
     parallel_calc_factors_for_map,
     parallel_load_filter_etf_data,
+    slice_etf_data_map_by_date_range,
+    DateRangeSliceResult,
 )
 from .summary_compare import (
     ComparisonMetricSpec,
@@ -32,14 +42,25 @@ from .summary_compare import (
 __all__ = [
     "load_etf_dataframe",
     "build_bt_feed_dataframe",
+    "example_equal_weight_momentum_signal",
     "BaseFactorTimingStrategy",
+    "WeightSignalFunction",
+    "FunctionalPortfolioTimingStrategy",
     "ExampleCustomTimingStrategy",
     "MinimalFactorTimingStrategyTemplate",
     "MultiFactorTimingStrategy",
     "NewHighBATRSTimingStrategy",
+    "PortfolioBacktestConfig",
+    "PortfolioBacktestResult",
     "SingleFactorSingleTargetBacktestConfig",
     "SingleFactorSingleTargetBacktestResult",
+    "run_portfolio_backtest_from_feeds",
     "run_single_factor_single_target_backtest",
+    "PortfolioBatchConfig",
+    "run_portfolio_backtest_batch",
+    "make_rotation_signal",
+    "slice_etf_data_map_by_date_range",
+    "DateRangeSliceResult",
     "PreprocessError",
     "LoadFilterResult",
     "FactorCalcResult",

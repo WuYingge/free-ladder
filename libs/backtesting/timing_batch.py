@@ -45,15 +45,23 @@ from typing import Any, Callable, Optional
 import pandas as pd
 
 from backtesting.engine import (
+    PortfolioBacktestConfig,
+    PortfolioBacktestResult,
     SingleFactorSingleTargetBacktestConfig,
     SingleFactorSingleTargetBacktestResult,
+    run_portfolio_backtest_from_feeds,
     run_single_factor_single_target_backtest,
+)
+from backtesting.portfolio import (
+    build_portfolio_equity_curves,
+    compute_portfolio_performance_metrics,
 )
 from backtesting.performance import (
     build_equity_curves,
     compute_performance_metrics,
 )
 from backtesting.strategies import ExampleCustomTimingStrategy
+from backtesting.strategies.base import WeightSignalFunction
 from backtesting.data import build_bt_feed_dataframe_from_etf_data, load_etf_dataframe
 from core.models.etf_daily_data import EtfData
 
@@ -83,6 +91,24 @@ class TimingBatchConfig:
     strategy_kwargs: dict[str, Any] = field(default_factory=dict)
     # Warm-up length is derived from these factors via get_max_warmup_period().
     analysis_factors: tuple[Any, ...] = field(default_factory=tuple)
+
+
+@dataclass
+class PortfolioBatchConfig:
+    """Configuration for multi-symbol functional portfolio backtest mode."""
+
+    cash: float = 100_000.0
+    commission: float = 0.0005
+    slippage_perc: float = 0.0002
+    rebalance_interval: int = 1
+    max_gross_exposure: float = 0.95
+    min_weight: float = 0.0
+    max_weight: float = 1.0
+    allow_short: bool = False
+    strategy_kwargs: dict[str, Any] = field(default_factory=dict)
+    data_feed_cls: Optional[type] = None
+    benchmark_weights: Optional[dict[str, float]] = None
+    output_dir: Optional[str | Path] = None
 
 
 # ---------------------------------------------------------------------------
@@ -447,6 +473,164 @@ def _save_results(
                 f"{factor.__class__.__module__}.{factor.__class__.__qualname__}"
                 for factor in config.analysis_factors
             ],
+        },
+    }
+    with open(output_dir / "run_metadata.json", "w", encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+
+def run_portfolio_backtest_batch(
+    symbol_feed_map: dict[str, pd.DataFrame],
+    strategy_callable: WeightSignalFunction,
+    config: PortfolioBatchConfig,
+) -> tuple[pd.DataFrame, list[dict], dict[str, pd.DataFrame]]:
+    """Run one multi-symbol portfolio backtest from in-memory symbol feed data.
+
+    The input DataFrame for each symbol must contain at least OHLCV columns and
+    can include any precomputed factor columns consumed by strategy_callable.
+    """
+    if not symbol_feed_map:
+        raise ValueError("symbol_feed_map cannot be empty.")
+
+    errors: list[dict] = []
+    metrics_rows: list[dict] = []
+    equity_curves: dict[str, pd.DataFrame] = {}
+
+    try:
+        engine_result = run_portfolio_backtest_from_feeds(
+            PortfolioBacktestConfig(
+                symbol_feed_map=symbol_feed_map,
+                strategy_callable=strategy_callable,
+                cash=config.cash,
+                commission=config.commission,
+                slippage_perc=config.slippage_perc,
+                rebalance_interval=config.rebalance_interval,
+                max_gross_exposure=config.max_gross_exposure,
+                min_weight=config.min_weight,
+                max_weight=config.max_weight,
+                allow_short=config.allow_short,
+                strategy_kwargs=dict(config.strategy_kwargs),
+                data_feed_cls=config.data_feed_cls,
+            )
+        )
+    except Exception:
+        error_message = traceback.format_exc()
+        errors.append({"symbol": "PORTFOLIO", "error": error_message})
+        summary_df = pd.DataFrame(
+            [{"symbol": "PORTFOLIO", "name": "Portfolio", "error": error_message[:200]}]
+        )
+        equity_curves["PORTFOLIO"] = pd.DataFrame(columns=["strategy", "benchmark"])
+        return summary_df, errors, equity_curves
+
+    price_df_by_symbol: dict[str, pd.DataFrame] = {}
+    for symbol, df in symbol_feed_map.items():
+        try:
+            local_df = df.copy()
+            if "date" in local_df.columns:
+                local_df["date"] = pd.to_datetime(local_df["date"])
+                local_df = local_df.set_index("date")
+            local_df.index = pd.to_datetime(local_df.index)
+            local_df = local_df.sort_index()
+            price_df_by_symbol[symbol] = local_df
+        except Exception as exc:
+            errors.append({"symbol": symbol, "error": f"invalid feed dataframe: {exc}"})
+
+    metrics = compute_portfolio_performance_metrics(
+        strategy_time_return=engine_result.analyzer_raw.get("time_return", {}),
+        price_df_by_symbol=price_df_by_symbol,
+        name="Portfolio",
+        trades_total=engine_result.trades_total,
+        trades_won=engine_result.trades_won,
+        trades_lost=engine_result.trades_lost,
+        max_drawdown_pct_from_engine=engine_result.max_drawdown_pct,
+        benchmark_weights=config.benchmark_weights,
+    )
+    metrics["error"] = None
+    metrics_rows.append(metrics)
+
+    equity_curves["PORTFOLIO"] = build_portfolio_equity_curves(
+        strategy_time_return=engine_result.analyzer_raw.get("time_return", {}),
+        price_df_by_symbol=price_df_by_symbol,
+        benchmark_weights=config.benchmark_weights,
+    )
+
+    summary_df = pd.DataFrame(metrics_rows)
+    summary_df = summary_df.reset_index(drop=True)
+
+    if config.output_dir is not None:
+        _save_portfolio_results(
+            output_dir=Path(config.output_dir),
+            summary_df=summary_df,
+            error_list=errors,
+            equity_curves=equity_curves,
+            config=config,
+            result=engine_result,
+            total_symbols=len(symbol_feed_map),
+        )
+
+    return summary_df, errors, equity_curves
+
+
+def _save_portfolio_results(
+    output_dir: Path,
+    summary_df: pd.DataFrame,
+    error_list: list[dict],
+    equity_curves: dict[str, pd.DataFrame],
+    config: PortfolioBatchConfig,
+    result: PortfolioBacktestResult,
+    total_symbols: int,
+) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary_df.to_csv(output_dir / "summary.csv", index=False, encoding="utf-8-sig")
+
+    details: list[dict] = []
+    for _, row in summary_df.iterrows():
+        detail = row.to_dict()
+        ec = equity_curves.get("PORTFOLIO")
+        if ec is not None and not ec.empty:
+            detail["equity_curve"] = ec.reset_index().rename(columns={"index": "date"}).to_dict(orient="records")
+        else:
+            detail["equity_curve"] = []
+        details.append(detail)
+
+    with open(output_dir / "details.json", "w", encoding="utf-8") as f:
+        json.dump(details, f, ensure_ascii=False, indent=2, default=str)
+
+    with open(output_dir / "errors.json", "w", encoding="utf-8") as f:
+        json.dump(error_list, f, ensure_ascii=False, indent=2)
+
+    import datetime
+
+    metadata = {
+        "run_timestamp": datetime.datetime.now().isoformat(),
+        "mode": "portfolio_functional",
+        "total_symbols": total_symbols,
+        "failure_count": len(error_list),
+        "config": {
+            "cash": config.cash,
+            "commission": config.commission,
+            "slippage_perc": config.slippage_perc,
+            "rebalance_interval": config.rebalance_interval,
+            "max_gross_exposure": config.max_gross_exposure,
+            "min_weight": config.min_weight,
+            "max_weight": config.max_weight,
+            "allow_short": config.allow_short,
+            "strategy_kwargs": config.strategy_kwargs,
+            "benchmark_weights": config.benchmark_weights,
+            "data_feed_cls": (
+                f"{config.data_feed_cls.__module__}.{config.data_feed_cls.__qualname__}"
+                if config.data_feed_cls is not None
+                else None
+            ),
+        },
+        "engine": {
+            "start_value": result.start_value,
+            "end_value": result.end_value,
+            "pnl": result.pnl,
+            "pnl_pct": result.pnl_pct,
+            "trades_total": result.trades_total,
+            "trades_won": result.trades_won,
+            "trades_lost": result.trades_lost,
         },
     }
     with open(output_dir / "run_metadata.json", "w", encoding="utf-8") as f:

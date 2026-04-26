@@ -8,6 +8,7 @@ import backtrader as bt
 import pandas as pd
 
 from .strategies import ExampleCustomTimingStrategy
+from .strategies.base import WeightSignalFunction, FunctionalPortfolioTimingStrategy
 from .data import build_bt_feed_dataframe, build_bt_feed_dataframe_from_dataframe
 
 
@@ -50,6 +51,39 @@ class SingleFactorSingleTargetBacktestResult:
     # 夏普比率，越高越好，通常大于1.0被认为是不错的策略
     sharpe: Optional[float]
     # 最大回撤百分比，越低越好，通常小于20%被认为是不错的策略
+    max_drawdown_pct: Optional[float]
+    trades_total: int
+    trades_won: int
+    trades_lost: int
+    analyzer_raw: dict[str, Any]
+
+
+@dataclass(slots=True)
+class PortfolioBacktestConfig:
+    """Multi-symbol portfolio backtest configuration."""
+
+    symbol_feed_map: dict[str, pd.DataFrame]
+    strategy_callable: WeightSignalFunction
+    cash: float = 100000.0
+    commission: float = 0.0005
+    slippage_perc: float = 0.0002
+    rebalance_interval: int = 1
+    max_gross_exposure: float = 0.95
+    min_weight: float = 0.0
+    max_weight: float = 1.0
+    allow_short: bool = False
+    strategy_kwargs: dict[str, Any] = field(default_factory=dict)
+    data_feed_cls: Optional[type[bt.feeds.PandasData]] = None
+
+
+@dataclass(slots=True)
+class PortfolioBacktestResult:
+    symbol: str
+    start_value: float
+    end_value: float
+    pnl: float
+    pnl_pct: float
+    sharpe: Optional[float]
     max_drawdown_pct: Optional[float]
     trades_total: int
     trades_won: int
@@ -224,6 +258,99 @@ def run_single_factor_single_target_backtest(
             "drawdown": drawdown_analysis,
             "trades": trade_analysis,
             # keyed by datetime.date → daily return fraction (e.g. 0.01 = +1%)
+            "time_return": {str(k): v for k, v in time_return_analysis.items()},
+        },
+    )
+
+
+def run_portfolio_backtest_from_feeds(
+    config: PortfolioBacktestConfig,
+) -> PortfolioBacktestResult:
+    if not config.symbol_feed_map:
+        raise ValueError("symbol_feed_map cannot be empty.")
+    if int(config.rebalance_interval) <= 0:
+        raise ValueError("rebalance_interval must be >= 1.")
+    if float(config.max_gross_exposure) <= 0:
+        raise ValueError("max_gross_exposure must be > 0.")
+
+    cerebro = bt.Cerebro()
+
+    for symbol, input_df in config.symbol_feed_map.items():
+        feed_df = build_bt_feed_dataframe_from_dataframe(
+            input_df,
+            source=f"in_memory:{symbol}",
+        )
+        data_feed_cls = config.data_feed_cls or _build_auto_data_feed_cls(feed_df.columns)
+        data_feed = data_feed_cls(dataname=feed_df)  # type: ignore[call-arg]
+        cerebro.adddata(data_feed, name=symbol)
+
+    cerebro.addstrategy(
+        FunctionalPortfolioTimingStrategy,
+        signal_func=config.strategy_callable,
+        signal_kwargs=dict(config.strategy_kwargs),
+        rebalance_interval=int(config.rebalance_interval),
+        max_gross_exposure=float(config.max_gross_exposure),
+        min_weight=float(config.min_weight),
+        max_weight=float(config.max_weight),
+        allow_short=bool(config.allow_short),
+    )
+
+    cerebro.broker.setcash(config.cash)
+    cerebro.broker.setcommission(commission=config.commission)
+    if config.slippage_perc < 0:
+        raise ValueError(f"slippage_perc must be >= 0, got {config.slippage_perc}")
+    if config.slippage_perc > 0:
+        cerebro.broker.set_slippage_perc(
+            perc=config.slippage_perc,
+            slip_open=True,
+            slip_limit=True,
+            slip_match=True,
+            slip_out=False,
+        )
+
+    timeframe = getattr(bt.TimeFrame, "Days", None)
+    if timeframe is not None:
+        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe", timeframe=timeframe)
+    else:
+        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe")
+    cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
+    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
+    if timeframe is not None:
+        cerebro.addanalyzer(bt.analyzers.TimeReturn, _name="time_return", timeframe=timeframe)
+    else:
+        cerebro.addanalyzer(bt.analyzers.TimeReturn, _name="time_return")
+
+    start_value = float(cerebro.broker.getvalue())
+    result = cerebro.run()[0]
+    end_value = float(cerebro.broker.getvalue())
+    pnl = end_value - start_value
+    pnl_pct = pnl / start_value if start_value else 0.0
+
+    sharpe_analysis = result.analyzers.sharpe.get_analysis()
+    drawdown_analysis = result.analyzers.drawdown.get_analysis()
+    trade_analysis = result.analyzers.trades.get_analysis()
+    time_return_analysis = result.analyzers.time_return.get_analysis()
+
+    max_dd = drawdown_analysis.get("max", {}).get("drawdown")
+    trades_total = int(trade_analysis.get("total", {}).get("total", 0) or 0)
+    trades_won = int(trade_analysis.get("won", {}).get("total", 0) or 0)
+    trades_lost = int(trade_analysis.get("lost", {}).get("total", 0) or 0)
+
+    return PortfolioBacktestResult(
+        symbol="PORTFOLIO",
+        start_value=start_value,
+        end_value=end_value,
+        pnl=pnl,
+        pnl_pct=pnl_pct,
+        sharpe=_safe_extract_sharpe(sharpe_analysis),
+        max_drawdown_pct=float(max_dd) if max_dd is not None else None,
+        trades_total=trades_total,
+        trades_won=trades_won,
+        trades_lost=trades_lost,
+        analyzer_raw={
+            "sharpe": sharpe_analysis,
+            "drawdown": drawdown_analysis,
+            "trades": trade_analysis,
             "time_return": {str(k): v for k, v in time_return_analysis.items()},
         },
     )
