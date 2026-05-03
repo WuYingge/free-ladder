@@ -116,13 +116,59 @@ class FinancialData(ABC):
     
     def add_factors(self, factor: BaseFactor):
         self.factors.append(factor)
+
+    def _normalize_factor_series(
+        self,
+        factor: BaseFactor,
+        result: Union[pd.Series, Any],
+        data_index: pd.Index,
+    ) -> pd.Series:
+        if isinstance(result, pd.Series):
+            series = result.copy()
+        else:
+            series = pd.Series(result, index=data_index)
+
+        expected_name = factor.get_output_name()
+        if series.name is None:
+            series.name = expected_name
+        elif series.name != expected_name:
+            raise ValueError(
+                f"Factor {factor!r} returned series named {series.name!r}, expected {expected_name!r}"
+            )
+        return series
+
+    def _validate_unique_factor_output_names(self, factors: List[BaseFactor]) -> None:
+        seen: Dict[str, BaseFactor] = {}
+        for factor in factors:
+            output_name = factor.get_output_name()
+            existing = seen.get(output_name)
+            if existing is not None and existing != factor:
+                raise ValueError(
+                    f"Duplicate factor output name {output_name!r} for {existing!r} and {factor!r}"
+                )
+            seen[output_name] = factor
+
+    def _join_factor_series(self, factor_series: List[pd.Series]) -> pd.DataFrame:
+        seen_names: set[str] = set()
+        for series in factor_series:
+            if series.name is None:
+                raise ValueError("Factor result series must have a name before joining")
+            if series.name in seen_names:
+                raise ValueError(f"Duplicate factor result column {series.name!r}")
+            seen_names.add(series.name)
+        return self.data.join(factor_series)
         
     def calc_factors(self) -> pd.DataFrame:
+        data = self.data
+        sorted_factors = self.sort_factors_by_dependency()
+        self._validate_unique_factor_output_names(sorted_factors)
+
         factor_results = []
-        for factor in self.sort_factors_by_dependency():
-            factor_results.append(pd.Series(factor(self.data), name=factor.name))
-            self.factor_results[factor] = factor_results[-1]
-        return self.data.join(factor_results)
+        for factor in sorted_factors:
+            series = self._normalize_factor_series(factor, factor(data), data.index)
+            factor_results.append(series)
+            self.factor_results[factor] = series
+        return self._join_factor_series(factor_results)
     
     def sort_factors_by_dependency(self) -> List[BaseFactor]:
         """根据依赖关系对因子进行排序"""
@@ -149,8 +195,11 @@ class FinancialData(ABC):
         """输出包含因子结果的数据"""
         if not self.factor_results:
             self.calc_factors()
-        factor_dfs = [series for series in self.factor_results.values()]
-        return self.data.join(factor_dfs) # type: ignore
+        factor_dfs = [
+            self._normalize_factor_series(factor, series, self._data.index)
+            for factor, series in self.factor_results.items()
+        ]
+        return self._join_factor_series(factor_dfs) # type: ignore
     
     @abstractmethod
     def validate_data(self) -> bool:

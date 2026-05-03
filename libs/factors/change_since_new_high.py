@@ -34,7 +34,7 @@ class ChangeSinceNewHigh(BaseFactor):
         merged_data["NewHigh"] = self.get_dependency_results(data)[self.dependencies[0]]
         return merged_data
     
-    def calc_returns_from_first_high(self, df: pd.DataFrame) -> pd.Series:
+    def calc_returns_from_first_high(self, df: pd.DataFrame) -> pd.Series[Any]:
         """
         对于df中的每一行，计算自所在组第一个1以来的涨幅。
         如果遇到了-1则归零，并且不参与后续的涨幅计算。
@@ -68,4 +68,5 @@ class ChangeSinceNewHigh(BaseFactor):
             pct.apply(lambda x: f"{x:.2%}"),  # 格式化为百分比字符串
             ""                                 # 其余行留空
         )
-        return df["change_since_new_high"]
+        # Match the framework requirement: factor output Series name must equal factor output name.
+        return df["change_since_new_high"].rename(self.get_output_name())

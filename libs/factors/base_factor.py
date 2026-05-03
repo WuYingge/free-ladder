@@ -22,6 +22,10 @@ class BaseFactor(ABC):
 
     def _set_params(self, **kwargs: Any) -> None:
         self.params.update(kwargs)
+
+    def get_output_name(self) -> str:
+        """Return the canonical output column name for this factor instance."""
+        return self.name
     
     @abstractmethod
     def __call__(self, data: pd.DataFrame) -> pd.Series:

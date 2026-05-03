@@ -69,3 +69,8 @@ summary_df, errors, equity_curves = run_portfolio_backtest_batch(
 )
 ```
 
+## 低相关组合搜索脚本
+
+- `libs/scripts/discover_three_asset_extensions.py`：从 `INDEX_KEYWORDS` 中为每个关键词挑选代表 ETF，并基于基础池搜索低相关扩展组合。
+- 使用说明见 [docs/discover_three_asset_extensions.md](docs/discover_three_asset_extensions.md)
+

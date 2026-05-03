@@ -28,6 +28,11 @@ class PriceReturn(BaseFactor):
         self.warmup_period = self.window + self.skip_recent + 1
         self._set_params(window=window, skip_recent=skip_recent)
 
+    def get_output_name(self) -> str:
+        if self.skip_recent == 0:
+            return f"PriceReturn_{self.window}"
+        return f"PriceReturn_{self.window}_skip{self.skip_recent}"
+
     def __call__(self, data: pd.DataFrame) -> pd.Series:
         close = data["close"]
         if self.skip_recent > 0:
@@ -38,5 +43,5 @@ class PriceReturn(BaseFactor):
             ref_close = close
 
         result = (ref_close - past_close) / past_close
-        result.name = f"PriceReturn_{self.window}" if self.skip_recent == 0 else f"PriceReturn_{self.window}_skip{self.skip_recent}"
+        result.name = self.get_output_name()
         return result

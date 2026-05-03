@@ -19,6 +19,17 @@ from .engine import (
 )
 from .timing_batch import PortfolioBatchConfig, run_portfolio_backtest_batch
 from .rotation_signal import make_rotation_signal
+from .index_rotation import (
+    IndexRotationDiscoveryResult,
+    KeywordRepresentativeResult,
+    build_pairwise_correlation_frame,
+    build_representative_etf_frame,
+    discover_index_keyword_representatives,
+    discover_index_rotation_candidates,
+    match_index_keywords,
+    search_low_correlation_combos,
+    select_keyword_representatives,
+)
 from .preprocessing import (
     FactorCalcResult,
     LoadFilterResult,
@@ -59,6 +70,15 @@ __all__ = [
     "PortfolioBatchConfig",
     "run_portfolio_backtest_batch",
     "make_rotation_signal",
+    "IndexRotationDiscoveryResult",
+    "KeywordRepresentativeResult",
+    "build_pairwise_correlation_frame",
+    "build_representative_etf_frame",
+    "discover_index_keyword_representatives",
+    "discover_index_rotation_candidates",
+    "match_index_keywords",
+    "search_low_correlation_combos",
+    "select_keyword_representatives",
     "slice_etf_data_map_by_date_range",
     "DateRangeSliceResult",
     "PreprocessError",

@@ -55,7 +55,9 @@ class RsrsFactor(BaseFactor):
         # output 控制这个因子最终返回哪一层结果，既可返回最终 signal，
         # 也可返回中间结果用于调试或分析。
         self.output = output
-        self.warmup_period = int(max(regression_window, zscore_window))
+        # 首个可用于交易决策的 zscore 需要先形成 regression_window 的 beta，
+        # 再积累 zscore_window 个历史 score，因此 warm-up 需覆盖两段窗口。
+        self.warmup_period = int(regression_window + zscore_window)
         self._set_params(
             regression_window=regression_window,
             zscore_window=zscore_window,
@@ -64,6 +66,9 @@ class RsrsFactor(BaseFactor):
             use_r2_adjustment=use_r2_adjustment,
             output=output,
         )
+
+    def get_output_name(self) -> str:
+        return self._build_series_name()
 
     def __call__(self, data: pd.DataFrame) -> pd.Series:
         # 首先校验输入列和参数，避免在 rolling 计算中才暴露低质量错误。
@@ -105,7 +110,7 @@ class RsrsFactor(BaseFactor):
                 "output must be one of: beta, r_square, score, zscore, signal"
             )
 
-        result.name = self._build_series_name()
+        result.name = self.get_output_name()
         return result
 
     def _validate_input(self, data: pd.DataFrame) -> None:

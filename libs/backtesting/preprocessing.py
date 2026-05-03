@@ -65,7 +65,7 @@ def _calc_factors_worker(
 
         # Keep transport payload serializable and detached from factor object identity.
         by_name = {
-            factor.name: series.copy()
+            factor.get_output_name(): series.copy()
             for factor, series in etf_data.factor_results.items()
         }
         return symbol, by_name, None
@@ -74,19 +74,27 @@ def _calc_factors_worker(
 
 
 def _collect_factor_objects(factor_pipeline: list[BaseFactor]) -> dict[str, BaseFactor]:
-    seen: dict[str, BaseFactor] = {}
+    seen_factors: set[BaseFactor] = set()
+    factor_by_output_name: dict[str, BaseFactor] = {}
 
     def visit(f: BaseFactor) -> None:
-        if f.name in seen:
+        if f in seen_factors:
             return
+        seen_factors.add(f)
         for dep in f.dependencies:
             visit(dep)
-        seen[f.name] = f
+        output_name = f.get_output_name()
+        existing = factor_by_output_name.get(output_name)
+        if existing is not None and existing != f:
+            raise ValueError(
+                f"Duplicate factor output name {output_name!r} for {existing!r} and {f!r}"
+            )
+        factor_by_output_name[output_name] = f
 
     for f in factor_pipeline:
         visit(f)
 
-    return seen
+    return factor_by_output_name
 
 
 def parallel_load_filter_etf_data(
@@ -191,7 +199,7 @@ def parallel_calc_factors_for_map(
     progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ) -> FactorCalcResult:
     target_symbols = symbols or list(etf_data_map.keys())
-    factor_by_name = _collect_factor_objects(factor_pipeline)
+    factor_by_output_name = _collect_factor_objects(factor_pipeline)
     errors: list[PreprocessError] = []
 
     total = len(target_symbols)
@@ -234,10 +242,29 @@ def parallel_calc_factors_for_map(
                         etf_data.factor_results.clear()
                         for f in factor_pipeline:
                             etf_data.add_factors(f)
-                        for name, series in by_name.items():
-                            factor_obj = factor_by_name.get(name)
-                            if factor_obj is not None:
-                                etf_data.factor_results[factor_obj] = series
+                        missing_names = [
+                            name for name in factor_by_output_name.keys() if name not in by_name
+                        ]
+                        unexpected_names = [
+                            name for name in by_name.keys() if name not in factor_by_output_name
+                        ]
+                        if missing_names or unexpected_names:
+                            details: list[str] = []
+                            if missing_names:
+                                details.append(f"missing outputs: {missing_names}")
+                            if unexpected_names:
+                                details.append(f"unexpected outputs: {unexpected_names}")
+                            errors.append(
+                                PreprocessError(
+                                    symbol=sym,
+                                    stage="factor_apply",
+                                    error="; ".join(details),
+                                    retried_serial=False,
+                                )
+                            )
+                        else:
+                            for name, factor_obj in factor_by_output_name.items():
+                                etf_data.factor_results[factor_obj] = by_name[name]
             except Exception as exec_err:
                 failed_symbols.append(symbol)
                 errors.append(

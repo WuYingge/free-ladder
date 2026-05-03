@@ -20,6 +20,9 @@ class AverageTrueRange(BaseFactor):
         self.window = window
         self.warmup_period = int(window)
         self._set_params(window=window)
+
+    def get_output_name(self) -> str:
+        return f"ATR_{self.window}"
     
     def __call__(self, data: pd.DataFrame) -> pd.Series:
         high = data['high']
@@ -34,6 +37,6 @@ class AverageTrueRange(BaseFactor):
         
         # 计算平均真实波幅（ATR）
         atr = true_range.rolling(window=self.window).mean()
-        atr.name = f"ATR_{self.window}"
+        atr.name = self.get_output_name()
         return atr
     
