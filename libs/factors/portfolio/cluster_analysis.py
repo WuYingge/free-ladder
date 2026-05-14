@@ -69,9 +69,11 @@ class ClusterAnalysis(BaseCrossSectionFactor):
 
     def __call__(self, *data: EtfData) -> pd.DataFrame:
         print("开始聚类分析...")
-        self._check(data)
+        data_list = list(data)
+        self._check(data_list)
+        use_log_return = self.approach == "corr_agglomerative"
         print("生成特征矩阵...")
-        self._gen_feature_df(list(data))
+        self._gen_feature_df(data_list, use_log_return=use_log_return)
         print(f"特征矩阵维度: {self.features.shape}")
         processed_data = self._preprocess()
         print(f"预处理后数据维度: {processed_data.shape}")
@@ -196,21 +198,34 @@ class ClusterAnalysis(BaseCrossSectionFactor):
                     f"Required: {self.n_days}, Available: {etf_data.data.shape[0]}"
                 )
         
-    def _gen_feature_df(self, datas: List[EtfData]):
+    def _prepare_return_series(self, etf: EtfData, use_log_return: bool = False) -> pd.Series:
+        data = etf.data.set_index("date", drop=True)
+        data.index = pd.to_datetime(data.index)
+        return_series = data.reindex(self.date_index)["gain"].astype(float)
+        return_series.ffill(inplace=True)
+        return_series.bfill(inplace=True)
+        if return_series.isna().any():
+            raise ValueError(f"NaN values found in gain data for ETF {etf.symbol}")
+        if use_log_return:
+            decimal_returns = return_series / 100.0
+            if (decimal_returns <= -1).any():
+                raise ValueError(
+                    f"Invalid gain data for ETF {etf.symbol}: gain must be greater than -100% to compute log return"
+                )
+            return_series = np.log1p(decimal_returns)
+        return return_series
+
+    def _gen_feature_df(self, datas: List[EtfData], use_log_return: bool = False):
         feature_series = []
         self.etf_name_map = {}
         self.tracked_index_map = {}
+        if use_log_return:
+            print("corr_agglomerative 使用 log return (log1p(gain / 100)) 构建相关性特征。")
         for etf in datas:
-            data = etf.data.set_index("date", drop=True)
-            data.index = pd.to_datetime(data.index)
-            data = data.reindex(self.date_index)["gain"]
+            data = self._prepare_return_series(etf, use_log_return=use_log_return)
             symbol = str(etf.symbol)
             etf_name = etf.name or ETF_LIST.get_name(symbol)
             data.name = symbol
-            data.ffill(inplace=True)
-            data.bfill(inplace=True)
-            if data.isna().any():
-                raise ValueError(f"NaN values found in gain data for ETF {etf.symbol}")
             self.etf_name_map[symbol] = etf_name
             self.tracked_index_map[symbol] = extract_tracked_index_name(etf_name)
             feature_series.append(data)

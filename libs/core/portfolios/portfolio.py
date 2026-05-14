@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+import time
 from typing import Optional, Mapping
 import pandas as pd
 from core.models.etf_daily_data import EtfData
 from data_manager.etf_data_manager import get_etf_data_by_symbol
+from fetcher.etf import fund_etf_spot_em
 from factors.average_true_range import AverageTrueRange
+from factors.base_factor import BaseFactor
 from factors.portfolio.correlation import CorrelationFactor
 from data_manager.providers.cluster_provider import ClusterInfo
 from factors.change_since_new_high import ChangeSinceNewHigh
@@ -105,16 +108,38 @@ class Portfolio:
             corr_analysis.append(self.calc_corr_with_current_position(symbol, name_dict))
 
         return pd.concat(corr_analysis, axis=0).sort_values(by="average_correlation", ascending=True)
+
+    def _get_realtime_price_map_with_retry(self, retries: int = 3) -> dict[str, float]:
+        for attempt in range(1, retries + 1):
+            try:
+                quote_df = fund_etf_spot_em()
+                if quote_df.empty:
+                    raise ValueError("Empty realtime ETF quote data")
+                if "代码" not in quote_df.columns or "最新价" not in quote_df.columns:
+                    raise ValueError("Missing required columns in realtime ETF quote data")
+                price_series = quote_df.set_index("代码")["最新价"].dropna()
+                return {str(symbol): float(price) for symbol, price in price_series.items()}
+            except Exception:
+                if attempt == retries:
+                    return {}
+                time.sleep(0.5 * attempt)
+        return {}
     
     def calc_clustering_distribution(self, name_dict: Mapping[str, str]|None = None) -> pd.DataFrame:
         res = []
         if name_dict is None:
             name_dict = {}
+        realtime_price_by_symbol = self._get_realtime_price_map_with_retry()
         for symbol, pos in self.positions.items():
             symbol_label = ClusterInfo.get_cluster(symbol)
-            res.append({"symbol": symbol, "cluster": symbol_label, "value": pos.market_value, "name": name_dict.get(symbol, "")})
+            realtime_price = realtime_price_by_symbol.get(symbol)
+            if realtime_price is not None and pd.notna(realtime_price):
+                value = float(realtime_price) * pos.quantity
+            else:
+                value = pos.market_value
+            res.append({"symbol": symbol, "cluster": symbol_label, "value": value, "name": name_dict.get(symbol, "")})
         dist = pd.DataFrame(res)
-        percent = dist.groupby("cluster")["value"].sum() / dist["value"].sum()
+        percent = dist.groupby("cluster")["value"].sum() / self.all_money
         percent.name = "percent"
         percent = percent.apply(lambda x: f"{round(x * 100, 2)}%")
         value_counts = dist.groupby("cluster").size()
@@ -131,12 +156,19 @@ class Portfolio:
         corr_add["newCluster"] = corr_add["cluster"].apply(lambda x: "No" if x in [pos.cluster for pos in self.positions.values()] else "Yes")
         return corr_add.sort_values(by=["newCluster", "cluster", "average_correlation"], ascending=[False, True, True])
     
-    def calc_change_since_new_high(self, symbol: str) -> pd.Series:
+    def calc_change_since_new_high(self, symbol: str, newHighFactor: None | BaseFactor=None) -> pd.Series:
         etf_data = get_etf_data_by_symbol(symbol)
-        change_factor = ChangeSinceNewHigh(long_period=50, short_period=25)
-        etf_data.add_factors(change_factor)
+        if newHighFactor is None:
+             csn_factor = ChangeSinceNewHigh(long_period=50, short_period=25)
+        else:
+            csn_factor = ChangeSinceNewHigh(
+                long_period=newHighFactor.params.get("long_period", 50), 
+                short_period=newHighFactor.params.get("short_period", 25), 
+                use_long_filter=newHighFactor.params.get("use_long_filter", False)
+                )
+        etf_data.add_factors(csn_factor)
         etf_data.calc_factors()
-        return etf_data.factor_results[change_factor]
+        return etf_data.factor_results[csn_factor]
 
 @dataclass
 class Position:

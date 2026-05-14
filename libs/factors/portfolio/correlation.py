@@ -10,13 +10,26 @@ class CorrelationFactor(BaseCrossSectionFactor):
     """
     
     name = "CorrelationFactor"
+
+    def _prepare_return_series(self, data_model: EtfData) -> pd.Series:
+        return_series = data_model.data.set_index("date")["gain"].astype(float)
+        decimal_returns = return_series / 100.0
+        if (decimal_returns <= -1).any():
+            raise ValueError(
+                f"Invalid gain data for ETF {data_model.symbol}: gain must be greater than -100% to compute log return"
+            )
+        return np.log1p(decimal_returns)
     
     def __call__(self, *data_models: EtfData) -> pd.DataFrame:
         if len(data_models) < 2:
             raise ValueError("至少需要两个数据来计算相关系数矩阵")
         
         columns = [data_model.symbol for data_model in data_models]
-        combined_data = pd.concat([data_model.data.set_index("date")["gain"] for data_model in data_models], axis=1, keys=columns)
+        combined_data = pd.concat(
+            [self._prepare_return_series(data_model) for data_model in data_models],
+            axis=1,
+            keys=columns,
+        )
         if combined_data.shape[0] < 60:
             raise ValueError("数据长度不足以计算相关系数矩阵，至少需要60个数据点")
         correlation_matrix = combined_data.corr()

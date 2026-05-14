@@ -15,6 +15,7 @@ from core.models.etf_daily_data import EtfData
 from data_manager.etf_data_manager import get_etf_data_by_symbol
 from factors.base_factor import BaseFactor
 from factors.price_return import PriceReturn
+from factors.rolling_ols import RollingOLS
 
 
 def _make_etf_frame(n: int = 260) -> pd.DataFrame:
@@ -40,6 +41,10 @@ def _make_etf(symbol: str = "TEST") -> EtfData:
 
 def _price_return_columns() -> list[str]:
     return ["PriceReturn_20", "PriceReturn_60", "PriceReturn_120"]
+
+
+def _rolling_ols_columns() -> list[str]:
+    return ["RollingOLS_close_20_slope", "RollingOLS_close_20_r2"]
 
 
 class ConstantNamedFactor(BaseFactor):
@@ -83,6 +88,20 @@ def test_calc_factors_raises_on_duplicate_output_names():
 
     with pytest.raises(ValueError, match="Duplicate factor output name"):
         etf.calc_factors()
+
+
+def test_calc_factors_preserves_rolling_ols_output_names():
+    etf = _make_etf()
+    factors = [RollingOLS(window=20, output="slope"), RollingOLS(window=20, output="r2")]
+
+    for factor in factors:
+        etf.add_factors(factor)
+
+    output = etf.calc_factors()
+
+    for factor, column in zip(factors, _rolling_ols_columns()):
+        assert etf.factor_results[factor].name == column
+        assert column in output.columns
 
 
 @pytest.mark.skipif(

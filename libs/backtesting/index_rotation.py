@@ -699,7 +699,9 @@ def _build_common_correlation_frame(
         return close_frame, close_frame.index.min(), close_frame.index.max(), int(len(close_frame))
 
     if correlation_source == "return":
-        return_frame = close_frame.pct_change().dropna(how="any")
+        if (close_frame <= 0).any().any():
+            raise ValueError("close frame contains non-positive values; cannot compute log returns")
+        return_frame = np.log(close_frame / close_frame.shift(1)).dropna(how="any")
         if len(return_frame) < 2:
             raise ValueError("common return frame has fewer than 2 bars")
         return (

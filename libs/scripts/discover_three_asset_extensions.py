@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
         "--correlation-source",
         choices=("close", "return"),
         default="return",
-        help="Price level or daily return series used to build the correlation matrix.",
+        help="Price level or daily log return series used to build the correlation matrix.",
     )
     parser.add_argument(
         "--max-results",
