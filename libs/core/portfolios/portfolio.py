@@ -148,10 +148,38 @@ class Portfolio:
         analysis_df.reset_index(drop=False, inplace=True)
         return analysis_df
 
-    def analyze_with_add_to_list(self, add_to_list: list[str], name_dict: Mapping[str, str]|None=None):
+    def _collect_latest_factor_values(
+        self,
+        symbols: list[str],
+        analysis_factors: list[BaseFactor],
+    ) -> pd.DataFrame:
+        if not analysis_factors:
+            return pd.DataFrame(index=pd.Index(symbols, name="symbol"))
+
+        factor_rows: list[dict[str, object]] = []
+        for symbol in symbols:
+            etf_data = get_etf_data_by_symbol(symbol)
+            for factor in analysis_factors:
+                etf_data.add_factors(factor)
+            etf_data.calc_factors()
+
+            factor_row: dict[str, object] = {"symbol": symbol}
+            for factor in analysis_factors:
+                factor_row[factor.get_output_name()] = etf_data.factor_results[factor].iloc[-1]
+            factor_rows.append(factor_row)
+
+        return pd.DataFrame(factor_rows).set_index("symbol")
+
+    def analyze_with_add_to_list(
+        self,
+        add_to_list: list[str],
+        name_dict: Mapping[str, str]|None = None,
+        analysis_factors: list[BaseFactor] | None = None,
+    ):
         corr_add = self.calc_corrs_with_current_position(add_to_list, name_dict=name_dict)
         corr_add = corr_add.join(pd.Series([self.max_money_for_symbol_by_ATR(i) for i in corr_add.index], index=corr_add.index, name="max_value"))
-        corr_add = corr_add.join(pd.Series([self.calc_change_since_new_high(i).iloc[-1] for i in corr_add.index], index=corr_add.index, name="change_since_new_high"))
+        if analysis_factors:
+            corr_add = corr_add.join(self._collect_latest_factor_values(list(corr_add.index), analysis_factors))
         corr_add["cluster"] = corr_add.apply(lambda x: ClusterInfo.get_cluster(str(x.name)), axis=1)
         corr_add["newCluster"] = corr_add["cluster"].apply(lambda x: "No" if x in [pos.cluster for pos in self.positions.values()] else "Yes")
         return corr_add.sort_values(by=["newCluster", "cluster", "average_correlation"], ascending=[False, True, True])

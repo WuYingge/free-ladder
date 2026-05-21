@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from factors.base_factor import BaseFactor
+from factors.derived_factor import DerivedFactor
 
 
 class RsrsFactor(BaseFactor):
@@ -183,4 +184,151 @@ class RsrsFactor(BaseFactor):
         # 方便在同一 DataFrame 中同时比较多个 RSRS 变体。
         suffix = "adj" if self.use_r2_adjustment else "raw"
         return f"{self.name}_{self.output}_{suffix}"
+
+
+class RsrsDerivedFactor(DerivedFactor):
+    name = "RsrsDerived"
+    params = {
+        "regression_window": 18,
+        "zscore_window": 200,
+        "buy_threshold": 0.7,
+        "sell_threshold": -0.7,
+        "use_r2_adjustment": True,
+        "short_ema_span": 5,
+        "long_ema_span": 20,
+        "output": "signal_duration",
+    }
+
+    def __init__(
+        self,
+        regression_window: int = 18,
+        zscore_window: int = 200,
+        buy_threshold: float = 0.7,
+        sell_threshold: float = -0.7,
+        use_r2_adjustment: bool = True,
+        short_ema_span: int = 5,
+        long_ema_span: int = 20,
+        output: str = "signal_duration",
+    ) -> None:
+        super().__init__()
+        self.regression_window = int(regression_window)
+        self.zscore_window = int(zscore_window)
+        self.buy_threshold = float(buy_threshold)
+        self.sell_threshold = float(sell_threshold)
+        self.use_r2_adjustment = use_r2_adjustment
+        self.short_ema_span = int(short_ema_span)
+        self.long_ema_span = int(long_ema_span)
+        self.output = output
+        self.signal_factor = RsrsFactor(
+            regression_window=self.regression_window,
+            zscore_window=self.zscore_window,
+            buy_threshold=self.buy_threshold,
+            sell_threshold=self.sell_threshold,
+            use_r2_adjustment=self.use_r2_adjustment,
+            output="signal",
+        )
+        self.zscore_factor = RsrsFactor(
+            regression_window=self.regression_window,
+            zscore_window=self.zscore_window,
+            buy_threshold=self.buy_threshold,
+            sell_threshold=self.sell_threshold,
+            use_r2_adjustment=self.use_r2_adjustment,
+            output="zscore",
+        )
+        self.add_dependency(self.signal_factor)
+        self.add_dependency(self.zscore_factor)
+        self.warmup_period = int(
+            self.regression_window + self.zscore_window + max(self.long_ema_span - 1, 0)
+        )
+        self._set_params(
+            regression_window=regression_window,
+            zscore_window=zscore_window,
+            buy_threshold=buy_threshold,
+            sell_threshold=sell_threshold,
+            use_r2_adjustment=use_r2_adjustment,
+            short_ema_span=short_ema_span,
+            long_ema_span=long_ema_span,
+            output=output,
+        )
+
+    def get_output_name(self) -> str:
+        suffix = "adj" if self.use_r2_adjustment else "raw"
+        buy_threshold = self._format_param_token(self.buy_threshold)
+        sell_threshold = self._format_param_token(self.sell_threshold)
+        return (
+            f"{self.name}_{self.output}_reg{self.regression_window}_z{self.zscore_window}"
+            f"_buy{buy_threshold}_sell{sell_threshold}_ema{self.short_ema_span}_{self.long_ema_span}_{suffix}"
+        )
+
+    def get_source_columns(self) -> tuple[str, ...]:
+        return ("close",)
+
+    def get_dependency_column_map(self) -> dict[BaseFactor, str]:
+        return {
+            self.signal_factor: "signal",
+            self.zscore_factor: "zscore",
+        }
+
+    def compute_from_frame(self, frame: pd.DataFrame) -> pd.Series:
+        self._validate_params()
+
+        signal = pd.to_numeric(frame["signal"], errors="coerce")
+        zscore = pd.to_numeric(frame["zscore"], errors="coerce")
+        close = pd.to_numeric(frame["close"], errors="coerce")
+
+        first_buy_mask, entry_bar_position, entry_close = self._resolve_entry_state(
+            signal=signal,
+            close=close,
+        )
+
+        if self.output == "signal_duration":
+            current_position = pd.Series(
+                np.arange(len(frame), dtype=float),
+                index=frame.index,
+                dtype=float,
+            )
+            result = (current_position - entry_bar_position).where(entry_bar_position.notna())
+        elif self.output == "zscore_trend":
+            short_ema = zscore.ewm(span=self.short_ema_span, adjust=False).mean()
+            long_ema = zscore.ewm(span=self.long_ema_span, adjust=False).mean()
+            result = (short_ema - long_ema).where(zscore.notna())
+        elif self.output == "return_since_buy":
+            result = (close.divide(entry_close) - 1.0).where(entry_close.notna())
+        else:
+            raise ValueError(
+                "output must be one of: signal_duration, zscore_trend, return_since_buy"
+            )
+
+        result.name = self.get_output_name()
+        return result
+
+    def _resolve_entry_state(
+        self,
+        signal: pd.Series,
+        close: pd.Series,
+    ) -> tuple[pd.Series, pd.Series, pd.Series]:
+        segment = signal.eq(-1).cumsum()
+        buy_signal = signal.eq(1)
+        first_buy_mask = buy_signal & (buy_signal.groupby(segment).cumsum() == 1)
+
+        bar_position = pd.Series(
+            np.arange(len(signal), dtype=float),
+            index=signal.index,
+            dtype=float,
+        )
+        entry_bar_position = bar_position.where(first_buy_mask).groupby(segment).ffill()
+        entry_close = close.where(first_buy_mask).groupby(segment).ffill()
+        return first_buy_mask, entry_bar_position, entry_close
+
+    def _validate_params(self) -> None:
+        if self.short_ema_span < 1:
+            raise ValueError("short_ema_span must be at least 1")
+        if self.long_ema_span < 1:
+            raise ValueError("long_ema_span must be at least 1")
+        if self.sell_threshold >= self.buy_threshold:
+            raise ValueError("sell_threshold must be smaller than buy_threshold")
+
+    def _format_param_token(self, value: float) -> str:
+        token = f"{value:g}"
+        return token.replace("-", "m").replace(".", "p")
     

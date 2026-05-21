@@ -57,3 +57,35 @@ class SlopeRiskRatio(BaseFactor):
     def __call__(self, data: pd.DataFrame) -> pd.Series:
         data["ratio"] = cal_one_etf(data)
         return data["ratio"]
+
+
+class MAFactor(BaseFactor):
+    name = "MA"
+    params = {
+        "window": 20,
+        "price_column": "close",
+    }
+
+    def __init__(self, window: int = 20, price_column: str = "close") -> None:
+        super().__init__()
+        self.window = int(window)
+        self.price_column = price_column
+        self.warmup_period = self.window
+        self._set_params(window=window, price_column=price_column)
+
+    def get_output_name(self) -> str:
+        return f"{self.name}_{self.price_column}_{self.window}"
+
+    def __call__(self, data: pd.DataFrame) -> pd.Series:
+        self._validate_input(data)
+        result = data[self.price_column].astype(float).rolling(window=self.window).mean()
+        result.name = self.get_output_name()
+        return result
+
+    def _validate_input(self, data: pd.DataFrame) -> None:
+        if self.window < 1:
+            raise ValueError("window must be at least 1")
+        if self.price_column not in data.columns:
+            raise ValueError(
+                f"MAFactor requires column '{self.price_column}', got columns {list(data.columns)}"
+            )

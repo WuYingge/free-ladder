@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from numpy.lib.stride_tricks import sliding_window_view
 
+from factors.base_factor import BaseFactor
+
 
 @dataclass(frozen=True)
 class TrendR2Result:
@@ -74,3 +76,44 @@ def compute_trend_r2(close: pd.Series, window: int) -> TrendR2Result:
 def compute_trend_r2_frame(close: pd.Series, window: int) -> pd.DataFrame:
     metrics = compute_trend_r2(close=close, window=window)
     return pd.DataFrame({"slope": metrics.slope, "r2": metrics.r2})
+
+
+class TrendR2Factor(BaseFactor):
+    name = "TrendR2"
+    params = {
+        "window": 120,
+        "output": "r2",
+    }
+
+    def __init__(self, window: int = 120, output: str = "r2") -> None:
+        super().__init__()
+        self.window = int(window)
+        self.output = output
+        self.warmup_period = self.window
+        self._set_params(window=window, output=output)
+
+    def get_output_name(self) -> str:
+        output_name = "r2" if self.output in {"r2", "r_squared"} else self.output
+        return f"{self.name}_{self.window}_{output_name}"
+
+    def __call__(self, data: pd.DataFrame) -> pd.Series:
+        self._validate_input(data)
+        metrics = compute_trend_r2(close=data["close"].astype(float), window=self.window)
+
+        if self.output == "slope":
+            result = metrics.slope
+        elif self.output in {"r2", "r_squared"}:
+            result = metrics.r2
+        else:
+            raise ValueError("output must be one of: slope, r2, r_squared")
+
+        result.name = self.get_output_name()
+        return result
+
+    def _validate_input(self, data: pd.DataFrame) -> None:
+        if self.window < 2:
+            raise ValueError("window must be at least 2")
+        if "close" not in data.columns:
+            raise ValueError(
+                f"TrendR2 requires column 'close', got columns {list(data.columns)}"
+            )
