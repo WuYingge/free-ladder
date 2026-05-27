@@ -18,6 +18,27 @@
 - `notebooks/single_symbol_timing_framework.ipynb`：单标的择时主流程（筛选、因子计算、批量回测、结果落盘）。
 - `notebooks/single_factor_backtest.ipynb`：单标的/单因子实验 notebook。
 
+## 代理配置
+
+数据抓取默认通过 `libs/proxy/proxy.py` 统一取代理，现已支持按供应商切换：
+
+- `PROXY_PROVIDER`：供应商名称，当前内置 `hailiang`、`luotuo` 和 `luotuo_static`
+- `PROXY_API_URL`：通用代理提取地址，适合新供应商
+- `PROXY_ENCRYPT_URL`：兼容旧版海量代理加密地址
+- `PROXY_UNBIND_TIME`：代理有效时长，单位秒
+- `PROXY_STATIC_TTL_SECONDS`：静态 IP 批次的默认有效期，单位秒；当接口不返回单个 IP 的过期时间时生效
+- `PROXY_STATIC_FAILURE_COOLDOWN_SECONDS`：静态 IP 失败后的冷却时间，单位秒；冷却结束前不优先复用，但不会被移出池子
+- `PROXY_SHARED_CACHE_DIR`：静态 IP 的跨进程共享缓存目录；同一批静态 IP 会在这里复用，直到过期才重新请求供应商 API
+
+当前解析器支持两类常见返回：
+
+- `{"code": 0 | "0", "data": [{"ip": "...", "port": "..."}]}`
+- `{"code": 0 | "0", "data": "ip:port\nip:port"}`
+
+`luotuo_static` 会把代理视为可复用静态 IP：单次使用后不会丢弃，只会在超过有效期后淘汰；如果接口返回 `expire` 字段则按实际过期时间处理，否则使用 `PROXY_STATIC_TTL_SECONDS` 作为默认有效期。
+
+如果使用骆驼代理这类白名单模式接口（例如 `isAuth=false`），还需要先在供应商后台把当前出口 IP 加入白名单，否则会返回 `code=-3`。
+
 ## 多标的组合回测模式（新增）
 
 支持输入一批标的的 DataFrame（已包含 OHLCV + 预计算因子列），通过函数式策略输出目标权重，执行组合统一回测。

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import math
 from typing import Any, Callable, Optional
 
@@ -80,6 +81,7 @@ class FunctionalPortfolioTimingStrategy(bt.Strategy):
         self._signal_kwargs = dict(self.p.signal_kwargs or {})
         self._symbols = [d._name or f"data_{idx}" for idx, d in enumerate(self.datas)]
         self.last_target_weights: dict[str, float] = {sym: 0.0 for sym in self._symbols}
+        self.rebalance_log: list[dict[str, Any]] = []
 
     def next(self) -> None:
         bar_index = len(self) - 1
@@ -89,13 +91,23 @@ class FunctionalPortfolioTimingStrategy(bt.Strategy):
             return
 
         snapshot = self._build_snapshot_frame()
+        current_weights = self._estimate_current_weights()
+        signal_datetime = bt.num2date(self.datas[0].datetime[0])
         context = {
-            "datetime": bt.num2date(self.datas[0].datetime[0]),
+            "datetime": signal_datetime,
             "bar_index": bar_index,
-            "current_weights": self._estimate_current_weights(),
+            "current_weights": current_weights,
         }
         raw_target = self.p.signal_func(snapshot, context, **self._signal_kwargs)
         target_weights = self._normalize_target_weights(raw_target)
+        self.rebalance_log.append(
+            self._build_rebalance_record(
+                bar_index=bar_index,
+                signal_datetime=signal_datetime,
+                current_weights=current_weights,
+                target_weights=target_weights,
+            )
+        )
 
         for data in self.datas:
             symbol = data._name or ""
@@ -160,6 +172,26 @@ class FunctionalPortfolioTimingStrategy(bt.Strategy):
             position = self.getposition(data)
             weights[symbol] = float(position.size * data.close[0] / value)
         return weights
+
+    def _build_rebalance_record(
+        self,
+        *,
+        bar_index: int,
+        signal_datetime: datetime.datetime,
+        current_weights: dict[str, float],
+        target_weights: dict[str, float],
+    ) -> dict[str, Any]:
+        return {
+            "bar_index": int(bar_index),
+            "signal_datetime": signal_datetime.isoformat(),
+            "signal_date": signal_datetime.date().isoformat(),
+            "current_weights": {
+                symbol: float(current_weights.get(symbol, 0.0)) for symbol in self._symbols
+            },
+            "target_weights": {
+                symbol: float(target_weights.get(symbol, 0.0)) for symbol in self._symbols
+            },
+        }
 
 
 __all__ = ["BaseFactorTimingStrategy", "WeightSignalFunction", "FunctionalPortfolioTimingStrategy"]

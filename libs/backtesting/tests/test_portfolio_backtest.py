@@ -131,6 +131,30 @@ class TestRunPortfolioBacktestFromFeeds:
                 )
             )
 
+    def test_rebalance_log_is_exposed_on_result(self, symbol_feed_map):
+        result = run_portfolio_backtest_from_feeds(
+            PortfolioBacktestConfig(
+                symbol_feed_map=symbol_feed_map,
+                strategy_callable=_noop_signal,
+                cash=100_000,
+                rebalance_interval=20,
+            )
+        )
+
+        assert result.rebalance_log
+        assert result.analyzer_raw.get("rebalance_log") == result.rebalance_log
+
+        first = result.rebalance_log[0]
+        assert first["bar_index"] == 0
+        assert first["signal_date"]
+        assert set(first["current_weights"].keys()) == set(SYMBOLS)
+        assert set(first["target_weights"].keys()) == set(SYMBOLS)
+        assert all(weight == pytest.approx(0.0) for weight in first["current_weights"].values())
+        assert all(weight == pytest.approx(0.3) for weight in first["target_weights"].values())
+
+        bar_indexes = [entry["bar_index"] for entry in result.rebalance_log]
+        assert bar_indexes == list(range(0, len(bar_indexes) * 20, 20))
+
 
 # ---------------------------------------------------------------------------
 # batch-level: run_portfolio_backtest_batch

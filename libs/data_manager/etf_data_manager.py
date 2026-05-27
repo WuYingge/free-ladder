@@ -6,7 +6,7 @@ import traceback
 import pandas as pd
 from functools import lru_cache
 from typing import Iterator
-from multiprocessing import Pool
+from multiprocessing import Pool, current_process
 
 from config import DataPath
 from core.models.etf_daily_data import EtfData
@@ -14,6 +14,10 @@ from fetcher.etf import get_etf_certain_date_data, get_etf_last_n_day_data, get_
 from utils.interval_utils import retry_with_intervals, intervals
 from fetcher.utils import generate_time_slices_alternative
 from data_manager.providers.etf_list_provider import ETF_LIST
+from proxy.proxy import initialize_proxy_pool
+
+
+PROXY_INIT_STAGGER_SECONDS = max(float(os.getenv("PROXY_INIT_STAGGER_SECONDS") or "2.0"), 0.0)
 
 
 def transer_em_etf_to_model(df: pd.DataFrame) -> pd.DataFrame:
@@ -30,6 +34,27 @@ def transer_em_etf_to_model(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_symbol_fp(symbol):
     return os.path.join(DataPath.DEFAULT_PATH, f"{symbol}.csv")
+
+
+def _get_proxy_init_delay(base_delay_sec: float | None = None) -> float:
+    delay_step = PROXY_INIT_STAGGER_SECONDS if base_delay_sec is None else max(base_delay_sec, 0.0)
+    if delay_step <= 0:
+        return 0.0
+
+    identity = getattr(current_process(), "_identity", ())
+    worker_index = max(int(identity[0]) - 1, 0) if identity else 0
+    return worker_index * delay_step
+
+
+def _initialize_etf_update_worker(base_delay_sec: float | None = None) -> None:
+    delay_sec = _get_proxy_init_delay(base_delay_sec)
+    if delay_sec > 0:
+        intervals(delay_sec)
+
+    try:
+        initialize_proxy_pool()
+    except Exception as err:
+        print(f"Proxy pool warm-up failed in {current_process().name}: {err}")
 
 
 def get_etf_last_local_date(symbol: str) -> datetime.date | None:
@@ -207,7 +232,7 @@ def update_etf_data(symbols: list[str] | None = None):
     if not all_etf:
         print("No ETF symbols to update")
         return
-    with Pool(15) as p:
+    with Pool(15, initializer=_initialize_etf_update_worker) as p:
         res = p.map(update_single_etf_data, all_etf)
     for code, result in res:
         if result:

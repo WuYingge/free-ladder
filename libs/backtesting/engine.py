@@ -88,6 +88,7 @@ class PortfolioBacktestResult:
     trades_total: int
     trades_won: int
     trades_lost: int
+    rebalance_log: list[dict[str, Any]]
     analyzer_raw: dict[str, Any]
 
 def _safe_extract_sharpe(analysis: dict[str, Any]) -> Optional[float]:
@@ -335,6 +336,7 @@ def run_portfolio_backtest_from_feeds(
     trades_total = int(trade_analysis.get("total", {}).get("total", 0) or 0)
     trades_won = int(trade_analysis.get("won", {}).get("total", 0) or 0)
     trades_lost = int(trade_analysis.get("lost", {}).get("total", 0) or 0)
+    rebalance_log = list(getattr(result, "rebalance_log", []))
 
     return PortfolioBacktestResult(
         symbol="PORTFOLIO",
@@ -347,10 +349,12 @@ def run_portfolio_backtest_from_feeds(
         trades_total=trades_total,
         trades_won=trades_won,
         trades_lost=trades_lost,
+        rebalance_log=rebalance_log,
         analyzer_raw={
             "sharpe": sharpe_analysis,
             "drawdown": drawdown_analysis,
             "trades": trade_analysis,
             "time_return": {str(k): v for k, v in time_return_analysis.items()},
+            "rebalance_log": rebalance_log,
         },
     )

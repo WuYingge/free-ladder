@@ -19,6 +19,18 @@ from .engine import (
 )
 from .timing_batch import PortfolioBatchConfig, run_portfolio_backtest_batch
 from .rotation_signal import make_rotation_signal
+from .wide_momentum_baseline import (
+    PreparedWideMomentumUniverse,
+    SymbolBaselineData,
+    WideMomentumBaselineConfig,
+    WideMomentumBaselineResult,
+    WideMomentumVariantResult,
+    prepare_wide_momentum_universe,
+    prepare_wide_momentum_universe_from_frames,
+    run_wide_momentum_baseline,
+    run_wide_momentum_baseline_from_prepared,
+    save_wide_momentum_baseline_result,
+)
 from .index_rotation import (
     IndexRotationDiscoveryResult,
     KeywordRepresentativeResult,
@@ -70,6 +82,16 @@ __all__ = [
     "PortfolioBatchConfig",
     "run_portfolio_backtest_batch",
     "make_rotation_signal",
+    "PreparedWideMomentumUniverse",
+    "SymbolBaselineData",
+    "WideMomentumBaselineConfig",
+    "WideMomentumBaselineResult",
+    "WideMomentumVariantResult",
+    "prepare_wide_momentum_universe",
+    "prepare_wide_momentum_universe_from_frames",
+    "run_wide_momentum_baseline",
+    "run_wide_momentum_baseline_from_prepared",
+    "save_wide_momentum_baseline_result",
     "IndexRotationDiscoveryResult",
     "KeywordRepresentativeResult",
     "build_pairwise_correlation_frame",

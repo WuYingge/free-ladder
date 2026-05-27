@@ -1,29 +1,69 @@
+import os
 import pandas as pd
-from typing import Dict, List, Tuple
-import requests
+from typing import TYPE_CHECKING, Dict, List, Tuple, cast
+from curl_cffi import requests
 import math
 from datetime import datetime, timedelta
-from requests.exceptions import RequestException
-from proxy.proxy import get_proxy
+from proxy.proxy import get_proxy, mark_proxy_failure, mark_proxy_success
 from utils.interval_utils import intervals
+
+
+if TYPE_CHECKING:
+    from curl_cffi.requests.session import ProxySpec
+else:
+    ProxySpec = dict[str, str]
+
+
+PROXY_CONNECT_TIMEOUT_SEC = max(float(os.getenv("PROXY_CONNECT_TIMEOUT_SEC") or "3.0"), 0.1)
+PROXY_IMPERSONATE_BROWSER = "chrome120"
+
+
+ConnectionError = requests.exceptions.ConnectionError
+ProxyError = requests.exceptions.ProxyError
+RequestException = requests.exceptions.RequestException
+Timeout = requests.exceptions.Timeout
+
+
+def _build_proxy_timeout(timeout: int | float | tuple[int | float, int | float]):
+    if isinstance(timeout, tuple):
+        connect_timeout, read_timeout = timeout
+        return (min(float(connect_timeout), PROXY_CONNECT_TIMEOUT_SEC), read_timeout)
+    return (PROXY_CONNECT_TIMEOUT_SEC, timeout)
+
+
+def _should_drop_proxy(err: RequestException) -> bool:
+    return isinstance(err, (ProxyError, Timeout, ConnectionError))
 
 
 def request_get_via_proxy(
     url: str,
     timeout: int | tuple[int, int] = 15,
-    max_proxy_retries: int = 3,
+    max_proxy_retries: int = 1,
     retry_interval_sec: float = 0.2,
     **kwargs,
 ):
     """Send request via proxy only, rotating proxy on failure and failing fast."""
     last_err = None
+    proxy_timeout = _build_proxy_timeout(timeout)
     for idx in range(max_proxy_retries):
+        proxy = None
         try:
-            response = requests.get(url, timeout=timeout, proxies=get_proxy(), **kwargs)
+            proxy = get_proxy()
+            request_kwargs = dict(kwargs)
+            request_kwargs.setdefault("impersonate", PROXY_IMPERSONATE_BROWSER)
+            response = requests.get(
+                url,
+                timeout=proxy_timeout,
+                proxies=cast(ProxySpec | None, proxy),
+                **request_kwargs,
+            )
             response.raise_for_status()
+            mark_proxy_success(proxy)
             return response
         except RequestException as err:
             last_err = err
+            if _should_drop_proxy(err):
+                mark_proxy_failure(proxy)
             if idx < max_proxy_retries - 1 and retry_interval_sec > 0:
                 intervals(retry_interval_sec)
     if last_err is not None:
