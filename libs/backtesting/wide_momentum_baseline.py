@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import inspect
+import concurrent.futures
+import os
 import json
 import math
 from dataclasses import dataclass, field
@@ -94,6 +96,12 @@ class WideMomentumBaselineConfig:
     stable_pool_size: int = 100
     start_date: Optional[str | pd.Timestamp] = "2023-12-04"
     end_date: Optional[str | pd.Timestamp] = "2026-05-29"
+    # 集群约束 —— 每个 cluster 最多持有多少个标的。
+    # cluster_limit_enabled=False 时完全不参与选股逻辑。
+    cluster_limit_enabled: bool = False
+    # 未分类标的（cluster_label == -1）不计数也不受限制。
+    cluster_max_per_group: int = 3
+    # 实验名称和指定标的
     symbols: Optional[tuple[str, ...]] = None
     experiment_name: Optional[str] = None
 
@@ -131,6 +139,14 @@ class WideMomentumBaselineConfig:
                 )
             if math.isnan(float(bf.value)):
                 raise ValueError(f"builtin_filters[{idx}].value must be a real number")
+        # 校验集群约束
+        if not isinstance(self.cluster_limit_enabled, bool):
+            self.cluster_limit_enabled = bool(self.cluster_limit_enabled)
+        if not isinstance(self.cluster_max_per_group, int):
+            self.cluster_max_per_group = int(self.cluster_max_per_group)
+        if self.cluster_limit_enabled and int(self.cluster_max_per_group) <= 0:
+            raise ValueError("cluster_max_per_group must be >= 1 when cluster_limit_enabled")
+
         if int(self.rebalance_interval) <= 0:
             raise ValueError("rebalance_interval must be >= 1")
         if float(self.cash) <= 0:
@@ -348,6 +364,13 @@ def _resolve_experiment_name(config: WideMomentumBaselineConfig) -> str:
         filter_labels.append(
             f"{item.get('name')}_{operator}_{_format_experiment_value(item.get('value'))}"
         )
+
+    # 集群约束标签
+    if config.cluster_limit_enabled:
+        filter_labels.append(f"cluster_max{config.cluster_max_per_group}")
+
+    if not filter_labels:
+        return "wide_momentum_baseline"
     return "wide_momentum_baseline__" + "__".join(filter_labels)
 
 
@@ -577,25 +600,41 @@ def _build_feature_frame(
     return feature_frame
 
 
-def _build_symbol_data_map(
-    etf_data_map: Mapping[str, EtfData],
-    config: WideMomentumBaselineConfig,
-    recent_complete_date: pd.Timestamp,
-    cluster_lookup: Optional[Mapping[str, int] | Callable[[str], int]],
-) -> tuple[dict[str, SymbolBaselineData], dict[str, str]]:
-    """计算每个标的的动量和可交易资格，并排除无法交易的标的。"""
+def _process_single_symbol(args: tuple) -> tuple[
+    str, Optional[SymbolBaselineData], Optional[str], Optional[str]
+]:
+    """处理单个标的，供多进程并行使用。
 
-    ranking_factor = _resolve_ranking_factor(config)
-    factor_pipeline = _resolve_factor_pipeline(config)
-    ranking_output_name = ranking_factor.get_output_name()
-    symbol_data_map: dict[str, SymbolBaselineData] = {}
-    excluded_symbols: dict[str, str] = {}
+    此函数必须是模块级函数（而非闭包/嵌套函数），才能被 pickle 传递给子进程。
+    """
+    (
+        symbol,
+        etf_data_df,
+        etf_metadata,
+        etf_name,
+        recent_complete_str,
+        min_listing_days,
+        ranking_output_name,
+        factor_pipeline,
+        cluster_label,
+    ) = args
 
-    for symbol, raw_etf_data in etf_data_map.items():
-        raw_price_frame = _normalize_price_frame(frame=raw_etf_data.data, symbol=symbol)
+    # 在子进程中重建 EtfData
+    raw_etf_data = EtfData(
+        etf_data_df,
+        metadata=etf_metadata or {},
+        symbol=symbol,
+        name=etf_name or "",
+    )
+
+    recent_complete_date = pd.Timestamp(recent_complete_str)
+
+    try:
+        raw_price_frame = _normalize_price_frame(
+            frame=raw_etf_data.data, symbol=symbol
+        )
         if raw_price_frame.index[-1] < recent_complete_date:
-            excluded_symbols[symbol] = "stale_before_recent_complete_date"
-            continue
+            return symbol, None, None, "stale_before_recent_complete_date"
 
         prepared_etf_data = _prepare_factor_ready_etf_data(
             etf_data=raw_etf_data,
@@ -613,7 +652,7 @@ def _build_symbol_data_map(
         )
 
         listing_proxy_date = pd.Timestamp(local_frame.index[0])
-        listing_cutoff = listing_proxy_date + pd.Timedelta(days=int(config.min_listing_days))
+        listing_cutoff = listing_proxy_date + pd.Timedelta(days=int(min_listing_days))
         ranking_series = pd.to_numeric(local_frame[ranking_output_name], errors="coerce")
         eligible_signal = (local_frame.index > listing_cutoff) & ranking_series.notna()
 
@@ -622,17 +661,84 @@ def _build_symbol_data_map(
         local_frame["eligible_signal"] = eligible_signal.astype(bool)
 
         if not bool(local_frame["eligible_signal"].any()):
-            excluded_symbols[symbol] = "never_eligible_in_window"
-            continue
+            return symbol, None, None, "never_eligible_in_window"
 
-        symbol_data_map[symbol] = SymbolBaselineData(
+        sd = SymbolBaselineData(
             symbol=symbol,
             listing_proxy_date=listing_proxy_date,
-            cluster_label=_resolve_cluster_label(symbol, cluster_lookup),
+            cluster_label=cluster_label,
             frame=local_frame,
             etf_data=prepared_etf_data,
             ranking_output_name=ranking_output_name,
         )
+        return symbol, sd, None, None
+
+    except Exception as exc:
+        return symbol, None, str(exc), None
+
+
+def _build_symbol_data_map(
+    etf_data_map: Mapping[str, EtfData],
+    config: WideMomentumBaselineConfig,
+    recent_complete_date: pd.Timestamp,
+    cluster_lookup: Optional[Mapping[str, int] | Callable[[str], int]],
+) -> tuple[dict[str, SymbolBaselineData], dict[str, str]]:
+    """计算每个标的的动量和可交易资格，并排除无法交易的标的。
+
+    因子计算阶段使用多进程并行，这部分是回测中最耗时的环节。
+    """
+
+    ranking_factor = _resolve_ranking_factor(config)
+    factor_pipeline = _resolve_factor_pipeline(config)
+    ranking_output_name = ranking_factor.get_output_name()
+    symbol_data_map: dict[str, SymbolBaselineData] = {}
+    excluded_symbols: dict[str, str] = {}
+    worker_jobs: list[tuple] = []
+
+    # 阶段 1：过滤数据过期的标的，打包为 worker 参数。
+    for symbol, raw_etf_data in etf_data_map.items():
+        raw_price_frame = _normalize_price_frame(frame=raw_etf_data.data, symbol=symbol)
+        if raw_price_frame.index[-1] < recent_complete_date:
+            excluded_symbols[symbol] = "stale_before_recent_complete_date"
+            continue
+
+        cluster_label = _resolve_cluster_label(symbol, cluster_lookup)
+
+        worker_jobs.append((
+            symbol,
+            raw_etf_data.data.copy(),
+            raw_etf_data.metadata or {},
+            getattr(raw_etf_data, "name", ""),
+            str(recent_complete_date.date()),
+            int(config.min_listing_days),
+            ranking_output_name,
+            factor_pipeline,
+            cluster_label,
+        ))
+
+    # 阶段 2：多进程并行因子计算。
+    max_workers = min(os.cpu_count() or 4, len(worker_jobs))
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {
+            executor.submit(_process_single_symbol, job): job[0]
+            for job in worker_jobs
+        }
+        for future in concurrent.futures.as_completed(future_map):
+            try:
+                symbol, sd, error, exclusion_reason = future.result()
+            except Exception as exc:
+                symbol = future_map[future]
+                excluded_symbols[symbol] = f"worker_failed: {exc}"
+                continue
+
+            if exclusion_reason:
+                excluded_symbols[symbol] = exclusion_reason
+                continue
+            if error:
+                excluded_symbols[symbol] = f"error: {error}"
+                continue
+
+            symbol_data_map[symbol] = sd
 
     return symbol_data_map, excluded_symbols
 
@@ -1034,7 +1140,25 @@ def _select_target_weights(
 
     # 先做可选过滤，再排序，这样日志里才能同时保留原始数量和过滤后数量。
     filtered_candidates.sort(key=lambda item: (-item.score, item.symbol))
-    selected = filtered_candidates[: int(top_n)]
+
+    # 集群约束（可选）：按 score 降序遍历，每个 cluster 最多取 max_per_group 个。
+    if config.cluster_limit_enabled:
+        cluster_counts: dict[int, int] = {}
+        constrained: list = []
+        for candidate in filtered_candidates:
+            cluster_label = symbol_data_map[candidate.symbol].cluster_label
+            if cluster_label < 0:
+                # 未分类标的跳过计数，但允许入选。
+                constrained.append(candidate)
+                continue
+            count = cluster_counts.get(cluster_label, 0)
+            if count < int(config.cluster_max_per_group):
+                constrained.append(candidate)
+                cluster_counts[cluster_label] = count + 1
+        selected = constrained[: int(top_n)]
+    else:
+        selected = filtered_candidates[: int(top_n)]
+
     if not selected:
         return {}, len(candidates), len(filtered_candidates), active_candidate_filters
 
@@ -1650,6 +1774,8 @@ def _build_run_metadata(result: WideMomentumBaselineResult) -> dict[str, Any]:
             "commission": float(result.config.commission),
             "risk_free_rate": float(result.config.risk_free_rate),
             "stable_pool_size": int(result.config.stable_pool_size),
+            "cluster_limit_enabled": bool(result.config.cluster_limit_enabled),
+            "cluster_max_per_group": int(result.config.cluster_max_per_group),
             "ranking_factor": _serialize_factor(ranking_factor),
             "factor_pipeline": [
                 _serialize_factor(factor)
