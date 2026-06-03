@@ -145,8 +145,7 @@ def _run_single_combo(combo):
         grid_parts.append(f"mom{min_mom}".replace(".", "p"))
     if cluster_max > 0:
         grid_parts.append(f"cl{cluster_max}")
-    elif CLUSTER_LIMIT_ENABLED:
-        grid_parts.append("cl_off")
+    # cluster_max=0 时不显示任何 cluster 标签（等于不启用约束）
     if rebal != 5:
         grid_parts.append(f"rebal{rebal}")
     grid_label = "_".join(grid_parts)
