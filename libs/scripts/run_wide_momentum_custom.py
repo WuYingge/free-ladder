@@ -1,17 +1,17 @@
 """宽动量基线回测 — 可配置版 + Grid Search。
 
 改因子/过滤器/约束只需修改下面「基础配置」和「Grid Search」区域。
-Grid 组合用线程池并行跑变体，universe 只准备一次。
+Grid 组合用进程池并行跑变体，universe 只准备一次。
 
 用法：
     cd /home/gouzi/projects/invest
-    uv run python playgrounds/run_wide_momentum_custom.py
+    uv run python libs/scripts/run_wide_momentum_custom.py
 """
 from __future__ import annotations
 
 import itertools
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -135,8 +135,16 @@ print(f"    rebalance:     {GRID_REBALANCE_INTERVAL}")
 print("=" * 60)
 
 
-def _run_single_combo(combo):
-    """单个 grid 组合的完整回测（供线程池并行）。"""
+def _run_single_combo(args):
+    """单个 grid 组合的完整回测（供进程池并行）。
+
+    args = (prepared, _output_root, RANKING_FACTOR, FACTOR_PIPELINE,
+            BUILTIN_FILTERS, CLUSTER_LIMIT_ENABLED, combo)
+    """
+    (
+        prepared, output_root, ranking_factor, factor_pipeline,
+        builtin_filters, cluster_limit_enabled, combo,
+    ) = args
     top_n, min_mom, cluster_max, rebal = combo
 
     # 子目录标签
@@ -152,16 +160,16 @@ def _run_single_combo(combo):
 
     config = WideMomentumBaselineConfig(
         top_n_values=(top_n,),
-        ranking_factor=RANKING_FACTOR,
-        factor_pipeline=FACTOR_PIPELINE,
-        builtin_filters=BUILTIN_FILTERS,
+        ranking_factor=ranking_factor,
+        factor_pipeline=factor_pipeline,
+        builtin_filters=builtin_filters,
         min_momentum_value=min_mom,
         rebalance_interval=rebal,
-        cluster_limit_enabled=(CLUSTER_LIMIT_ENABLED and cluster_max > 0),
+        cluster_limit_enabled=(cluster_limit_enabled and cluster_max > 0),
         cluster_max_per_group=cluster_max if cluster_max > 0 else 3,
     )
 
-    output_dir = _output_root / grid_label
+    output_dir = output_root / grid_label
     result = run_wide_momentum_baseline_from_prepared(prepared=prepared, config=config)
     save_wide_momentum_baseline_result(result=result, output_dir=output_dir)
 
@@ -178,9 +186,15 @@ def _run_single_combo(combo):
 all_summaries: list[dict] = []
 futures_map: dict = {}
 
-with ThreadPoolExecutor(max_workers=GRID_MAX_WORKERS) as executor:
+# 打包共享参数供 picklable worker 使用
+_shared_args = (
+    prepared, _output_root, RANKING_FACTOR, FACTOR_PIPELINE,
+    BUILTIN_FILTERS, CLUSTER_LIMIT_ENABLED,
+)
+
+with ProcessPoolExecutor(max_workers=GRID_MAX_WORKERS) as executor:
     for combo in _grid_combos:
-        future = executor.submit(_run_single_combo, combo)
+        future = executor.submit(_run_single_combo, _shared_args + (combo,))
         futures_map[future] = combo
 
     for idx, future in enumerate(as_completed(futures_map), start=1):
