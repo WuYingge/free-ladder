@@ -1,20 +1,31 @@
+"""宽股票池动量基线回测。
+
+这个模块按三个阶段组织：
+
+1. 从 ETF 价格数据准备可交易股票池。
+2. 在共享交易日历上运行一个或多个 top-N 组合变体。
+3. 持久化汇总、诊断信息和分变体产物，便于后续分析。
+"""
+
 from __future__ import annotations
 
+import inspect
 import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, ClassVar, Mapping, Optional
 
-import numpy as np
 import pandas as pd
 
 from config import DataPath
+from core.models.etf_daily_data import EtfData
+from data_manager.etf_data_manager import get_etf_data_by_symbol
 from data_manager.providers.cluster_provider import ClusterInfo
 from data_manager.providers.etf_list_provider import ETF_LIST
+from factors.base_factor import BaseFactor
 from factors.price_return import PriceReturn
 
-from .data import load_etf_dataframe
 from .performance import (
     annualised_return,
     annualised_volatility,
@@ -23,22 +34,80 @@ from .performance import (
 )
 
 
+CandidateFilterCallable = Callable[..., bool]
+
+
+@dataclass(slots=True, frozen=True)
+class CandidateFilterSpec:
+    """带可选名称的候选过滤器定义。"""
+
+    filter_fn: CandidateFilterCallable
+    name: Optional[str] = None
+    params: Optional[dict[str, Any]] = None
+
+
+@dataclass(slots=True, frozen=True)
+class ThresholdFilter:
+    """描述一个基于字段阈值的内置过滤器。
+
+    和 `candidate_filters` 的自定义 callable 不同，这里的过滤参数
+    是可序列化的，因此能自动出现在实验名和运行元数据中。
+    """
+
+    VALID_OPERATORS: ClassVar[tuple[str, ...]] = (">=", "<=", ">", "<", "==")
+
+    field: str
+    operator: str
+    value: float
+    name: Optional[str] = None
+
+
+# 操作符标签映射，与 ThresholdFilter.VALID_OPERATORS 保持同步
+_OPERATOR_LABELS: dict[str, str] = {
+    ">=": "ge",
+    "<=": "le",
+    ">": "gt",
+    "<": "lt",
+    "==": "eq",
+}
+
+
 @dataclass(slots=True)
 class WideMomentumBaselineConfig:
-    top_n_values: tuple[int, ...] = (5, 10)
+    """控制股票池准备、回测模拟和结果命名的用户配置。"""
+
+    top_n_values: tuple[int, ...] = (20,)
     min_listing_days: int = 1200
     momentum_window: int = 20
     momentum_skip_recent: int = 1
-    rebalance_interval: int = 20
+    min_momentum_value: Optional[float] = None
+    builtin_filters: tuple[ThresholdFilter, ...] = field(default_factory=tuple)
+    ranking_factor: Optional[BaseFactor] = None
+    factor_pipeline: tuple[BaseFactor, ...] = field(default_factory=tuple)
+    candidate_filters: tuple[CandidateFilterCallable | CandidateFilterSpec, ...] = field(
+        default_factory=tuple
+    )
+    rebalance_interval: int = 5
     cash: float = 100_000.0
-    commission: float = 0.0005
+    commission: float = 0.00025
     risk_free_rate: float = 0.02
     stable_pool_size: int = 100
-    start_date: Optional[str | pd.Timestamp] = None
-    end_date: Optional[str | pd.Timestamp] = None
+    start_date: Optional[str | pd.Timestamp] = "2023-12-04"
+    end_date: Optional[str | pd.Timestamp] = "2026-05-29"
     symbols: Optional[tuple[str, ...]] = None
+    experiment_name: Optional[str] = None
 
     def __post_init__(self) -> None:
+        """尽早校验配置，减少下游流程中的防御性判断。"""
+
+        if self.experiment_name is not None:
+            normalized_experiment_name = str(self.experiment_name).strip()
+            self.experiment_name = normalized_experiment_name or None
+        if self.symbols is not None:
+            self.symbols = tuple(str(symbol) for symbol in self.symbols)
+        self.factor_pipeline = tuple(self.factor_pipeline or ())
+        self.candidate_filters = tuple(self.candidate_filters or ())
+        self.builtin_filters = tuple(self.builtin_filters or ())
         if not self.top_n_values:
             raise ValueError("top_n_values cannot be empty")
         if any(int(top_n) <= 0 for top_n in self.top_n_values):
@@ -47,6 +116,21 @@ class WideMomentumBaselineConfig:
             raise ValueError("momentum_window must be >= 1")
         if int(self.momentum_skip_recent) < 0:
             raise ValueError("momentum_skip_recent must be >= 0")
+        if self.min_momentum_value is not None and math.isnan(float(self.min_momentum_value)):
+            raise ValueError("min_momentum_value must be a real number when provided")
+        # 校验内置阈值过滤器
+        for idx, bf in enumerate(self.builtin_filters):
+            if not isinstance(bf, ThresholdFilter):
+                raise TypeError(f"builtin_filters[{idx}] must be ThresholdFilter")
+            if not isinstance(bf.field, str) or not bf.field.strip():
+                raise ValueError(f"builtin_filters[{idx}].field must be a non-empty string")
+            if bf.operator not in ThresholdFilter.VALID_OPERATORS:
+                raise ValueError(
+                    f"builtin_filters[{idx}].operator must be one of "
+                    f"{ThresholdFilter.VALID_OPERATORS}"
+                )
+            if math.isnan(float(bf.value)):
+                raise ValueError(f"builtin_filters[{idx}].value must be a real number")
         if int(self.rebalance_interval) <= 0:
             raise ValueError("rebalance_interval must be >= 1")
         if float(self.cash) <= 0:
@@ -59,18 +143,43 @@ class WideMomentumBaselineConfig:
             raise ValueError("stable_pool_size must be >= 1")
         if int(self.min_listing_days) < 0:
             raise ValueError("min_listing_days must be >= 0")
+        if self.ranking_factor is not None and not isinstance(self.ranking_factor, BaseFactor):
+            raise TypeError("ranking_factor must inherit from BaseFactor")
+        if any(not isinstance(factor, BaseFactor) for factor in self.factor_pipeline):
+            raise TypeError("factor_pipeline must contain only BaseFactor instances")
+        for candidate_filter in self.candidate_filters:
+            resolved_callable = (
+                candidate_filter.filter_fn
+                if isinstance(candidate_filter, CandidateFilterSpec)
+                else candidate_filter
+            )
+            if not callable(resolved_callable):
+                raise TypeError("candidate_filters must contain callables or CandidateFilterSpec")
+
+        # 将 min_momentum_value 转换为 ThresholdFilter，保持向后兼容
+        if self.min_momentum_value is not None:
+            momentum_filter = ThresholdFilter(
+                field="score", operator=">=", value=float(self.min_momentum_value)
+            )
+            self.builtin_filters = self.builtin_filters + (momentum_filter,)
 
 
 @dataclass(slots=True)
 class SymbolBaselineData:
+    """候选筛选和交易执行阶段需要的单标的数据。"""
+
     symbol: str
     listing_proxy_date: pd.Timestamp
     cluster_label: int
     frame: pd.DataFrame
+    etf_data: Optional[EtfData] = None
+    ranking_output_name: str = "momentum"
 
 
 @dataclass(slots=True)
 class PreparedWideMomentumUniverse:
+    """供所有 top-N 变体共享的已准备股票池及其诊断信息。"""
+
     symbol_data_map: dict[str, SymbolBaselineData]
     calendar: pd.DatetimeIndex
     start_date: pd.Timestamp
@@ -83,6 +192,8 @@ class PreparedWideMomentumUniverse:
 
     @property
     def stable_start_month(self) -> Optional[pd.Timestamp]:
+        """返回股票池首次达到稳定规模目标的月份。"""
+
         if self.monthly_pool_diagnostics.empty:
             return None
         stable_rows = self.monthly_pool_diagnostics[
@@ -95,6 +206,8 @@ class PreparedWideMomentumUniverse:
 
 @dataclass(slots=True)
 class WideMomentumVariantResult:
+    """单个 top-N 参数对应的模拟结果。"""
+
     top_n: int
     summary: dict[str, Any]
     equity_curve: pd.DataFrame
@@ -104,12 +217,147 @@ class WideMomentumVariantResult:
 
 @dataclass(slots=True)
 class WideMomentumBaselineResult:
+    """一次基线运行在一个或多个变体上的完整输出。"""
+
     config: WideMomentumBaselineConfig
     prepared_universe: PreparedWideMomentumUniverse
     variant_results: dict[int, WideMomentumVariantResult]
 
 
-def _normalize_price_frame(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
+@dataclass(slots=True, frozen=True)
+class BaselineCandidate:
+    """信号日用于排序的可交易标的、打分值及因子值。"""
+
+    symbol: str
+    score: float
+    etf_data: Optional[EtfData] = None
+    factor_values: dict[str, float] = field(default_factory=dict)
+
+
+def _resolve_ranking_factor(config: WideMomentumBaselineConfig) -> BaseFactor:
+    """解析当前回测用于排序的主因子。"""
+
+    if config.ranking_factor is not None:
+        return config.ranking_factor
+    return PriceReturn(
+        window=int(config.momentum_window),
+        skip_recent=int(config.momentum_skip_recent),
+    )
+
+
+def _resolve_factor_pipeline(config: WideMomentumBaselineConfig) -> tuple[BaseFactor, ...]:
+    """解析完整因子管线，并确保排序因子始终包含在其中。"""
+
+    ranking_factor = _resolve_ranking_factor(config)
+    resolved_factors: list[BaseFactor] = []
+    seen_factors: set[BaseFactor] = set()
+
+    for factor in (ranking_factor, *config.factor_pipeline):
+        if factor in seen_factors:
+            continue
+        seen_factors.add(factor)
+        resolved_factors.append(factor)
+
+    return tuple(resolved_factors)
+
+
+def _resolve_candidate_filter_name(
+    candidate_filter: CandidateFilterCallable | CandidateFilterSpec,
+) -> str:
+    """为候选过滤器解析一个稳定且可读的名称。"""
+
+    if isinstance(candidate_filter, CandidateFilterSpec):
+        if candidate_filter.name:
+            return str(candidate_filter.name)
+        candidate_filter = candidate_filter.filter_fn
+
+    filter_name = getattr(candidate_filter, "__name__", None)
+    if filter_name and filter_name != "<lambda>":
+        return str(filter_name)
+    return candidate_filter.__class__.__name__
+
+
+def _resolve_candidate_filter_callable(
+    candidate_filter: CandidateFilterCallable | CandidateFilterSpec,
+) -> CandidateFilterCallable:
+    """提取候选过滤器里真正可调用的函数对象。"""
+
+    if isinstance(candidate_filter, CandidateFilterSpec):
+        return candidate_filter.filter_fn
+    return candidate_filter
+
+
+def _serialize_factor(factor: BaseFactor) -> dict[str, Any]:
+    """将因子配置整理为可写入元数据的字典。"""
+
+    return {
+        "class_name": factor.__class__.__name__,
+        "output_name": factor.get_output_name(),
+        "params": dict(factor.params),
+    }
+
+
+def _serialize_candidate_filters(config: WideMomentumBaselineConfig) -> list[dict[str, Any]]:
+    """将启用的候选过滤条件整理成适合写入元数据的 JSON 结构。"""
+
+    filters: list[dict[str, Any]] = []
+    for bf in config.builtin_filters:
+        filters.append(
+            {
+                "name": bf.name or bf.field,
+                "field": bf.field,
+                "operator": bf.operator,
+                "value": float(bf.value),
+            }
+        )
+    for candidate_filter in config.candidate_filters:
+        entry: dict[str, Any] = {
+            "name": _resolve_candidate_filter_name(candidate_filter),
+            "kind": "callable",
+        }
+        if isinstance(candidate_filter, CandidateFilterSpec) and candidate_filter.params:
+            entry["params"] = candidate_filter.params
+        filters.append(entry)
+    return filters
+
+
+def _format_experiment_value(value: Any) -> str:
+    """将参数值格式化为稳定且紧凑的实验名片段。"""
+
+    if isinstance(value, float):
+        return format(value, "g")
+    return str(value)
+
+
+def _resolve_experiment_name(config: WideMomentumBaselineConfig) -> str:
+    """在调用方未显式提供时，构造可自解释的实验名。"""
+
+    if config.experiment_name is not None:
+        return config.experiment_name
+
+    serialized_filters = _serialize_candidate_filters(config)
+    if not serialized_filters:
+        return "wide_momentum_baseline"
+
+    filter_labels: list[str] = []
+    for item in serialized_filters:
+        if item.get("kind") == "callable":
+            filter_labels.append(str(item.get("name")))
+            continue
+        operator = _OPERATOR_LABELS.get(str(item.get("operator")), "filter")
+        filter_labels.append(
+            f"{item.get('name')}_{operator}_{_format_experiment_value(item.get('value'))}"
+        )
+    return "wide_momentum_baseline__" + "__".join(filter_labels)
+
+
+def _normalize_price_frame(
+    frame: pd.DataFrame,
+    symbol: str,
+    extra_columns: tuple[str, ...] = (),
+) -> pd.DataFrame:
+    """将原始 ETF 行情整理为按日期排序的特征表。"""
+
     local_df = frame.copy()
     if "date" in local_df.columns:
         local_df["date"] = pd.to_datetime(local_df["date"], errors="coerce")
@@ -117,30 +365,33 @@ def _normalize_price_frame(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
     else:
         local_df.index = pd.to_datetime(local_df.index, errors="coerce")
 
-    local_df = local_df[~local_df.index.isna()].sort_index()
+    local_df = local_df.loc[local_df.index.notna()].sort_index()
     if local_df.empty:
         raise ValueError(f"{symbol} has no valid rows")
 
-    required_columns = {"open", "close"}
+    required_columns = {"open", "close", *extra_columns}
     missing_columns = required_columns.difference(local_df.columns)
     if missing_columns:
         raise ValueError(f"{symbol} missing required columns: {sorted(missing_columns)}")
 
-    local_df["open"] = pd.to_numeric(local_df["open"], errors="coerce")
-    local_df["close"] = pd.to_numeric(local_df["close"], errors="coerce")
+    for column in required_columns:
+        local_df[column] = pd.to_numeric(local_df[column], errors="coerce")
     local_df = local_df.dropna(subset=["open", "close"])
     local_df = local_df[local_df["open"] > 0]
     local_df = local_df[local_df["close"] > 0]
     if local_df.empty:
         raise ValueError(f"{symbol} has no valid open/close rows after normalization")
 
-    return local_df[["open", "close"]].copy()
+    ordered_columns = ["open", "close", *extra_columns]
+    return local_df.loc[:, ordered_columns].copy()
 
 
 def _resolve_recent_complete_date(
     last_dates: list[pd.Timestamp],
     explicit_end_date: Optional[str | pd.Timestamp],
 ) -> pd.Timestamp:
+    """在未显式指定结束日期时，选择最近的共同完整日期。"""
+
     if explicit_end_date is not None:
         return pd.to_datetime(explicit_end_date)
 
@@ -157,6 +408,8 @@ def _load_trading_calendar(
     start_date: pd.Timestamp,
     end_date: pd.Timestamp,
 ) -> pd.DatetimeIndex:
+    """加载仓库中的交易日历，并裁剪到指定时间窗口。"""
+
     calendar_df = pd.read_csv(
         DataPath.CALANDAR_DF,
         parse_dates=["trade_date"],
@@ -176,6 +429,8 @@ def _resolve_cluster_label(
     symbol: str,
     cluster_lookup: Optional[Mapping[str, int] | Callable[[str], int]],
 ) -> int:
+    """优先使用覆盖参数，否则从默认 provider 中解析标的的 cluster。"""
+
     if cluster_lookup is None:
         return int(ClusterInfo.get_cluster(symbol))
     if callable(cluster_lookup):
@@ -184,6 +439,8 @@ def _resolve_cluster_label(
 
 
 def _month_end_dates(calendar: pd.DatetimeIndex) -> list[pd.Timestamp]:
+    """返回交易日历中每个月最后一个可交易日。"""
+
     if len(calendar) == 0:
         return []
     month_end_series = pd.Series(calendar, index=calendar)
@@ -195,6 +452,8 @@ def _build_monthly_pool_diagnostics(
     calendar: pd.DatetimeIndex,
     stable_pool_size: int,
 ) -> pd.DataFrame:
+    """汇总股票池在各月月底的可选范围变化。"""
+
     rows: list[dict[str, Any]] = []
     stable_marked = False
 
@@ -236,47 +495,130 @@ def _build_monthly_pool_diagnostics(
     return pd.DataFrame(rows)
 
 
-def prepare_wide_momentum_universe_from_frames(
-    symbol_frame_map: Mapping[str, pd.DataFrame],
-    config: WideMomentumBaselineConfig,
-    *,
-    calendar: Optional[pd.DatetimeIndex] = None,
-    cluster_lookup: Optional[Mapping[str, int] | Callable[[str], int]] = None,
-) -> PreparedWideMomentumUniverse:
-    normalized_frames: dict[str, pd.DataFrame] = {}
+def _clone_etf_data(etf_data: EtfData, symbol: str) -> EtfData:
+    """复制 EtfData，避免在原对象上残留因子计算状态。"""
+
+    return EtfData(
+        etf_data.data,
+        metadata=etf_data.metadata,
+        symbol=symbol,
+        name=getattr(etf_data, "name", ""),
+    )
+
+
+def _coerce_to_etf_data(symbol: str, source: pd.DataFrame | EtfData) -> EtfData:
+    """将 DataFrame 或 EtfData 统一转换为 EtfData。"""
+
+    if isinstance(source, EtfData):
+        return _clone_etf_data(source, symbol=symbol)
+    if isinstance(source, pd.DataFrame):
+        return EtfData(source.copy(), symbol=symbol)
+    raise TypeError(f"Unsupported source type for {symbol}: {type(source)!r}")
+
+
+def _load_etf_data_map(
+    symbol_source_map: Mapping[str, pd.DataFrame | EtfData],
+) -> tuple[dict[str, EtfData], list[dict[str, str]]]:
+    """将输入统一转换为 EtfData，并验证可用于回测的行情列。"""
+
+    etf_data_map: dict[str, EtfData] = {}
     load_errors: list[dict[str, str]] = []
 
-    for symbol, frame in symbol_frame_map.items():
+    for symbol, source in symbol_source_map.items():
         try:
-            normalized_frames[symbol] = _normalize_price_frame(frame=frame, symbol=symbol)
+            etf_data = _coerce_to_etf_data(symbol=symbol, source=source)
+            _normalize_price_frame(frame=etf_data.data, symbol=symbol)
+            etf_data_map[symbol] = etf_data
         except Exception as exc:
             load_errors.append({"symbol": symbol, "error": str(exc)})
 
-    if not normalized_frames:
-        raise ValueError("No valid ETF frames available for baseline prep")
+    return etf_data_map, load_errors
 
-    recent_complete_date = _resolve_recent_complete_date(
-        last_dates=[frame.index[-1] for frame in normalized_frames.values()],
-        explicit_end_date=config.end_date,
-    )
 
-    factor = PriceReturn(
-        window=int(config.momentum_window),
-        skip_recent=int(config.momentum_skip_recent),
+def _prepare_factor_ready_etf_data(
+    etf_data: EtfData,
+    symbol: str,
+    factor_pipeline: tuple[BaseFactor, ...],
+) -> EtfData:
+    """在 EtfData 上注册并计算因子，返回带因子结果的副本。"""
+
+    prepared_etf_data = _clone_etf_data(etf_data, symbol=symbol)
+    prepared_etf_data.factors.clear()
+    prepared_etf_data.factor_results.clear()
+
+    for factor in factor_pipeline:
+        prepared_etf_data.add_factors(factor)
+
+    prepared_etf_data.calc_factors()
+    return prepared_etf_data
+
+
+def _build_feature_frame(
+    etf_data: EtfData,
+    symbol: str,
+    factor_pipeline: tuple[BaseFactor, ...],
+    ranking_output_name: str,
+) -> pd.DataFrame:
+    """将带因子的 EtfData 物化为供手工回测使用的特征表。"""
+
+    factor_output_names = tuple(factor.get_output_name() for factor in factor_pipeline)
+    feature_frame = _normalize_price_frame(
+        frame=etf_data.output_with_factors(),
+        symbol=symbol,
+        extra_columns=factor_output_names,
     )
+    if ranking_output_name in feature_frame.columns:
+        feature_frame["ranking_value"] = pd.to_numeric(
+            feature_frame[ranking_output_name],
+            errors="coerce",
+        ).astype(float)
+    if ranking_output_name != "momentum" and ranking_output_name in feature_frame.columns:
+        feature_frame["momentum"] = feature_frame[ranking_output_name].astype(float)
+    return feature_frame
+
+
+def _build_symbol_data_map(
+    etf_data_map: Mapping[str, EtfData],
+    config: WideMomentumBaselineConfig,
+    recent_complete_date: pd.Timestamp,
+    cluster_lookup: Optional[Mapping[str, int] | Callable[[str], int]],
+) -> tuple[dict[str, SymbolBaselineData], dict[str, str]]:
+    """计算每个标的的动量和可交易资格，并排除无法交易的标的。"""
+
+    ranking_factor = _resolve_ranking_factor(config)
+    factor_pipeline = _resolve_factor_pipeline(config)
+    ranking_output_name = ranking_factor.get_output_name()
     symbol_data_map: dict[str, SymbolBaselineData] = {}
     excluded_symbols: dict[str, str] = {}
 
-    for symbol, frame in normalized_frames.items():
-        if frame.index[-1] < recent_complete_date:
+    for symbol, raw_etf_data in etf_data_map.items():
+        raw_price_frame = _normalize_price_frame(frame=raw_etf_data.data, symbol=symbol)
+        if raw_price_frame.index[-1] < recent_complete_date:
             excluded_symbols[symbol] = "stale_before_recent_complete_date"
             continue
 
-        local_frame = frame.loc[frame.index <= recent_complete_date].copy()
+        prepared_etf_data = _prepare_factor_ready_etf_data(
+            etf_data=raw_etf_data,
+            symbol=symbol,
+            factor_pipeline=factor_pipeline,
+        )
+        prepared_etf_data = prepared_etf_data.slice_date_range(
+            end_date=str(recent_complete_date.date())
+        )
+        local_frame = _build_feature_frame(
+            etf_data=prepared_etf_data,
+            symbol=symbol,
+            factor_pipeline=factor_pipeline,
+            ranking_output_name=ranking_output_name,
+        )
+
         listing_proxy_date = pd.Timestamp(local_frame.index[0])
-        momentum = factor(local_frame)
-        eligible_signal = (local_frame.index > listing_proxy_date + pd.Timedelta(days=int(config.min_listing_days))) & momentum.notna()
-        local_frame["momentum"] = momentum.astype(float)
+        listing_cutoff = listing_proxy_date + pd.Timedelta(days=int(config.min_listing_days))
+        ranking_series = pd.to_numeric(local_frame[ranking_output_name], errors="coerce")
+        eligible_signal = (local_frame.index > listing_cutoff) & ranking_series.notna()
+
+        if ranking_output_name != "momentum":
+            local_frame["momentum"] = ranking_series.astype(float)
         local_frame["eligible_signal"] = eligible_signal.astype(bool)
 
         if not bool(local_frame["eligible_signal"].any()):
@@ -288,27 +630,91 @@ def prepare_wide_momentum_universe_from_frames(
             listing_proxy_date=listing_proxy_date,
             cluster_label=_resolve_cluster_label(symbol, cluster_lookup),
             frame=local_frame,
+            etf_data=prepared_etf_data,
+            ranking_output_name=ranking_output_name,
         )
 
-    if not symbol_data_map:
-        raise ValueError("No symbols remain after eligibility filtering")
+    return symbol_data_map, excluded_symbols
+
+
+def _resolve_universe_start_date(
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+    config: WideMomentumBaselineConfig,
+) -> pd.Timestamp:
+    """使用首个可交易信号日和用户起始日期中较晚的那个日期。"""
 
     computed_start_date = min(
         pd.Timestamp(symbol_data.frame.index[symbol_data.frame["eligible_signal"]][0])
         for symbol_data in symbol_data_map.values()
     )
-    start_date = computed_start_date
-    if config.start_date is not None:
-        start_date = max(start_date, pd.to_datetime(config.start_date))
+    if config.start_date is None:
+        return computed_start_date
+    return max(computed_start_date, pd.to_datetime(config.start_date))
 
-    resolved_calendar = pd.DatetimeIndex(pd.to_datetime(calendar)) if calendar is not None else _load_trading_calendar(
+
+def _resolve_calendar_window(
+    calendar: Optional[pd.DatetimeIndex],
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+) -> pd.DatetimeIndex:
+    """标准化交易日历，并裁剪到最终模拟窗口。"""
+
+    if calendar is None:
+        resolved_calendar = _load_trading_calendar(start_date=start_date, end_date=end_date)
+    else:
+        resolved_calendar = pd.DatetimeIndex(pd.to_datetime(calendar))
+
+    resolved_calendar = resolved_calendar[
+        (resolved_calendar >= start_date) & (resolved_calendar <= end_date)
+    ]
+    resolved_calendar = pd.DatetimeIndex(resolved_calendar.sort_values().drop_duplicates())
+    if resolved_calendar.empty:
+        raise ValueError("Resolved trading calendar is empty")
+    return resolved_calendar
+
+
+def prepare_wide_momentum_universe_from_frames(
+    symbol_frame_map: Mapping[str, pd.DataFrame | EtfData],
+    config: WideMomentumBaselineConfig,
+    *,
+    calendar: Optional[pd.DatetimeIndex] = None,
+    cluster_lookup: Optional[Mapping[str, int] | Callable[[str], int]] = None,
+) -> PreparedWideMomentumUniverse:
+    """基于已加载的 symbol 数据准备可复用的回测股票池。"""
+
+    # 阶段 1：将输入统一转换为 EtfData，并验证基本行情字段可用。
+    etf_data_map, load_errors = _load_etf_data_map(symbol_frame_map)
+
+    if not etf_data_map:
+        raise ValueError("No valid ETF frames available for baseline prep")
+
+    recent_complete_date = _resolve_recent_complete_date(
+        last_dates=[
+            _normalize_price_frame(frame=etf_data.data, symbol=symbol).index[-1]
+            for symbol, etf_data in etf_data_map.items()
+        ],
+        explicit_end_date=config.end_date,
+    )
+
+    # 阶段 2：在 EtfData 上计算因子，并过滤掉在窗口内永远无法交易的标的。
+    symbol_data_map, excluded_symbols = _build_symbol_data_map(
+        etf_data_map=etf_data_map,
+        config=config,
+        recent_complete_date=recent_complete_date,
+        cluster_lookup=cluster_lookup,
+    )
+
+    if not symbol_data_map:
+        raise ValueError("No symbols remain after eligibility filtering")
+
+    # 阶段 3：将所有标的对齐到共同的模拟窗口，并生成诊断信息。
+    start_date = _resolve_universe_start_date(symbol_data_map=symbol_data_map, config=config)
+
+    resolved_calendar = _resolve_calendar_window(
+        calendar=calendar,
         start_date=start_date,
         end_date=recent_complete_date,
     )
-    resolved_calendar = resolved_calendar[(resolved_calendar >= start_date) & (resolved_calendar <= recent_complete_date)]
-    resolved_calendar = resolved_calendar.sort_values().drop_duplicates()
-    if resolved_calendar.empty:
-        raise ValueError("Resolved trading calendar is empty")
 
     aligned_start_date = pd.Timestamp(resolved_calendar[0])
     monthly_pool_diagnostics = _build_monthly_pool_diagnostics(
@@ -330,23 +736,43 @@ def prepare_wide_momentum_universe_from_frames(
     )
 
 
+def prepare_wide_momentum_universe_from_etf_data_map(
+    etf_data_map: Mapping[str, EtfData],
+    config: WideMomentumBaselineConfig,
+    *,
+    calendar: Optional[pd.DatetimeIndex] = None,
+    cluster_lookup: Optional[Mapping[str, int] | Callable[[str], int]] = None,
+) -> PreparedWideMomentumUniverse:
+    """基于已准备好的 EtfData 映射准备可复用的回测股票池。"""
+
+    return prepare_wide_momentum_universe_from_frames(
+        symbol_frame_map=etf_data_map,
+        config=config,
+        calendar=calendar,
+        cluster_lookup=cluster_lookup,
+    )
+
+
 def prepare_wide_momentum_universe(
     config: WideMomentumBaselineConfig,
     *,
     symbols: Optional[list[str]] = None,
     cluster_lookup: Optional[Mapping[str, int] | Callable[[str], int]] = None,
 ) -> PreparedWideMomentumUniverse:
+    """从存储中加载 ETF 数据，并为所有变体准备共享股票池。"""
+
     target_symbols = symbols or list(config.symbols or tuple(ETF_LIST.get_all_symbol()))
-    symbol_frame_map: dict[str, pd.DataFrame] = {}
+    etf_data_map: dict[str, EtfData] = {}
 
     for symbol in target_symbols:
         try:
-            symbol_frame_map[symbol] = load_etf_dataframe(symbol)
+            # 这里使用 data_manager 返回的 EtfData 作为 ETF 历史数据交互入口。
+            etf_data_map[symbol] = get_etf_data_by_symbol(symbol)
         except Exception:
             continue
 
-    return prepare_wide_momentum_universe_from_frames(
-        symbol_frame_map=symbol_frame_map,
+    return prepare_wide_momentum_universe_from_etf_data_map(
+        etf_data_map=etf_data_map,
         config=config,
         cluster_lookup=cluster_lookup,
     )
@@ -359,11 +785,13 @@ def _portfolio_value(
     symbol_data_map: Mapping[str, SymbolBaselineData],
     price_column: str,
 ) -> float:
+    """使用指定价格列对当前组合进行市值重估。"""
+
     total_value = float(cash)
     for symbol, shares in positions.items():
         if abs(float(shares)) <= 1e-12:
             continue
-        price = symbol_data_map[symbol].frame[price_column].reindex([date]).iloc[0]
+        price = symbol_data_map[symbol].frame[price_column].asof(date)
         if pd.isna(price) or float(price) <= 0:
             raise ValueError(f"Missing {price_column} price for {symbol} on {date.date()}")
         total_value += float(shares) * float(price)
@@ -377,6 +805,8 @@ def _portfolio_weights(
     symbol_data_map: Mapping[str, SymbolBaselineData],
     price_column: str,
 ) -> dict[str, float]:
+    """按指定估值价格将持仓换算为组合权重。"""
+
     portfolio_value = _portfolio_value(
         positions=positions,
         cash=cash,
@@ -391,18 +821,19 @@ def _portfolio_weights(
     for symbol, shares in positions.items():
         if abs(float(shares)) <= 1e-12:
             continue
-        price = float(symbol_data_map[symbol].frame[price_column].reindex([date]).iloc[0])
+        price = float(symbol_data_map[symbol].frame[price_column].asof(date))
         weights[symbol] = float(shares) * price / float(portfolio_value)
     return weights
 
 
-def _select_target_weights(
+def _collect_raw_candidates(
     symbol_data_map: Mapping[str, SymbolBaselineData],
     signal_date: pd.Timestamp,
     execution_date: pd.Timestamp,
-    top_n: int,
-) -> tuple[dict[str, float], int]:
-    candidates: list[tuple[str, float]] = []
+) -> list[BaselineCandidate]:
+    """收集在信号日满足资格且可在下一开盘执行的标的。"""
+
+    candidates: list[BaselineCandidate] = []
 
     for symbol, symbol_data in symbol_data_map.items():
         frame = symbol_data.frame
@@ -411,22 +842,209 @@ def _select_target_weights(
         if signal_row.empty or execution_row.empty:
             continue
 
+        ranking_column = symbol_data.ranking_output_name
+        if ranking_column not in frame.columns:
+            if "ranking_value" in frame.columns:
+                ranking_column = "ranking_value"
+            elif "momentum" in frame.columns:
+                ranking_column = "momentum"
+            else:
+                raise KeyError(
+                    f"Missing ranking column for {symbol}; expected one of "
+                    f"{symbol_data.ranking_output_name!r}, 'ranking_value', or 'momentum'"
+                )
+
         eligible = bool(signal_row["eligible_signal"].iloc[0])
-        momentum = signal_row["momentum"].iloc[0]
+        score = signal_row[ranking_column].iloc[0]
         next_open = execution_row["open"].iloc[0]
-        if not eligible or pd.isna(momentum) or pd.isna(next_open):
+        if not eligible or pd.isna(score) or pd.isna(next_open):
             continue
         if float(next_open) <= 0:
             continue
-        candidates.append((symbol, float(momentum)))
+        infrastructure_cols = {"open", "close", "eligible_signal"}
+        factor_values: dict[str, float] = {}
+        for col in frame.columns:
+            if col in infrastructure_cols:
+                continue
+            val = signal_row[col].iloc[0]
+            if not pd.isna(val):
+                factor_values[col] = float(val)
 
-    candidates.sort(key=lambda item: (-item[1], item[0]))
-    selected = candidates[: int(top_n)]
+        # 将 score 也注入 factor_values，使 ThresholdFilter(field="score", ...) 能正常工作。
+        factor_values["score"] = float(score)
+
+        candidates.append(
+            BaselineCandidate(
+                symbol=symbol,
+                score=float(score),
+                etf_data=symbol_data.etf_data,
+                factor_values=factor_values,
+            )
+        )
+
+    return candidates
+
+
+def _build_candidate_filters(
+    config: WideMomentumBaselineConfig,
+) -> list[tuple[str, Callable[[BaselineCandidate], bool]]]:
+    """根据当前配置构造内置候选过滤条件。
+
+    遍历 `builtin_filters`，为每个 ThresholdFilter 生成一个闭包，
+    闭包会从 `BaselineCandidate.factor_values` 中按 field 名取值并比较。
+    """
+
+    filters: list[tuple[str, Callable[[BaselineCandidate], bool]]] = []
+    for bf in config.builtin_filters:
+        threshold = float(bf.value)
+        field = bf.field
+        operator = bf.operator
+        if operator == ">=":
+            predicate = (
+                lambda c, f=field, t=threshold: c.factor_values.get(f, float("-inf")) >= t
+            )
+        elif operator == "<=":
+            predicate = (
+                lambda c, f=field, t=threshold: c.factor_values.get(f, float("inf")) <= t
+            )
+        elif operator == ">":
+            predicate = (
+                lambda c, f=field, t=threshold: c.factor_values.get(f, float("-inf")) > t
+            )
+        elif operator == "<":
+            predicate = (
+                lambda c, f=field, t=threshold: c.factor_values.get(f, float("inf")) < t
+            )
+        elif operator == "==":
+            predicate = (
+                lambda c, f=field, t=threshold: c.factor_values.get(f, float("nan")) == t
+            )
+        else:
+            raise ValueError(f"Unsupported operator: {operator!r}")
+        label = bf.name or f"{field}{operator}{threshold}"
+        filters.append((label, predicate))
+    return filters
+
+
+def _build_signal_filter_view_map(
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+    signal_date: pd.Timestamp,
+) -> dict[str, EtfData]:
+    """为自定义过滤函数构建截断到信号日的 EtfData 视图。"""
+
+    signal_view_map: dict[str, EtfData] = {}
+    for symbol, symbol_data in symbol_data_map.items():
+        if symbol_data.etf_data is None:
+            raise ValueError("Custom candidate filters require SymbolBaselineData.etf_data")
+        signal_view_map[symbol] = symbol_data.etf_data.slice_date_range(
+            end_date=str(signal_date.date())
+        )
+    return signal_view_map
+
+
+def _evaluate_custom_candidate_filter(
+    candidate_filter: CandidateFilterCallable | CandidateFilterSpec,
+    candidate_etf_data: EtfData,
+    signal_view_map: Mapping[str, EtfData],
+) -> bool:
+    """执行自定义 callable 过滤器，支持一参或两参形式。"""
+
+    resolved_callable = _resolve_candidate_filter_callable(candidate_filter)
+    try:
+        signature = inspect.signature(resolved_callable)
+    except (TypeError, ValueError):
+        return bool(resolved_callable(candidate_etf_data, signal_view_map))
+
+    params = [
+        parameter
+        for parameter in signature.parameters.values()
+        if parameter.kind in (parameter.POSITIONAL_ONLY, parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    has_varargs = any(
+        parameter.kind == parameter.VAR_POSITIONAL
+        for parameter in signature.parameters.values()
+    )
+    if has_varargs or len(params) >= 2:
+        return bool(resolved_callable(candidate_etf_data, signal_view_map))
+    if len(params) == 1:
+        return bool(resolved_callable(candidate_etf_data))
+    raise TypeError(
+        "candidate filter callable must accept (candidate_etf_data) or "
+        "(candidate_etf_data, signal_etf_data_map)"
+    )
+
+
+def _apply_candidate_filters(
+    candidates: list[BaselineCandidate],
+    config: WideMomentumBaselineConfig,
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+    signal_date: pd.Timestamp,
+) -> tuple[list[BaselineCandidate], list[str]]:
+    """应用候选过滤条件，并返回过滤后的结果及其标签。"""
+
+    filtered_candidates = list(candidates)
+    active_filters = _build_candidate_filters(config)
+    active_filter_names: list[str] = []
+
+    for filter_name, candidate_filter in active_filters:
+        active_filter_names.append(filter_name)
+        filtered_candidates = [candidate for candidate in filtered_candidates if candidate_filter(candidate)]
+
+    if config.candidate_filters:
+        signal_view_map = _build_signal_filter_view_map(
+            symbol_data_map=symbol_data_map,
+            signal_date=signal_date,
+        )
+        for candidate_filter in config.candidate_filters:
+            filter_name = _resolve_candidate_filter_name(candidate_filter)
+            active_filter_names.append(filter_name)
+            filtered_candidates = [
+                candidate
+                for candidate in filtered_candidates
+                if _evaluate_custom_candidate_filter(
+                    candidate_filter=candidate_filter,
+                    candidate_etf_data=signal_view_map[candidate.symbol],
+                    signal_view_map=signal_view_map,
+                )
+            ]
+
+    return filtered_candidates, active_filter_names
+
+
+def _select_target_weights(
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+    signal_date: pd.Timestamp,
+    execution_date: pd.Timestamp,
+    top_n: int,
+    config: WideMomentumBaselineConfig,
+) -> tuple[dict[str, float], int, int, list[str]]:
+    """对过滤后的候选标的进行排序，并为 top-N 结果分配等权重。"""
+
+    candidates = _collect_raw_candidates(
+        symbol_data_map=symbol_data_map,
+        signal_date=signal_date,
+        execution_date=execution_date,
+    )
+    filtered_candidates, active_candidate_filters = _apply_candidate_filters(
+        candidates=candidates,
+        config=config,
+        symbol_data_map=symbol_data_map,
+        signal_date=signal_date,
+    )
+
+    # 先做可选过滤，再排序，这样日志里才能同时保留原始数量和过滤后数量。
+    filtered_candidates.sort(key=lambda item: (-item.score, item.symbol))
+    selected = filtered_candidates[: int(top_n)]
     if not selected:
-        return {}, len(candidates)
+        return {}, len(candidates), len(filtered_candidates), active_candidate_filters
 
     weight = 1.0 / float(len(selected))
-    return {symbol: weight for symbol, _ in selected}, len(candidates)
+    return (
+        {candidate.symbol: weight for candidate in selected},
+        len(candidates),
+        len(filtered_candidates),
+        active_candidate_filters,
+    )
 
 
 def _solve_target_exposures(
@@ -435,6 +1053,8 @@ def _solve_target_exposures(
     target_weights: Mapping[str, float],
     commission: float,
 ) -> tuple[dict[str, float], float, float, float]:
+    """在保证手续费可支付的前提下，求解目标持仓金额。"""
+
     if portfolio_value <= 0:
         return {}, 0.0, 0.0, 0.0
 
@@ -444,8 +1064,9 @@ def _solve_target_exposures(
         cash_after = float(portfolio_value) - commission_paid
         return {}, commission_paid, trade_notional, cash_after
 
+    total_target_weight = float(sum(target_weights.values()))
     normalized_weights = {
-        symbol: float(weight) / float(sum(target_weights.values()))
+        symbol: float(weight) / total_target_weight
         for symbol, weight in target_weights.items()
         if float(weight) > 0.0
     }
@@ -463,6 +1084,7 @@ def _solve_target_exposures(
             trade_notional += abs(desired - current)
         return float(portfolio_value) - desired_total - float(commission) * trade_notional
 
+    # 用二分搜索找到既能尽量满仓、又不会让现金变成负数的投资比例。
     for _ in range(60):
         mid = (low + high) / 2.0
         if _cash_after(mid) >= 0.0:
@@ -497,11 +1119,13 @@ def _execute_rebalance(
     symbol_data_map: Mapping[str, SymbolBaselineData],
     commission: float,
 ) -> tuple[dict[str, float], float, dict[str, Any]]:
+    """在执行日开盘价上将目标权重转换为实际持仓，并返回执行诊断信息。"""
+
     open_prices: dict[str, float] = {}
     involved_symbols = set(positions).union(target_weights)
 
     for symbol in involved_symbols:
-        open_price = symbol_data_map[symbol].frame["open"].reindex([execution_date]).iloc[0]
+        open_price = symbol_data_map[symbol].frame["open"].asof(execution_date)
         if pd.isna(open_price) or float(open_price) <= 0:
             raise ValueError(f"Missing execution open price for {symbol} on {execution_date.date()}")
         open_prices[symbol] = float(open_price)
@@ -548,6 +1172,8 @@ def _compute_weight_turnover(
     previous_weights: Mapping[str, float],
     current_weights: Mapping[str, float],
 ) -> float:
+    """计算相邻两次目标权重之间的单边换手率。"""
+
     symbols = set(previous_weights).union(current_weights)
     return 0.5 * float(
         sum(
@@ -560,6 +1186,8 @@ def _compute_weight_turnover(
 def _finalize_rebalance_log(
     rebalance_entries: list[dict[str, Any]],
 ) -> pd.DataFrame:
+    """为调仓日志补充换手率和持有期收益。"""
+
     previous_target_weights: Optional[dict[str, float]] = None
     for entry in rebalance_entries:
         current_target_weights = dict(entry.get("target_weights", {}))
@@ -594,6 +1222,8 @@ def _finalize_rebalance_log(
 
 
 def _compute_drawdown_details(equity: pd.Series) -> dict[str, Any]:
+    """返回最大回撤及其对应的峰值和谷值日期。"""
+
     if equity.empty:
         return {
             "max_drawdown": float("nan"),
@@ -614,6 +1244,8 @@ def _compute_drawdown_details(equity: pd.Series) -> dict[str, Any]:
 
 
 def _build_annual_returns(equity_curve_df: pd.DataFrame) -> pd.DataFrame:
+    """将日度净值收益聚合为自然年收益。"""
+
     if equity_curve_df.empty:
         return pd.DataFrame(columns=["year", "annual_return_pct"])
 
@@ -621,7 +1253,8 @@ def _build_annual_returns(equity_curve_df: pd.DataFrame) -> pd.DataFrame:
     if returns.empty:
         return pd.DataFrame(columns=["year", "annual_return_pct"])
 
-    annual = returns.groupby(returns.index.year).apply(lambda values: (1.0 + values).prod() - 1.0)
+    return_years = pd.DatetimeIndex(returns.index).year
+    annual = (1.0 + returns.astype(float)).groupby(return_years).prod() - 1.0
     annual_df = annual.rename("annual_return_pct").mul(100.0).reset_index()
     annual_df = annual_df.rename(columns={"date": "year", "index": "year"})
     annual_df["annual_return_pct"] = annual_df["annual_return_pct"].round(4)
@@ -636,6 +1269,8 @@ def _build_variant_summary(
     config: WideMomentumBaselineConfig,
     prepared: PreparedWideMomentumUniverse,
 ) -> dict[str, Any]:
+    """将单个 top-N 变体汇总为可落盘的绩效指标。"""
+
     equity = equity_curve_df["equity"] if not equity_curve_df.empty else pd.Series(dtype=float)
     returns = equity.pct_change().dropna()
 
@@ -646,16 +1281,24 @@ def _build_variant_summary(
     drawdown_details = _compute_drawdown_details(equity)
     max_drawdown = drawdown_details["max_drawdown"]
     calmar = None
-    if not math.isnan(annualised) and max_drawdown not in (0.0, float("nan")):
-        if max_drawdown > 0:
-            calmar = annualised / max_drawdown
+    if not math.isnan(annualised) and not math.isnan(max_drawdown) and max_drawdown > 0:
+        calmar = annualised / max_drawdown
 
-    period_returns = rebalance_df["period_return"].dropna() if "period_return" in rebalance_df.columns else pd.Series(dtype=float)
-    turnover_series = rebalance_df["turnover"].dropna() if "turnover" in rebalance_df.columns else pd.Series(dtype=float)
+    period_returns = (
+        rebalance_df["period_return"].dropna()
+        if "period_return" in rebalance_df.columns
+        else pd.Series(dtype=float)
+    )
+    turnover_series = (
+        rebalance_df["turnover"].dropna()
+        if "turnover" in rebalance_df.columns
+        else pd.Series(dtype=float)
+    )
     stable_start = prepared.stable_start_month
 
     return {
         "top_n": int(top_n),
+        "experiment_name": _resolve_experiment_name(config),
         "date_range_start": str(prepared.start_date.date()),
         "date_range_end": str(prepared.end_date.date()),
         "recent_complete_date": str(prepared.recent_complete_date.date()),
@@ -695,12 +1338,132 @@ def _build_variant_summary(
     }
 
 
+def _maybe_execute_pending_rebalance(
+    *,
+    current_date: pd.Timestamp,
+    pending_rebalance: Optional[dict[str, Any]],
+    positions: dict[str, float],
+    cash: float,
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+    commission: float,
+    rebalance_entries: list[dict[str, Any]],
+) -> tuple[dict[str, float], float, Optional[dict[str, Any]]]:
+    """当计划执行日到来时，执行上一信号日安排的调仓。"""
+
+    if pending_rebalance is None or current_date != pending_rebalance["execution_date"]:
+        return positions, cash, pending_rebalance
+
+    positions, cash, execution_info = _execute_rebalance(
+        positions=positions,
+        cash=cash,
+        execution_date=current_date,
+        target_weights=pending_rebalance["target_weights"],
+        symbol_data_map=symbol_data_map,
+        commission=commission,
+    )
+    rebalance_entries[pending_rebalance["entry_index"]].update(execution_info)
+    return positions, cash, None
+
+
+def _append_equity_row(
+    equity_rows: list[dict[str, Any]],
+    current_date: pd.Timestamp,
+    equity_value: float,
+    cash: float,
+) -> None:
+    """记录一条日终净值观测，用于输出净值曲线。"""
+
+    equity_rows.append(
+        {
+            "date": current_date,
+            "equity": float(equity_value),
+            "cash": float(cash),
+        }
+    )
+
+
+def _is_signal_bar(bar_index: int, rebalance_interval: int, calendar_length: int) -> bool:
+    """判断当前 bar 是否应产生一个在下一开盘执行的信号。"""
+
+    return (bar_index % rebalance_interval == 0) and (bar_index + 1 < calendar_length)
+
+
+def _create_rebalance_plan(
+    *,
+    prepared: PreparedWideMomentumUniverse,
+    config: WideMomentumBaselineConfig,
+    top_n: int,
+    bar_index: int,
+    signal_date: pd.Timestamp,
+    positions: Mapping[str, float],
+    cash: float,
+    signal_equity: float,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """为单个信号日生成调仓日志项和延迟执行计划。"""
+
+    execution_date = pd.Timestamp(prepared.calendar[bar_index + 1])
+    target_weights, candidate_count, filtered_candidate_count, active_candidate_filters = (
+        _select_target_weights(
+            symbol_data_map=prepared.symbol_data_map,
+            signal_date=signal_date,
+            execution_date=execution_date,
+            top_n=top_n,
+            config=config,
+        )
+    )
+    current_weights = _portfolio_weights(
+        positions=positions,
+        cash=cash,
+        date=signal_date,
+        symbol_data_map=prepared.symbol_data_map,
+        price_column="close",
+    )
+    rebalance_entry = {
+        "signal_date": signal_date,
+        "execution_date": execution_date,
+        "bar_index": int(bar_index),
+        "candidate_count": int(candidate_count),
+        "filtered_candidate_count": int(filtered_candidate_count),
+        "active_candidate_filters": active_candidate_filters,
+        "selected_symbols": sorted(target_weights.keys()),
+        "current_weights": current_weights,
+        "target_weights": target_weights,
+        "signal_equity": float(signal_equity),
+    }
+    pending_rebalance = {
+        "execution_date": execution_date,
+        "target_weights": target_weights,
+    }
+    return rebalance_entry, pending_rebalance
+
+
+def _build_equity_curve_frame(
+    equity_rows: list[dict[str, Any]],
+    initial_cash: float,
+) -> pd.DataFrame:
+    """将收集到的日终观测转换为标准净值曲线表。"""
+
+    equity_curve_df = pd.DataFrame(equity_rows)
+    if equity_curve_df.empty:
+        return pd.DataFrame(columns=["equity", "cash", "daily_return", "cumulative_return_pct"])
+
+    equity_curve_df = equity_curve_df.set_index("date")
+    equity_curve_df.index = pd.to_datetime(equity_curve_df.index)
+    equity_curve_df["daily_return"] = equity_curve_df["equity"].pct_change()
+    equity_curve_df["cumulative_return_pct"] = (
+        equity_curve_df["equity"] / float(initial_cash) - 1.0
+    ) * 100.0
+    return equity_curve_df
+
+
 def _run_top_n_variant(
     *,
     prepared: PreparedWideMomentumUniverse,
     config: WideMomentumBaselineConfig,
     top_n: int,
 ) -> WideMomentumVariantResult:
+    """运行单个 top-N 组合规模的逐日模拟。"""
+
     positions: dict[str, float] = {}
     cash = float(config.cash)
     rebalance_entries: list[dict[str, Any]] = []
@@ -710,18 +1473,18 @@ def _run_top_n_variant(
     for bar_index, current_date in enumerate(prepared.calendar):
         current_date = pd.Timestamp(current_date)
 
-        if pending_rebalance is not None and current_date == pending_rebalance["execution_date"]:
-            positions, cash, execution_info = _execute_rebalance(
-                positions=positions,
-                cash=cash,
-                execution_date=current_date,
-                target_weights=pending_rebalance["target_weights"],
-                symbol_data_map=prepared.symbol_data_map,
-                commission=float(config.commission),
-            )
-            rebalance_entries[pending_rebalance["entry_index"]].update(execution_info)
-            pending_rebalance = None
+        # 调仓信号在信号 bar 生成，并在下一根 bar 的开盘执行。
+        positions, cash, pending_rebalance = _maybe_execute_pending_rebalance(
+            current_date=current_date,
+            pending_rebalance=pending_rebalance,
+            positions=positions,
+            cash=cash,
+            symbol_data_map=prepared.symbol_data_map,
+            commission=float(config.commission),
+            rebalance_entries=rebalance_entries,
+        )
 
+        # 先按收盘价做日终估值，再判断今天是否产生新信号。
         close_value = _portfolio_value(
             positions=positions,
             cash=cash,
@@ -729,56 +1492,34 @@ def _run_top_n_variant(
             symbol_data_map=prepared.symbol_data_map,
             price_column="close",
         )
-        equity_rows.append(
-            {
-                "date": current_date,
-                "equity": float(close_value),
-                "cash": float(cash),
-            }
+        _append_equity_row(
+            equity_rows=equity_rows,
+            current_date=current_date,
+            equity_value=float(close_value),
+            cash=float(cash),
         )
 
-        is_signal_bar = (bar_index % int(config.rebalance_interval) == 0) and (bar_index + 1 < len(prepared.calendar))
-        if not is_signal_bar:
+        if not _is_signal_bar(
+            bar_index=bar_index,
+            rebalance_interval=int(config.rebalance_interval),
+            calendar_length=len(prepared.calendar),
+        ):
             continue
 
-        execution_date = pd.Timestamp(prepared.calendar[bar_index + 1])
-        target_weights, candidate_count = _select_target_weights(
-            symbol_data_map=prepared.symbol_data_map,
-            signal_date=current_date,
-            execution_date=execution_date,
+        rebalance_entry, pending_rebalance = _create_rebalance_plan(
+            prepared=prepared,
+            config=config,
             top_n=top_n,
-        )
-        current_weights = _portfolio_weights(
+            bar_index=bar_index,
+            signal_date=current_date,
             positions=positions,
             cash=cash,
-            date=current_date,
-            symbol_data_map=prepared.symbol_data_map,
-            price_column="close",
+            signal_equity=float(close_value),
         )
-        rebalance_entries.append(
-            {
-                "signal_date": current_date,
-                "execution_date": execution_date,
-                "bar_index": int(bar_index),
-                "candidate_count": int(candidate_count),
-                "selected_symbols": sorted(target_weights.keys()),
-                "current_weights": current_weights,
-                "target_weights": target_weights,
-                "signal_equity": float(close_value),
-            }
-        )
-        pending_rebalance = {
-            "entry_index": len(rebalance_entries) - 1,
-            "execution_date": execution_date,
-            "target_weights": target_weights,
-        }
+        rebalance_entries.append(rebalance_entry)
+        pending_rebalance["entry_index"] = len(rebalance_entries) - 1
 
-    equity_curve_df = pd.DataFrame(equity_rows).set_index("date")
-    equity_curve_df.index = pd.to_datetime(equity_curve_df.index)
-    equity_curve_df["daily_return"] = equity_curve_df["equity"].pct_change()
-    equity_curve_df["cumulative_return_pct"] = (
-        equity_curve_df["equity"] / float(config.cash) - 1.0
-    ) * 100.0
+    equity_curve_df = _build_equity_curve_frame(equity_rows=equity_rows, initial_cash=float(config.cash))
 
     rebalance_df = _finalize_rebalance_log(rebalance_entries)
     annual_returns = _build_annual_returns(equity_curve_df)
@@ -802,6 +1543,8 @@ def run_wide_momentum_baseline_from_prepared(
     prepared: PreparedWideMomentumUniverse,
     config: WideMomentumBaselineConfig,
 ) -> WideMomentumBaselineResult:
+    """基于已准备好的共享股票池运行所有请求的 top-N 变体。"""
+
     variant_results = {
         int(top_n): _run_top_n_variant(prepared=prepared, config=config, top_n=int(top_n))
         for top_n in config.top_n_values
@@ -819,6 +1562,8 @@ def run_wide_momentum_baseline(
     symbols: Optional[list[str]] = None,
     cluster_lookup: Optional[Mapping[str, int] | Callable[[str], int]] = None,
 ) -> WideMomentumBaselineResult:
+    """完成数据加载、股票池准备，并执行全部基线变体。"""
+
     prepared = prepare_wide_momentum_universe(
         config=config,
         symbols=symbols,
@@ -827,22 +1572,36 @@ def run_wide_momentum_baseline(
     return run_wide_momentum_baseline_from_prepared(prepared=prepared, config=config)
 
 
+def _serialize_csv_cell(value: Any) -> Any:
+    """将 dict/list 单元格编码为 JSON，避免嵌套结构在 CSV 中丢失。"""
+
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    return value
+
+
 def _prepare_rebalance_log_for_csv(rebalance_df: pd.DataFrame) -> pd.DataFrame:
+    """将调仓日志中的嵌套字段转换为适合写入 CSV 的标量值。"""
+
     if rebalance_df.empty:
         return rebalance_df.copy()
 
     csv_df = rebalance_df.copy()
-    for column in ("selected_symbols", "current_weights", "target_weights", "executed_weights_open"):
+    for column in (
+        "selected_symbols",
+        "current_weights",
+        "target_weights",
+        "executed_weights_open",
+        "active_candidate_filters",
+    ):
         if column in csv_df.columns:
-            csv_df[column] = csv_df[column].apply(
-                lambda value: json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
-                if isinstance(value, (dict, list))
-                else value
-            )
+            csv_df[column] = csv_df[column].apply(_serialize_csv_cell)
     return csv_df
 
 
 def _plot_equity_curve(equity_curve_df: pd.DataFrame, output_path: Path, title: str) -> None:
+    """将单个变体的累计收益曲线渲染为 PNG 图片。"""
+
     import matplotlib
 
     matplotlib.use("Agg")
@@ -860,41 +1619,45 @@ def _plot_equity_curve(equity_curve_df: pd.DataFrame, output_path: Path, title: 
     plt.close(fig)
 
 
-def save_wide_momentum_baseline_result(
-    result: WideMomentumBaselineResult,
-    output_dir: str | Path,
-) -> Path:
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
+def _build_run_metadata(result: WideMomentumBaselineResult) -> dict[str, Any]:
+    """构造描述配置、股票池和排除结果的元数据负载。"""
 
-    summary_rows = [
-        variant_result.summary
-        for _, variant_result in sorted(result.variant_results.items(), key=lambda item: item[0])
-    ]
-    pd.DataFrame(summary_rows).to_csv(
-        output_path / "summary.csv",
-        index=False,
-        encoding="utf-8-sig",
-    )
+    ranking_factor = _resolve_ranking_factor(result.config)
 
-    result.prepared_universe.monthly_pool_diagnostics.to_csv(
-        output_path / "monthly_pool_diagnostics.csv",
-        index=False,
-        encoding="utf-8-sig",
-    )
-
-    metadata = {
+    return {
         "config": {
             "top_n_values": [int(value) for value in result.config.top_n_values],
+            "experiment_name": _resolve_experiment_name(result.config),
             "min_listing_days": int(result.config.min_listing_days),
             "momentum_window": int(result.config.momentum_window),
             "momentum_skip_recent": int(result.config.momentum_skip_recent),
+            "min_momentum_value": (
+                float(result.config.min_momentum_value)
+                if result.config.min_momentum_value is not None
+                else None
+            ),
+            "builtin_filters": [
+                {
+                    "field": bf.field,
+                    "operator": bf.operator,
+                    "value": float(bf.value),
+                }
+                for bf in result.config.builtin_filters
+            ],
+            "candidate_filters": _serialize_candidate_filters(result.config),
             "rebalance_interval": int(result.config.rebalance_interval),
             "cash": float(result.config.cash),
             "commission": float(result.config.commission),
             "risk_free_rate": float(result.config.risk_free_rate),
             "stable_pool_size": int(result.config.stable_pool_size),
-            "start_date": str(result.config.start_date) if result.config.start_date is not None else None,
+            "ranking_factor": _serialize_factor(ranking_factor),
+            "factor_pipeline": [
+                _serialize_factor(factor)
+                for factor in _resolve_factor_pipeline(result.config)
+            ],
+            "start_date": (
+                str(result.config.start_date) if result.config.start_date is not None else None
+            ),
             "end_date": str(result.config.end_date) if result.config.end_date is not None else None,
         },
         "prepared_universe": {
@@ -914,49 +1677,92 @@ def save_wide_momentum_baseline_result(
         "load_errors": result.prepared_universe.load_errors,
         "excluded_symbols": result.prepared_universe.excluded_symbols,
     }
+
+
+def _save_variant_result(
+    output_path: Path,
+    top_n: int,
+    variant_result: WideMomentumVariantResult,
+) -> None:
+    """将单个 top-N 变体的全部产物写入对应输出目录。"""
+
+    variant_dir = output_path / f"top_{top_n}"
+    variant_dir.mkdir(parents=True, exist_ok=True)
+    variant_result.equity_curve.to_csv(
+        variant_dir / "equity_curve.csv",
+        index=True,
+        encoding="utf-8-sig",
+    )
+    variant_result.annual_returns.to_csv(
+        variant_dir / "annual_returns.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+    _prepare_rebalance_log_for_csv(variant_result.rebalance_log).to_csv(
+        variant_dir / "rebalance_log.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+    (variant_dir / "summary.json").write_text(
+        json.dumps(variant_result.summary, ensure_ascii=False, indent=2, default=str),
+        encoding="utf-8",
+    )
+    _plot_equity_curve(
+        equity_curve_df=variant_result.equity_curve,
+        output_path=variant_dir / "equity_curve.png",
+        title=f"Wide Momentum Baseline Top {top_n}",
+    )
+
+
+def save_wide_momentum_baseline_result(
+    result: WideMomentumBaselineResult,
+    output_dir: str | Path,
+) -> Path:
+    """将运行级和变体级结果写入目标目录。"""
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    summary_rows = [
+        variant_result.summary
+        for _, variant_result in sorted(result.variant_results.items(), key=lambda item: item[0])
+    ]
+    pd.DataFrame(summary_rows).to_csv(
+        output_path / "summary.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+    result.prepared_universe.monthly_pool_diagnostics.to_csv(
+        output_path / "monthly_pool_diagnostics.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+    metadata = _build_run_metadata(result)
     (output_path / "run_metadata.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2, default=str),
         encoding="utf-8",
     )
 
+    # 共享输出写在根目录；更细的交易日志和净值曲线按 top-N 分目录存放。
     for top_n, variant_result in sorted(result.variant_results.items(), key=lambda item: item[0]):
-        variant_dir = output_path / f"top_{top_n}"
-        variant_dir.mkdir(parents=True, exist_ok=True)
-        variant_result.equity_curve.to_csv(
-            variant_dir / "equity_curve.csv",
-            index=True,
-            encoding="utf-8-sig",
-        )
-        variant_result.annual_returns.to_csv(
-            variant_dir / "annual_returns.csv",
-            index=False,
-            encoding="utf-8-sig",
-        )
-        _prepare_rebalance_log_for_csv(variant_result.rebalance_log).to_csv(
-            variant_dir / "rebalance_log.csv",
-            index=False,
-            encoding="utf-8-sig",
-        )
-        (variant_dir / "summary.json").write_text(
-            json.dumps(variant_result.summary, ensure_ascii=False, indent=2, default=str),
-            encoding="utf-8",
-        )
-        _plot_equity_curve(
-            equity_curve_df=variant_result.equity_curve,
-            output_path=variant_dir / "equity_curve.png",
-            title=f"Wide Momentum Baseline Top {top_n}",
-        )
+        _save_variant_result(output_path=output_path, top_n=top_n, variant_result=variant_result)
 
     return output_path
 
 
 __all__ = [
+    "BaselineCandidate",
+    "CandidateFilterSpec",
     "PreparedWideMomentumUniverse",
     "SymbolBaselineData",
+    "ThresholdFilter",
     "WideMomentumBaselineConfig",
     "WideMomentumBaselineResult",
     "WideMomentumVariantResult",
     "prepare_wide_momentum_universe",
+    "prepare_wide_momentum_universe_from_etf_data_map",
     "prepare_wide_momentum_universe_from_frames",
     "run_wide_momentum_baseline",
     "run_wide_momentum_baseline_from_prepared",

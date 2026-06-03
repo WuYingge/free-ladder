@@ -20,8 +20,11 @@ from .engine import (
 from .timing_batch import PortfolioBatchConfig, run_portfolio_backtest_batch
 from .rotation_signal import make_rotation_signal
 from .wide_momentum_baseline import (
+    BaselineCandidate,
+    CandidateFilterSpec,
     PreparedWideMomentumUniverse,
     SymbolBaselineData,
+    ThresholdFilter,
     WideMomentumBaselineConfig,
     WideMomentumBaselineResult,
     WideMomentumVariantResult,
@@ -82,8 +85,11 @@ __all__ = [
     "PortfolioBatchConfig",
     "run_portfolio_backtest_batch",
     "make_rotation_signal",
+    "BaselineCandidate",
+    "CandidateFilterSpec",
     "PreparedWideMomentumUniverse",
     "SymbolBaselineData",
+    "ThresholdFilter",
     "WideMomentumBaselineConfig",
     "WideMomentumBaselineResult",
     "WideMomentumVariantResult",

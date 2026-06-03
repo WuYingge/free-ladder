@@ -21,3 +21,5 @@ playgrounds
 
 # copilot generated plans
 docs/*
+.codewhale/
+.deepseek/

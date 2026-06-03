@@ -19,6 +19,7 @@ from backtesting import (  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
+    default_config = WideMomentumBaselineConfig()
     parser = argparse.ArgumentParser(
         description="Run the wide-universe momentum rotation baseline backtest."
     )
@@ -26,7 +27,7 @@ def parse_args() -> argparse.Namespace:
         "--top-n",
         nargs="+",
         type=int,
-        default=[5, 10],
+        default=list(default_config.top_n_values),
         help="Top-N portfolio sizes to run, for example --top-n 5 10.",
     )
     parser.add_argument(
@@ -36,64 +37,76 @@ def parse_args() -> argparse.Namespace:
         help="Optional explicit ETF symbol subset. Defaults to the ETF master list.",
     )
     parser.add_argument(
+        "--experiment-name",
+        type=str,
+        default=default_config.experiment_name,
+        help="Optional label written into summary outputs for experiment tracking.",
+    )
+    parser.add_argument(
         "--min-listing-days",
         type=int,
-        default=1200,
+        default=int(default_config.min_listing_days),
         help="Minimum natural-day listing age proxy before a symbol can enter the pool.",
     )
     parser.add_argument(
         "--momentum-window",
         type=int,
-        default=20,
+        default=int(default_config.momentum_window),
         help="Lookback window for the raw momentum factor.",
     )
     parser.add_argument(
         "--momentum-skip-recent",
         type=int,
-        default=1,
+        default=int(default_config.momentum_skip_recent),
         help="Lag bars skipped to enforce shift(1) anti-lookahead.",
+    )
+    parser.add_argument(
+        "--min-momentum-value",
+        type=float,
+        default=default_config.min_momentum_value,
+        help="Optional lower bound applied by the candidate filter pipeline before ranking.",
     )
     parser.add_argument(
         "--rebalance-interval",
         type=int,
-        default=20,
+        default=int(default_config.rebalance_interval),
         help="Rebalance interval in trading days.",
     )
     parser.add_argument(
         "--cash",
         type=float,
-        default=100000.0,
+        default=float(default_config.cash),
         help="Initial capital.",
     )
     parser.add_argument(
         "--commission",
         type=float,
-        default=0.0005,
+        default=float(default_config.commission),
         help="Single-side commission estimate in decimal form.",
     )
     parser.add_argument(
         "--risk-free-rate",
         type=float,
-        default=0.02,
+        default=float(default_config.risk_free_rate),
         help="Annual risk-free rate used in Sharpe.",
     )
     parser.add_argument(
         "--stable-pool-size",
         type=int,
-        default=100,
+        default=int(default_config.stable_pool_size),
         help="Monthly eligible-pool count threshold used to flag the stable start month.",
     )
     parser.add_argument(
         "--start-date",
         type=str,
-        default=None,
-        help="Optional manual lower bound for the backtest start date.",
+        default=default_config.start_date,
+        help="Manual lower bound for the backtest start date.",
     )
     parser.add_argument(
         "--end-date",
         type=str,
-        default=None,
-        help="Optional manual upper bound for the backtest end date.",
+        default=default_config.end_date,
+        help="Manual upper bound for the backtest end date.",
     )
     parser.add_argument(
         "--output-root",
@@ -111,6 +124,7 @@ def main() -> int:
         min_listing_days=int(args.min_listing_days),
         momentum_window=int(args.momentum_window),
         momentum_skip_recent=int(args.momentum_skip_recent),
+        min_momentum_value=args.min_momentum_value,
         rebalance_interval=int(args.rebalance_interval),
         cash=float(args.cash),
         commission=float(args.commission),
@@ -118,6 +132,7 @@ def main() -> int:
         stable_pool_size=int(args.stable_pool_size),
         start_date=args.start_date,
         end_date=args.end_date,
+        experiment_name=args.experiment_name,
     )
 
     result = run_wide_momentum_baseline(
