@@ -101,6 +101,9 @@ class WideMomentumBaselineConfig:
     cluster_limit_enabled: bool = False
     # 未分类标的（cluster_label == -1）不计数也不受限制。
     cluster_max_per_group: int = 3
+    # 排除的 cluster 标签 —— 这些 cluster 的标的不会进入候选池。
+    # 常用于剔除债券类标的（cluster 43/44），与集群约束无关。
+    exclude_clusters: tuple[int, ...] = field(default_factory=tuple)
     # 实验名称和指定标的
     symbols: Optional[tuple[str, ...]] = None
     experiment_name: Optional[str] = None
@@ -146,6 +149,9 @@ class WideMomentumBaselineConfig:
             self.cluster_max_per_group = int(self.cluster_max_per_group)
         if self.cluster_limit_enabled and int(self.cluster_max_per_group) <= 0:
             raise ValueError("cluster_max_per_group must be >= 1 when cluster_limit_enabled")
+        self.exclude_clusters = tuple(
+            int(c) for c in (self.exclude_clusters or ())
+        )
 
         if int(self.rebalance_interval) <= 0:
             raise ValueError("rebalance_interval must be >= 1")
@@ -368,6 +374,11 @@ def _resolve_experiment_name(config: WideMomentumBaselineConfig) -> str:
     # 集群约束标签
     if config.cluster_limit_enabled:
         filter_labels.append(f"cluster_max{config.cluster_max_per_group}")
+
+    # 排除 cluster 标签
+    if config.exclude_clusters:
+        sorted_clusters = sorted(config.exclude_clusters)
+        filter_labels.append("no_cl" + "_".join(str(c) for c in sorted_clusters))
 
     if not filter_labels:
         return "wide_momentum_baseline"
@@ -936,12 +947,17 @@ def _collect_raw_candidates(
     symbol_data_map: Mapping[str, SymbolBaselineData],
     signal_date: pd.Timestamp,
     execution_date: pd.Timestamp,
+    *,
+    exclude_clusters: tuple[int, ...] = (),
 ) -> list[BaselineCandidate]:
     """收集在信号日满足资格且可在下一开盘执行的标的。"""
 
     candidates: list[BaselineCandidate] = []
 
     for symbol, symbol_data in symbol_data_map.items():
+        if symbol_data.cluster_label in exclude_clusters:
+            continue
+
         frame = symbol_data.frame
         signal_row = frame.reindex([signal_date])
         execution_row = frame.reindex([execution_date])
@@ -1130,6 +1146,7 @@ def _select_target_weights(
         symbol_data_map=symbol_data_map,
         signal_date=signal_date,
         execution_date=execution_date,
+        exclude_clusters=config.exclude_clusters,
     )
     filtered_candidates, active_candidate_filters = _apply_candidate_filters(
         candidates=candidates,
@@ -1776,6 +1793,7 @@ def _build_run_metadata(result: WideMomentumBaselineResult) -> dict[str, Any]:
             "stable_pool_size": int(result.config.stable_pool_size),
             "cluster_limit_enabled": bool(result.config.cluster_limit_enabled),
             "cluster_max_per_group": int(result.config.cluster_max_per_group),
+            "exclude_clusters": [int(c) for c in result.config.exclude_clusters],
             "ranking_factor": _serialize_factor(ranking_factor),
             "factor_pipeline": [
                 _serialize_factor(factor)
