@@ -75,6 +75,14 @@ CLUSTER_LIMIT_ENABLED = _CLUSTER_DEFAULT
 # Grid 并行 worker 数（None = CPU 核数）
 GRID_MAX_WORKERS: int | None = None
 
+# 分段统计频率（None = 不启用分段统计）
+# 常见取值: 'YE' (年), 'QE' (季度), 'ME' (月), 'W' (周)
+PERIOD_FREQ: str | None = None
+
+# 自定义分段统计的时间段列表（优先级高于 PERIOD_FREQ）
+# 示例: (("2024-01-01", "2024-06-30"), ("2024-07-01", "2024-12-31"))
+CUSTOM_PERIODS: tuple[tuple[str, str], ...] | None = (("2023-12-04", "2024-09-23"), ("2024-09-24", "2026-05-30"))
+
 
 # ====================================================================
 # 基础标签构造
@@ -151,6 +159,10 @@ def main() -> None:
     print(f"    rebalance:     {GRID_REBALANCE_INTERVAL}")
     print(f"    exclude_bonds: {GRID_EXCLUDE_BONDS}")
     print(f"    hold_overlap:  {GRID_HOLD_OVERLAP}")
+    if CUSTOM_PERIODS:
+        print(f"    custom_periods: {CUSTOM_PERIODS}")
+    elif PERIOD_FREQ:
+        print(f"    period_freq:   {PERIOD_FREQ}")
     print("=" * 60)
 
     all_summaries: list[dict] = []
@@ -233,6 +245,8 @@ def _run_single_combo(args):
         cluster_max_per_group=cluster_max if cluster_max > 0 else 3,
         exclude_clusters=_BOND_CLUSTERS if exclude_bonds else (),
         hold_overlap=hold_overlap,
+        period_freq=PERIOD_FREQ,
+        custom_periods=CUSTOM_PERIODS,
     )
 
     output_dir = _output_root / grid_label

@@ -31,6 +31,7 @@ from factors.price_return import PriceReturn
 from .performance import (
     annualised_return,
     annualised_volatility,
+    compute_periodic_metrics,
     cumulative_return,
     sharpe_ratio,
 )
@@ -109,6 +110,12 @@ class WideMomentumBaselineConfig:
     experiment_name: Optional[str] = None
     # 调仓时保留重叠标的（已在持仓中且下期仍选中的标的不卖出，继续持有）
     hold_overlap: bool = False
+    # 分段统计频率（None = 不启用分段统计）
+    # 常见取值: 'YE' (年), 'QE' (季度), 'ME' (月), 'W' (周)
+    period_freq: Optional[str] = None
+    # 自定义分段统计的时间段列表（优先级高于 period_freq）
+    # 示例: (("2024-01-01", "2024-06-30"), ("2024-07-01", "2024-12-31"))
+    custom_periods: Optional[tuple[tuple[str, str], ...]] = None
 
     def __post_init__(self) -> None:
         """尽早校验配置，减少下游流程中的防御性判断。"""
@@ -1531,6 +1538,20 @@ def _build_variant_summary(
     )
     stable_start = prepared.stable_start_month
 
+    # 分段统计（可选）
+    periodic_metrics: Optional[list[dict[str, Any]]] = None
+    _has_periods = config.custom_periods is not None
+    _has_freq = config.period_freq is not None
+    if (_has_periods or _has_freq) and len(returns) >= 2:
+        kwargs: dict[str, Any] = {"risk_free_rate": float(config.risk_free_rate)}
+        if _has_periods:
+            kwargs["periods"] = list(config.custom_periods)  # type: ignore[arg-type]
+        else:
+            kwargs["freq"] = config.period_freq
+        periodic_df = compute_periodic_metrics(returns, **kwargs)
+        if not periodic_df.empty:
+            periodic_metrics = periodic_df.to_dict(orient="records")
+
     return {
         "top_n": int(top_n),
         "experiment_name": _resolve_experiment_name(config),
@@ -1570,6 +1591,7 @@ def _build_variant_summary(
         ),
         "rebalance_count": int(len(rebalance_df)),
         "completed_period_count": int(len(period_returns)),
+        "periodic_metrics": periodic_metrics,
     }
 
 
@@ -1941,6 +1963,13 @@ def _save_variant_result(
         index=False,
         encoding="utf-8-sig",
     )
+    periodic_metrics = variant_result.summary.get("periodic_metrics")
+    if periodic_metrics:
+        pd.DataFrame(periodic_metrics).to_csv(
+            variant_dir / "periodic_metrics.csv",
+            index=False,
+            encoding="utf-8-sig",
+        )
     _prepare_rebalance_log_for_csv(variant_result.rebalance_log).to_csv(
         variant_dir / "rebalance_log.csv",
         index=False,

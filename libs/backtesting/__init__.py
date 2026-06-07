@@ -45,6 +45,7 @@ from .index_rotation import (
     search_low_correlation_combos,
     select_keyword_representatives,
 )
+from .performance import compute_periodic_metrics
 from .preprocessing import (
     FactorCalcResult,
     LoadFilterResult,
@@ -115,6 +116,7 @@ __all__ = [
     "parallel_load_filter_etf_data",
     "parallel_calc_factors_for_map",
     "ensure_output_compatibility",
+    "compute_periodic_metrics",
     "ComparisonMetricSpec",
     "TIMING_SINGLE_FACTOR_DEFAULT_METRICS",
     "DEFAULT_METRICS",
