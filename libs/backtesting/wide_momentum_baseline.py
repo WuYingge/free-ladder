@@ -107,6 +107,8 @@ class WideMomentumBaselineConfig:
     # 实验名称和指定标的
     symbols: Optional[tuple[str, ...]] = None
     experiment_name: Optional[str] = None
+    # 调仓时保留重叠标的（已在持仓中且下期仍选中的标的不卖出，继续持有）
+    hold_overlap: bool = False
 
     def __post_init__(self) -> None:
         """尽早校验配置，减少下游流程中的防御性判断。"""
@@ -1259,7 +1261,8 @@ def _execute_rebalance(
     target_weights: Mapping[str, float],
     symbol_data_map: Mapping[str, SymbolBaselineData],
     commission: float,
-) -> tuple[dict[str, float], float, dict[str, Any]]:
+    hold_overlap: bool = False,
+    ) -> tuple[dict[str, float], float, dict[str, Any]]:
     """在执行日开盘价上将目标权重转换为实际持仓，并返回执行诊断信息。"""
 
     open_prices: dict[str, float] = {}
@@ -1276,6 +1279,18 @@ def _execute_rebalance(
         for symbol, shares in positions.items()
         if abs(float(shares)) > 1e-12
     }
+
+    if hold_overlap:
+        return _execute_rebalance_hold_overlap(
+            positions=positions,
+            cash=cash,
+            execution_date=execution_date,
+            target_weights=target_weights,
+            open_prices=open_prices,
+            current_exposures=current_exposures,
+            commission=commission,
+        )
+
     portfolio_value_before_trade = float(cash) + sum(current_exposures.values())
     desired_exposures, commission_paid, trade_notional, cash_after = _solve_target_exposures(
         portfolio_value=portfolio_value_before_trade,
@@ -1307,6 +1322,85 @@ def _execute_rebalance(
         "executed_weights_open": executed_weights_open,
     }
     return new_positions, float(cash_after), execution_info
+
+
+def _execute_rebalance_hold_overlap(
+    *,
+    positions: Mapping[str, float],
+    cash: float,
+    execution_date: pd.Timestamp,
+    target_weights: Mapping[str, float],
+    open_prices: dict[str, float],
+    current_exposures: dict[str, float],
+    commission: float,
+    ) -> tuple[dict[str, float], float, dict[str, Any]]:
+    """hold_overlap 模式下调仓：重叠标的保留不动，仅对新增标的等权分配可支配资金。"""
+
+    overlap_symbols = set(positions.keys()) & set(target_weights.keys())
+    sell_symbols = set(positions.keys()) - set(target_weights.keys())
+    new_symbols = set(target_weights.keys()) - set(positions.keys())
+
+    overlap_value = sum(
+        float(positions.get(s, 0.0)) * open_prices[s]
+        for s in overlap_symbols
+    )
+    sell_value = sum(
+        float(positions.get(s, 0.0)) * open_prices[s]
+        for s in sell_symbols
+    )
+
+    portfolio_value_before_trade = cash + overlap_value + sell_value
+    sell_commission = sell_value * commission
+    cash_after_sell = cash + sell_value - sell_commission
+
+    new_positions: dict[str, float] = {}
+    for s in overlap_symbols:
+        shares = float(positions[s])
+        if abs(shares) > 1e-12:
+            new_positions[s] = shares
+
+    if not new_symbols or cash_after_sell <= 0:
+        new_total = 0.0
+        buy_commission = 0.0
+    else:
+        # new_total + new_total * commission = cash_after_sell
+        new_total = cash_after_sell / (1.0 + commission)
+        buy_commission = new_total * commission
+        per_symbol = new_total / float(len(new_symbols))
+        for s in new_symbols:
+            shares = per_symbol / open_prices[s]
+            if abs(shares) > 1e-12:
+                new_positions[s] = float(shares)
+
+    commission_paid = sell_commission + buy_commission
+    trade_notional = sell_value + new_total
+    cash_after = cash_after_sell - new_total - buy_commission
+    if abs(cash_after) < 1e-10:
+        cash_after = 0.0
+
+    portfolio_value_after_trade = (
+        cash_after
+        + sum(new_positions.get(s, 0.0) * open_prices[s] for s in new_positions)
+    )
+    if portfolio_value_after_trade > 0:
+        executed_weights_open = {
+            s: new_positions[s] * open_prices[s] / portfolio_value_after_trade
+            for s in new_positions
+            if abs(new_positions.get(s, 0.0)) > 1e-12
+        }
+    else:
+        executed_weights_open = {}
+
+    execution_info = {
+        "execution_date": execution_date,
+        "portfolio_value_before_trade": float(portfolio_value_before_trade),
+        "portfolio_value_after_trade": float(portfolio_value_after_trade),
+        "commission_paid": float(commission_paid),
+        "trade_notional": float(trade_notional),
+        "cash_after_trade": float(cash_after),
+        "executed_weights_open": executed_weights_open,
+    }
+    return new_positions, cash_after, execution_info
 
 
 def _compute_weight_turnover(
@@ -1488,7 +1582,8 @@ def _maybe_execute_pending_rebalance(
     symbol_data_map: Mapping[str, SymbolBaselineData],
     commission: float,
     rebalance_entries: list[dict[str, Any]],
-) -> tuple[dict[str, float], float, Optional[dict[str, Any]]]:
+    hold_overlap: bool = False,
+    ) -> tuple[dict[str, float], float, Optional[dict[str, Any]]]:
     """当计划执行日到来时，执行上一信号日安排的调仓。"""
 
     if pending_rebalance is None or current_date != pending_rebalance["execution_date"]:
@@ -1501,6 +1596,7 @@ def _maybe_execute_pending_rebalance(
         target_weights=pending_rebalance["target_weights"],
         symbol_data_map=symbol_data_map,
         commission=commission,
+        hold_overlap=hold_overlap,
     )
     rebalance_entries[pending_rebalance["entry_index"]].update(execution_info)
     return positions, cash, None
@@ -1610,6 +1706,7 @@ def _run_top_n_variant(
     rebalance_entries: list[dict[str, Any]] = []
     pending_rebalance: Optional[dict[str, Any]] = None
     equity_rows: list[dict[str, Any]] = []
+    hold_overlap = bool(config.hold_overlap)
 
     for bar_index, current_date in enumerate(prepared.calendar):
         current_date = pd.Timestamp(current_date)
@@ -1623,6 +1720,7 @@ def _run_top_n_variant(
             symbol_data_map=prepared.symbol_data_map,
             commission=float(config.commission),
             rebalance_entries=rebalance_entries,
+            hold_overlap=hold_overlap,
         )
 
         # 先按收盘价做日终估值，再判断今天是否产生新信号。
@@ -1794,6 +1892,7 @@ def _build_run_metadata(result: WideMomentumBaselineResult) -> dict[str, Any]:
             "cluster_limit_enabled": bool(result.config.cluster_limit_enabled),
             "cluster_max_per_group": int(result.config.cluster_max_per_group),
             "exclude_clusters": [int(c) for c in result.config.exclude_clusters],
+            "hold_overlap": bool(result.config.hold_overlap),
             "ranking_factor": _serialize_factor(ranking_factor),
             "factor_pipeline": [
                 _serialize_factor(factor)

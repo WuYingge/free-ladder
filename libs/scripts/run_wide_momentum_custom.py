@@ -66,6 +66,7 @@ GRID_MIN_MOMENTUM: tuple = (None,)
 GRID_CLUSTER_MAX_PER_GROUP: tuple[int, ...] = (0,1,2,5)  # (2, 3, 5) = 探索三种
 GRID_REBALANCE_INTERVAL: tuple[int, ...] = (5,10,20)
 GRID_EXCLUDE_BONDS: tuple[bool, ...] = (False, True)  # True = 剔除 cluster 43/44 债类标的
+GRID_HOLD_OVERLAP: tuple[bool, ...] = (False, True)  # True = 调仓时保留重叠标的
 
 # 集群约束开关
 _CLUSTER_DEFAULT = any(v > 0 for v in GRID_CLUSTER_MAX_PER_GROUP)
@@ -139,6 +140,7 @@ def main() -> None:
             GRID_CLUSTER_MAX_PER_GROUP,
             GRID_REBALANCE_INTERVAL,
             GRID_EXCLUDE_BONDS,
+            GRID_HOLD_OVERLAP,
         )
     )
 
@@ -148,6 +150,7 @@ def main() -> None:
     print(f"    cluster_max:   {GRID_CLUSTER_MAX_PER_GROUP}")
     print(f"    rebalance:     {GRID_REBALANCE_INTERVAL}")
     print(f"    exclude_bonds: {GRID_EXCLUDE_BONDS}")
+    print(f"    hold_overlap:  {GRID_HOLD_OVERLAP}")
     print("=" * 60)
 
     all_summaries: list[dict] = []
@@ -200,7 +203,7 @@ def _run_single_combo(args):
     import os as _os
 
     ranking_factor, factor_pipeline, builtin_filters, cluster_limit_enabled, combo = args
-    top_n, min_mom, cluster_max, rebal, exclude_bonds = combo
+    top_n, min_mom, cluster_max, rebal, exclude_bonds, hold_overlap = combo
 
     # 子目录标签
     grid_parts = [f"top{top_n}"]
@@ -212,6 +215,8 @@ def _run_single_combo(args):
         grid_parts.append(f"rebal{rebal}")
     if exclude_bonds:
         grid_parts.append("no_bond")
+    if hold_overlap:
+        grid_parts.append("hold")
     grid_label = "_".join(grid_parts)
 
     # 债券过滤通过 config.exclude_clusters 实现，由 backtesting 内部处理
@@ -227,6 +232,7 @@ def _run_single_combo(args):
         cluster_limit_enabled=(cluster_limit_enabled and cluster_max > 0),
         cluster_max_per_group=cluster_max if cluster_max > 0 else 3,
         exclude_clusters=_BOND_CLUSTERS if exclude_bonds else (),
+        hold_overlap=hold_overlap,
     )
 
     output_dir = _output_root / grid_label
