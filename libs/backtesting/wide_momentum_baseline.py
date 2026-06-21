@@ -39,6 +39,117 @@ from .performance import (
 
 CandidateFilterCallable = Callable[..., bool]
 
+# ---------------------------------------------------------------------------
+# 权重分配器协议
+# ---------------------------------------------------------------------------
+# WeightAllocatorCallable 接收已选出的候选标的列表，返回 symbol → 原始权重映射。
+# 引擎会自动归一化使得权重和为 1.0，因此 allocator 不必自行归一化。
+# 签名: (candidates: list[BaselineCandidate]) -> dict[str, float]
+WeightAllocatorCallable = Callable[..., "dict[str, float]"]
+
+
+def equal_weight_allocator(candidates: list[BaselineCandidate]) -> dict[str, float]:
+    """等权分配（默认）。"""
+    if not candidates:
+        return {}
+    w = 1.0 / float(len(candidates))
+    return {c.symbol: w for c in candidates}
+
+
+def score_proportional_allocator(candidates: list[BaselineCandidate]) -> dict[str, float]:
+    """按排序因子得分（score）正比加权。score <= 0 的标的分配极小权重。"""
+    if not candidates:
+        return {}
+    raw = {c.symbol: max(float(c.score), 1e-8) for c in candidates}
+    total = sum(raw.values())
+    if total <= 0:
+        return equal_weight_allocator(candidates)
+    return {s: v / total for s, v in raw.items()}
+
+
+def make_factor_weighted_allocator(
+    field: str,
+    *,
+    inverse: bool = False,
+    floor: float = 1e-8,
+) -> WeightAllocatorCallable:
+    """工厂函数：生成按指定因子值（或其倒数）加权的 allocator。
+
+    Parameters
+    ----------
+    field : str
+        从 BaselineCandidate.factor_values 中读取的字段名。
+    inverse : bool
+        为 True 时使用因子值的倒数加权（典型用例：波动率倒数加权）。
+    floor : float
+        因子值取 max(value, floor) 避免除零。
+    """
+
+    def _allocator(candidates: list[BaselineCandidate]) -> dict[str, float]:
+        if not candidates:
+            return {}
+        raw: dict[str, float] = {}
+        for c in candidates:
+            val = c.factor_values.get(field)
+            if val is None or math.isnan(float(val)):
+                raw[c.symbol] = floor
+            else:
+                effective = max(abs(float(val)), floor)
+                raw[c.symbol] = (1.0 / effective) if inverse else effective
+        total = sum(raw.values())
+        if total <= 0:
+            return equal_weight_allocator(candidates)
+        return {s: v / total for s, v in raw.items()}
+
+    _allocator.__name__ = f"factor_weighted({'1/' if inverse else ''}{field})"
+    _allocator.__qualname__ = _allocator.__name__
+    return _allocator
+
+
+def make_tiered_weight_allocator(
+    tiers: tuple[tuple[int, float], ...],
+) -> WeightAllocatorCallable:
+    """工厂函数：按排名分档分配权重。
+
+    Parameters
+    ----------
+    tiers : tuple[tuple[int, float], ...]
+        每档 (数量, 相对权重)，按排序顺序从第 1 名开始分配。
+        超出定义档位的标的使用最后一档的相对权重。
+
+    Examples
+    --------
+    Top 5 两档：前 2 名各 1.5，后 3 名各 1.0
+    >>> make_tiered_weight_allocator(tiers=((2, 1.5), (3, 1.0)))
+
+    Top 10 三档：前 3 名各 3.0，中间 4 名各 2.0，末 3 名各 1.0
+    >>> make_tiered_weight_allocator(tiers=((3, 3.0), (4, 2.0), (3, 1.0)))
+    """
+
+    def _allocator(candidates: list[BaselineCandidate]) -> dict[str, float]:
+        if not candidates:
+            return {}
+        weights: dict[str, float] = {}
+        idx = 0
+        last_weight = 1.0
+        for count, relative_weight in tiers:
+            for _ in range(int(count)):
+                if idx >= len(candidates):
+                    break
+                weights[candidates[idx].symbol] = float(relative_weight)
+                idx += 1
+                last_weight = float(relative_weight)
+        # 超出定义范围的标的使用最后一档权重
+        while idx < len(candidates):
+            weights[candidates[idx].symbol] = last_weight
+            idx += 1
+        return weights
+
+    tier_desc = "_".join(f"{c}x{w}" for c, w in tiers)
+    _allocator.__name__ = f"tiered_{tier_desc}"
+    _allocator.__qualname__ = _allocator.__name__
+    return _allocator
+
 
 @dataclass(slots=True, frozen=True)
 class CandidateFilterSpec:
@@ -116,6 +227,9 @@ class WideMomentumBaselineConfig:
     # 自定义分段统计的时间段列表（优先级高于 period_freq）
     # 示例: (("2024-01-01", "2024-06-30"), ("2024-07-01", "2024-12-31"))
     custom_periods: Optional[tuple[tuple[str, str], ...]] = None
+    # 权重分配器 —— 接收已选出的 top-N 候选列表，返回 {symbol: weight}。
+    # None 时等价于 equal_weight_allocator（等权）。
+    weight_allocator: Optional[WeightAllocatorCallable] = None
 
     def __post_init__(self) -> None:
         """尽早校验配置，减少下游流程中的防御性判断。"""
@@ -1188,9 +1302,16 @@ def _select_target_weights(
     if not selected:
         return {}, len(candidates), len(filtered_candidates), active_candidate_filters
 
-    weight = 1.0 / float(len(selected))
+    allocator = config.weight_allocator or equal_weight_allocator
+    raw_weights = allocator(selected)
+    # 归一化确保权重和为 1.0
+    total_w = sum(raw_weights.values())
+    if total_w > 0:
+        target_weights = {s: w / total_w for s, w in raw_weights.items()}
+    else:
+        target_weights = equal_weight_allocator(selected)
     return (
-        {candidate.symbol: weight for candidate in selected},
+        target_weights,
         len(candidates),
         len(filtered_candidates),
         active_candidate_filters,
@@ -1373,9 +1494,17 @@ def _execute_rebalance_hold_overlap(
         # new_total + new_total * commission = cash_after_sell
         new_total = cash_after_sell / (1.0 + commission)
         buy_commission = new_total * commission
-        per_symbol = new_total / float(len(new_symbols))
+        # 按 target_weights 中新标的的比例分配资金（支持非等权）
+        new_symbol_weights = {s: float(target_weights.get(s, 0.0)) for s in new_symbols}
+        total_new_weight = sum(new_symbol_weights.values())
         for s in new_symbols:
-            shares = per_symbol / open_prices[s]
+            w = (
+                new_symbol_weights[s] / total_new_weight
+                if total_new_weight > 0
+                else 1.0 / float(len(new_symbols))
+            )
+            alloc = new_total * w
+            shares = alloc / open_prices[s]
             if abs(shares) > 1e-12:
                 new_positions[s] = float(shares)
 
@@ -2030,13 +2159,18 @@ __all__ = [
     "PreparedWideMomentumUniverse",
     "SymbolBaselineData",
     "ThresholdFilter",
+    "WeightAllocatorCallable",
     "WideMomentumBaselineConfig",
     "WideMomentumBaselineResult",
     "WideMomentumVariantResult",
+    "equal_weight_allocator",
+    "make_factor_weighted_allocator",
+    "make_tiered_weight_allocator",
     "prepare_wide_momentum_universe",
     "prepare_wide_momentum_universe_from_etf_data_map",
     "prepare_wide_momentum_universe_from_frames",
     "run_wide_momentum_baseline",
     "run_wide_momentum_baseline_from_prepared",
     "save_wide_momentum_baseline_result",
+    "score_proportional_allocator",
 ]

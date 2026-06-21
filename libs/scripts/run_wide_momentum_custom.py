@@ -22,13 +22,20 @@ sys.path.insert(0, str(PROJECT_ROOT / "libs"))
 from backtesting.wide_momentum_baseline import (
     ThresholdFilter,
     WideMomentumBaselineConfig,
+    equal_weight_allocator,
+    make_factor_weighted_allocator,
+    make_tiered_weight_allocator,
     prepare_wide_momentum_universe,
     run_wide_momentum_baseline_from_prepared,
     save_wide_momentum_baseline_result,
+    score_proportional_allocator,
 )
+from data_manager.providers.etf_index_map_provider import ETF_INDEX_MAP
+from factors.average_amount import AverageAmount
 from factors.price_return import PriceReturn
 from factors.rsrs import RsrsFactor
 from factors.trend_r2 import TrendR2Factor
+from factors.volatility import Volatility
 from factors.ma import MAFactor, MAPosition
 
 
@@ -39,6 +46,8 @@ pr_return = PriceReturn(window=20, skip_recent=1)
 trend_r2 = TrendR2Factor(window=120, output="r2")
 rsrs = RsrsFactor(regression_window=14, zscore_window=600, output="zscore")
 ma200 = MAPosition(window=200, price_column="close")
+vol20 = Volatility(window=20)                                      # 20 日波动率（反波动率加权用）
+# avg_amount_20 = AverageAmount(window=20)                         # 20 日平均成交额
 
 
 # ====================================================================
@@ -50,23 +59,72 @@ FACTOR_PIPELINE: tuple = (
     pr_return,
     trend_r2,
     ma200,
+    vol20,
+    # avg_amount_20,
 )
 BUILTIN_FILTERS: tuple[ThresholdFilter, ...] = (
     ThresholdFilter(field=ma200.get_output_name(), operator=">=", value=0),
     ThresholdFilter(field=rsrs.get_output_name(), operator=">=", value=0),
     ThresholdFilter(field=trend_r2.get_output_name(), operator=">=", value=0.5),
+    # ThresholdFilter(field=avg_amount_20.get_output_name(), operator=">=", value=5_000_000),
 )
 
 
 # ====================================================================
 # Grid Search 参数（元组 = 遍历）
 # ====================================================================
-GRID_TOP_N: tuple[int, ...] = (5, 10, 20)
+GRID_TOP_N: tuple[int, ...] = (5,)
 GRID_MIN_MOMENTUM: tuple = (None,)
-GRID_CLUSTER_MAX_PER_GROUP: tuple[int, ...] = (0,1,2,5)  # (2, 3, 5) = 探索三种
-GRID_REBALANCE_INTERVAL: tuple[int, ...] = (5,10,20)
-GRID_EXCLUDE_BONDS: tuple[bool, ...] = (False, True)  # True = 剔除 cluster 43/44 债类标的
-GRID_HOLD_OVERLAP: tuple[bool, ...] = (False, True)  # True = 调仓时保留重叠标的
+GRID_CLUSTER_MAX_PER_GROUP: tuple[int, ...] = (0,)  # (2, 3, 5) = 探索三种
+GRID_REBALANCE_INTERVAL: tuple[int, ...] = (10, )
+GRID_EXCLUDE_BONDS: tuple[bool, ...] = (True,)  # True = 剔除 cluster 43/44 债类标的
+GRID_HOLD_OVERLAP: tuple[bool, ...] = (False,)  # True = 调仓时保留重叠标的
+
+# ====================================================================
+# 权重分配器定义
+# ====================================================================
+# 方案 0: 等权（基线）
+alloc_equal = equal_weight_allocator
+
+# 方案 1: 动量加权 — 权重 ∝ 20日收益（排序因子 score）
+alloc_momentum = score_proportional_allocator
+alloc_momentum.__name__ = "momentum"
+
+# 方案 2: 反波动率加权 — 权重 ∝ 1/σ_20d
+alloc_inv_vol = make_factor_weighted_allocator(vol20.get_output_name(), inverse=True)
+alloc_inv_vol.__name__ = "invvol"
+
+# 方案 3: 分档加权 — 自适应比例：前 40% 权重×1.5，后 60% 权重×1.0
+#   Top 2  → 前1名×1.5, 后1名×1.0
+#   Top 5  → 前2名×1.5, 后3名×1.0
+#   Top 10 → 前4名×1.5, 后6名×1.0
+#   Top 20 → 前8名×1.5, 后12名×1.0
+def _adaptive_tiered(candidates):
+    """自适应分档：前 40% 权重 1.5，后 60% 权重 1.0。"""
+    if not candidates:
+        return {}
+    n = len(candidates)
+    top_count = max(1, round(n * 0.4))
+    weights = {}
+    for i, c in enumerate(candidates):
+        weights[c.symbol] = 1.5 if i < top_count else 1.0
+    return weights
+
+_adaptive_tiered.__name__ = "tiered"
+alloc_tiered = _adaptive_tiered
+
+# 方案 4: RSRS 强度加权 — 权重 ∝ RSRS zscore
+alloc_rsrs = make_factor_weighted_allocator(rsrs.get_output_name())
+alloc_rsrs.__name__ = "rsrs"
+
+# Grid: 选择要跑的分配器组合（逐个跑请只留一个）
+GRID_WEIGHT_ALLOCATOR: tuple = (
+    # alloc_equal,
+    # alloc_momentum,
+    alloc_inv_vol,
+    # alloc_tiered,
+    # alloc_rsrs,
+)
 
 # 集群约束开关
 _CLUSTER_DEFAULT = any(v > 0 for v in GRID_CLUSTER_MAX_PER_GROUP)
@@ -81,7 +139,7 @@ PERIOD_FREQ: str | None = None
 
 # 自定义分段统计的时间段列表（优先级高于 PERIOD_FREQ）
 # 示例: (("2024-01-01", "2024-06-30"), ("2024-07-01", "2024-12-31"))
-CUSTOM_PERIODS: tuple[tuple[str, str], ...] | None = (("2023-12-04", "2024-09-23"), ("2024-09-24", "2026-05-30"))
+CUSTOM_PERIODS: tuple[tuple[str, str], ...] | None = None
 
 
 # ====================================================================
@@ -102,7 +160,7 @@ if any(GRID_EXCLUDE_BONDS):
 
 _base_label = "_".join(_base_parts)
 _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-_output_root = Path("/mnt/c/Users/wyg/Documents/invest/backtest/全资产轮动") / _base_label
+_output_root = Path("/mnt/c/Users/wyg/Documents/invest/backtest/top5_rebal10_no_bond_wt_invvol") / _base_label
 
 # 模块级占位：main() 中通过 global 赋值，子进程 fork 后继承。
 prepared = None
@@ -132,7 +190,9 @@ def main() -> None:
     print()
 
     print("[阶段 1] 准备 shared universe（加载数据 + 因子计算）...", end=" ", flush=True)
-    prepared = prepare_wide_momentum_universe(config=_bootstrap_config)
+    symbols = ETF_INDEX_MAP.get_all_symbols()
+    print(f"({len(symbols)} 标的 from ETF_INDEX_MAP)", end=" ", flush=True)
+    prepared = prepare_wide_momentum_universe(config=_bootstrap_config, symbols=symbols)
     print(
         f"完成 ({len(prepared.symbol_data_map)} 标的, "
         f"{prepared.start_date.date()} → {prepared.end_date.date()})"
@@ -149,6 +209,7 @@ def main() -> None:
             GRID_REBALANCE_INTERVAL,
             GRID_EXCLUDE_BONDS,
             GRID_HOLD_OVERLAP,
+            range(len(GRID_WEIGHT_ALLOCATOR)),  # 传索引，避免 pickle 闭包
         )
     )
 
@@ -215,7 +276,9 @@ def _run_single_combo(args):
     import os as _os
 
     ranking_factor, factor_pipeline, builtin_filters, cluster_limit_enabled, combo = args
-    top_n, min_mom, cluster_max, rebal, exclude_bonds, hold_overlap = combo
+    top_n, min_mom, cluster_max, rebal, exclude_bonds, hold_overlap, alloc_idx = combo
+    # allocator 通过 fork 继承的模块级变量获取（闭包不可 pickle）
+    weight_allocator = GRID_WEIGHT_ALLOCATOR[alloc_idx]
 
     # 子目录标签
     grid_parts = [f"top{top_n}"]
@@ -229,6 +292,10 @@ def _run_single_combo(args):
         grid_parts.append("no_bond")
     if hold_overlap:
         grid_parts.append("hold")
+    # 权重分配器标签（equal_weight 不标注，其他加 wt_ 前缀）
+    _alloc_name = getattr(weight_allocator, "__name__", "")
+    if _alloc_name and _alloc_name != "equal_weight_allocator":
+        grid_parts.append(f"wt_{_alloc_name}")
     grid_label = "_".join(grid_parts)
 
     # 债券过滤通过 config.exclude_clusters 实现，由 backtesting 内部处理
@@ -247,6 +314,7 @@ def _run_single_combo(args):
         hold_overlap=hold_overlap,
         period_freq=PERIOD_FREQ,
         custom_periods=CUSTOM_PERIODS,
+        weight_allocator=weight_allocator,
     )
 
     output_dir = _output_root / grid_label
