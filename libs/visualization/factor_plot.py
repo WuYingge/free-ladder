@@ -99,7 +99,7 @@ def plot_factors(
     >>> from factors.rsrs import RsrsFactor
     >>> from factors.price_return import PriceReturn
     >>> from factors.trend_r2 import TrendR2Factor
-    >>> from visulization.factor_plot import plot_factors
+    >>> from visualization.factor_plot import plot_factors
     >>>
     >>> factors = [
     ...     RsrsFactor(output="zscore"),
