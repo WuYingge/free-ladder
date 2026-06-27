@@ -368,38 +368,38 @@ def run_grouping_analysis(
     fwd_returns_map: dict[int, pd.DataFrame],
     *,
     n_quantiles: int = 5,
-    holding_period: int = 20,  # 用哪个持仓期做分组检验（默认 20 日月频）
-) -> dict[str, Any]:
+) -> dict[int, dict[str, Any]]:
     """一次性跑完 Layer 3 全部分组检验。
+
+    与旧版不同：分组检验现在遍历 fwd_returns_map 中所有持仓期
+    （如 5/10/20/60 日），而非仅取默认 20 日。
 
     Parameters
     ----------
     panel: 截面因子面板。
     fwd_returns_map: {period: fwd_returns_df}。
     n_quantiles: 分组数。
-    holding_period: 用哪个持仓期做分组检验。
 
     Returns
     -------
-    dict
-        {
+    dict[int, dict]
+        {period: {
             "quantile_returns": pd.DataFrame,
             "quantile_summary": pd.DataFrame,
             "longshort": dict,
             "quantile_cumret": pd.DataFrame,
             "monotonicity": dict,
-        }
+        }, ...}
     """
-    fwd = fwd_returns_map.get(holding_period)
-    if fwd is None:
-        fwd = next(iter(fwd_returns_map.values())) if fwd_returns_map else pd.DataFrame()
-
-    q_returns = compute_quantile_returns(panel, fwd, n_quantiles=n_quantiles)
-
-    return {
-        "quantile_returns": q_returns,
-        "quantile_summary": compute_quantile_summary(q_returns),
-        "longshort": compute_longshort(q_returns),
-        "quantile_cumret": compute_quantile_cumret(q_returns),
-        "monotonicity": compute_monotonicity(q_returns),
-    }
+    results: dict[int, dict[str, Any]] = {}
+    for period in sorted(fwd_returns_map.keys()):
+        fwd = fwd_returns_map[period]
+        q_returns = compute_quantile_returns(panel, fwd, n_quantiles=n_quantiles)
+        results[period] = {
+            "quantile_returns": q_returns,
+            "quantile_summary": compute_quantile_summary(q_returns),
+            "longshort": compute_longshort(q_returns),
+            "quantile_cumret": compute_quantile_cumret(q_returns),
+            "monotonicity": compute_monotonicity(q_returns),
+        }
+    return results

@@ -261,11 +261,11 @@ def compute_autocorr(
     Returns
     -------
     pd.DataFrame
-        columns = [lag, mean_autocorr, std_autocorr]
+        columns = [lag, mean_autocorr, median_autocorr, std_autocorr]
     """
     fv = panel.factor_values
     if fv.empty:
-        return pd.DataFrame(columns=["lag", "mean_autocorr", "std_autocorr"])
+        return pd.DataFrame(columns=["lag", "mean_autocorr", "median_autocorr", "std_autocorr"])
 
     records: list[dict[str, float]] = []
 
@@ -293,14 +293,17 @@ def compute_autocorr(
 
         if ac_values:
             mean_ac = float(np.mean(ac_values))
+            median_ac = float(np.median(ac_values))
             std_ac = float(np.std(ac_values, ddof=1))
         else:
             mean_ac = float("nan")
+            median_ac = float("nan")
             std_ac = float("nan")
 
         records.append({
             "lag": lag,
             "mean_autocorr": mean_ac,
+            "median_autocorr": median_ac,
             "std_autocorr": std_ac,
         })
 

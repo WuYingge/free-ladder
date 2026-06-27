@@ -361,12 +361,16 @@ def run_predictive_analysis(
 ) -> dict[str, Any]:
     """一次性跑完 Layer 2 全部分析。
 
+    与旧版不同：Rank IC 和 Pearson IC 现在遍历 fwd_returns_map 中所有持仓期
+    （如 5/10/20/60 日），而非仅取默认 20 日。IC 衰减曲线直接从 rank_ic
+    结果中提取，避免重复计算。
+
     Parameters
     ----------
     panel: 截面因子面板。
     fwd_returns_map: {period: fwd_returns_df}。
     rolling_ic_window: 滚动 IC 窗口（交易日）。
-    rolling_ic_period: 用哪个持仓期做滚动 IC（默认 20 日月频）。
+    rolling_ic_period: 已废弃。滚动 IC 现在遍历所有持仓期。
     param_grid: 可选，参数网格扫描范围。
     factor_cls: 因子类（param_grid 非空时必填）。
     symbols: 标的列表（param_grid 非空时必填）。
@@ -376,29 +380,43 @@ def run_predictive_analysis(
     -------
     dict
         {
-            "rank_ic": dict,         # ic_series + summary
-            "pearson_ic": dict,      # ic_series + summary
-            "ic_decay": pd.DataFrame,
-            "rolling_ic": pd.DataFrame,
+            "rank_ic": {period: {"ic_series": pd.Series, "summary": dict}, ...},
+            "pearson_ic": {period: {"ic_series": pd.Series, "summary": dict}, ...},
+            "ic_decay": pd.DataFrame,   # 从 rank_ic 提取，列=[period, ic_mean, ic_std, ic_ir]
+            "rolling_ic": {period: pd.DataFrame, ...},
             "param_grid": dict | None,
         }
     """
-    # 默认用 20 日做 IC 计算（最常见的月频观察窗口）
-    default_fwd = fwd_returns_map.get(rolling_ic_period)
-    if default_fwd is None:
-        # fallback：取第一个可用的持仓期
-        default_fwd = next(iter(fwd_returns_map.values())) if fwd_returns_map else pd.DataFrame()
+    # ── Rank IC / Pearson IC：遍历所有持仓期 ──────────────────────────────
+    rank_ic: dict[int, dict[str, Any]] = {}
+    pearson_ic: dict[int, dict[str, Any]] = {}
+    for period in sorted(fwd_returns_map.keys()):
+        fwd = fwd_returns_map[period]
+        rank_ic[period] = compute_rank_ic(panel, fwd)
+        pearson_ic[period] = compute_pearson_ic(panel, fwd)
 
-    results: dict[str, Any] = {
-        "rank_ic": compute_rank_ic(panel, default_fwd),
-        "pearson_ic": compute_pearson_ic(panel, default_fwd),
-        "ic_decay": compute_ic_decay(panel, fwd_returns_map),
-        "rolling_ic": compute_rolling_ic(panel, default_fwd, window=rolling_ic_window),
-        "param_grid": None,
-    }
+    # ── IC 衰减曲线：直接从 rank_ic 提取，避免重复计算 ───────────────────
+    decay_records: list[dict[str, float]] = []
+    for period in sorted(rank_ic.keys()):
+        s = rank_ic[period]["summary"]
+        decay_records.append({
+            "period": period,
+            "ic_mean": s["mean"],
+            "ic_std": s["std"],
+            "ic_ir": s["ir"],
+        })
+    ic_decay = pd.DataFrame(decay_records)
 
+    # ── 滚动 IC：每个持仓期各算一份 ────────────────────────────────────
+    rolling_ic: dict[int, pd.DataFrame] = {}
+    for period in sorted(fwd_returns_map.keys()):
+        fwd = fwd_returns_map[period]
+        rolling_ic[period] = compute_rolling_ic(panel, fwd, window=rolling_ic_window)
+
+    # ── 参数网格（可选） ─────────────────────────────────────────────────
+    pg_result: dict | None = None
     if param_grid is not None and factor_cls is not None and symbols is not None:
-        results["param_grid"] = compute_param_grid(
+        pg_result = compute_param_grid(
             factor_cls=factor_cls,
             param_grid=param_grid,
             symbols=symbols,
@@ -407,4 +425,10 @@ def run_predictive_analysis(
             max_workers=max_workers,
         )
 
-    return results
+    return {
+        "rank_ic": rank_ic,
+        "pearson_ic": pearson_ic,
+        "ic_decay": ic_decay,
+        "rolling_ic": rolling_ic,
+        "param_grid": pg_result,
+    }

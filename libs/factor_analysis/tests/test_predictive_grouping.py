@@ -90,12 +90,23 @@ class TestPredictive:
 
     def test_run_predictive_analysis(self):
         panel = _make_test_panel(20, 200)
-        fwd = compute_forward_returns(panel.close_prices, periods=(20,))
+        fwd = compute_forward_returns(panel.close_prices, periods=(5, 20, 60))
         results = run_predictive_analysis(panel, fwd)
         assert "rank_ic" in results
         assert "pearson_ic" in results
         assert "ic_decay" in results
+        # rolling_ic 现在是 {period: DataFrame}
         assert "rolling_ic" in results
+        assert isinstance(results["rolling_ic"], dict)
+        assert set(results["rolling_ic"].keys()) == {5, 20, 60}
+        # rank_ic 现在是 {period: dict}，包含所有 fwd_returns_map 中的持仓期
+        assert isinstance(results["rank_ic"], dict)
+        assert set(results["rank_ic"].keys()) == {5, 20, 60}
+        # 每个 period 的 result 应有 ic_series 和 summary
+        for period in (5, 20, 60):
+            assert "ic_series" in results["rank_ic"][period]
+            assert "summary" in results["rank_ic"][period]
+            assert "mean" in results["rank_ic"][period]["summary"]
 
 
 class TestGrouping:
@@ -146,8 +157,15 @@ class TestGrouping:
 
     def test_run_grouping_analysis(self):
         panel = _make_test_panel(30, 200)
-        fwd = compute_forward_returns(panel.close_prices, periods=(20,))
+        fwd = compute_forward_returns(panel.close_prices, periods=(5, 20, 60))
         results = run_grouping_analysis(panel, fwd, n_quantiles=5)
-        assert "quantile_returns" in results
-        assert "longshort" in results
-        assert "monotonicity" in results
+        # 新结构: {period: {quantile_returns, quantile_summary, longshort, ...}}
+        assert isinstance(results, dict)
+        assert set(results.keys()) == {5, 20, 60}
+        for period in (5, 20, 60):
+            gr = results[period]
+            assert "quantile_returns" in gr
+            assert "quantile_summary" in gr
+            assert "longshort" in gr
+            assert "quantile_cumret" in gr
+            assert "monotonicity" in gr

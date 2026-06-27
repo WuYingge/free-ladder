@@ -168,7 +168,7 @@ def plot_autocorr_decay(
 
     Parameters
     ----------
-    autocorr_df: columns=[lag, mean_autocorr, std_autocorr]。
+     autocorr_df: columns=[lag, mean_autocorr, median_autocorr, std_autocorr]。
     """
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -178,16 +178,20 @@ def plot_autocorr_decay(
 
     lags = autocorr_df["lag"].values
     means = autocorr_df["mean_autocorr"].values
+    medians = autocorr_df["median_autocorr"].values
     stds = autocorr_df["std_autocorr"].values
 
     ax.errorbar(lags, means, yerr=stds, fmt="o-", color=PRICE_COLOR,
-                capsize=5, linewidth=1.5, markersize=6)
+                capsize=5, linewidth=1.5, markersize=6, label="均值 ± 标准差")
+    ax.plot(lags, medians, "s--", color=POSITIVE_COLOR,
+            linewidth=1.5, markersize=6, label="中位数")
     ax.axhline(y=0.0, color=ZERO_COLOR, linestyle="--", linewidth=0.8)
 
     ax.set_xlabel("滞后天数 (交易日)")
     ax.set_ylabel("Rank Autocorrelation")
     ax.set_title(f"因子自相关衰减 — {factor_name}")
     ax.set_ylim(-0.05, 1.05)
+    ax.legend(loc="upper right", fontsize=9)
 
     note = "注：截面因子（如动量）自相关通常较低，此指标更适用于时序因子（如 RSRS）"
     ax.annotate(note, xy=(0.5, -0.12), xycoords="axes fraction",

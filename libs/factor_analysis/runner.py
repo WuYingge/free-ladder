@@ -153,18 +153,23 @@ def run_factor_analysis(config: FactorAnalysisConfig) -> dict[str, Any]:
             max_workers=config.max_workers,
         )
 
-        rank_summary = predictive_results["rank_ic"]["summary"]
-        print(f"  → Rank IC (20d): mean={rank_summary['mean']:.6f}, std={rank_summary['std']:.6f}, IR={rank_summary['ir']:.4f}, t={rank_summary['t_stat']:.4f}")
+        rank_ic_map = predictive_results["rank_ic"]
+        for period in sorted(rank_ic_map.keys()):
+            s = rank_ic_map[period]["summary"]
+            print(f"  → Rank IC ({period}d): mean={s['mean']:.6f}, std={s['std']:.6f}, IR={s['ir']:.4f}")
 
         # IC 衰减
         decay = predictive_results["ic_decay"]
         fig, _ = plot_ic_decay(decay, panel.factor_name)
         chart_paths["ic_decay.png"] = save_figure(fig, str(output_root / "ic_decay.png"))
 
-        # 滚动 IC
-        ric = predictive_results["rolling_ic"]
-        fig, _ = plot_rolling_ic(ric, panel.factor_name)
-        chart_paths["rolling_ic.png"] = save_figure(fig, str(output_root / "rolling_ic.png"))
+        # 滚动 IC — 每个持仓期各生成一张
+        for period in sorted(predictive_results["rolling_ic"].keys()):
+            ric = predictive_results["rolling_ic"][period]
+            title = f"{panel.factor_name} ({period}d)"
+            fig, _ = plot_rolling_ic(ric, title)
+            key = f"rolling_ic_{period}d.png"
+            chart_paths[key] = save_figure(fig, str(output_root / key))
 
         # 参数网格热力图
         pg = predictive_results.get("param_grid")
@@ -183,41 +188,69 @@ def run_factor_analysis(config: FactorAnalysisConfig) -> dict[str, Any]:
             n_quantiles=config.n_quantiles,
         )
 
-        # 分位组收益
-        q_summary = grouping_results["quantile_summary"]
-        print(f"  → 分位组 ({len(q_summary)} 组):")
-        for idx, row in q_summary.iterrows():
-            print(f"    {idx}: mean={row['mean_return']:.6f}, win_rate={row['win_rate']:.2%}")
+        # 取默认持仓期（优先 20 日，fallback 取第一个可用）
+        _gr_periods = sorted(grouping_results.keys())
+        _gr_default = 20 if 20 in _gr_periods else (_gr_periods[0] if _gr_periods else None)
 
-        # Long-Short
-        ls = grouping_results["longshort"]
-        if ls:
-            print(f"  → Long-Short: ann_ret={ls.get('annualised_return', float('nan')):.4%}, sharpe={ls.get('sharpe')}")
+        # 分位组收益 — 遍历所有 period
+        for period in _gr_periods:
+            gr = grouping_results[period]
+            q_summary = gr["quantile_summary"]
+            if q_summary.empty:
+                continue
+            q_labels = q_summary.index.tolist()
+            top_label = q_labels[-1]
+            bottom_label = q_labels[0]
+            top_ret = q_summary.loc[top_label, "mean_return"] if "mean_return" in q_summary.columns else float("nan")
+            bottom_ret = q_summary.loc[bottom_label, "mean_return"] if "mean_return" in q_summary.columns else float("nan")
+            print(f"  → 分位组 ({period}d): {bottom_label}={bottom_ret:.6f}, {top_label}={top_ret:.6f}, spread={top_ret - bottom_ret:.6f}")
 
-        # 单调性
-        mono = grouping_results.get("monotonicity", {})
-        print(f"  → 严格单调: {mono.get('strict_monotonic_ratio', float('nan')):.2%}")
+        # Long-Short — 遍历所有 period
+        for period in _gr_periods:
+            gr = grouping_results[period]
+            ls = gr.get("longshort", {})
+            if ls:
+                print(f"  → Long-Short ({period}d): ann_ret={ls.get('annualised_return', float('nan')):.4%}, sharpe={ls.get('sharpe')}")
 
-        # 柱状图
-        fig, _ = plot_quantile_returns_bar(q_summary, panel.factor_name)
-        chart_paths["quantile_returns_bar.png"] = save_figure(fig, str(output_root / "quantile_returns_bar.png"))
+        # 单调性 — 遍历所有 period
+        for period in _gr_periods:
+            gr = grouping_results[period]
+            mono = gr.get("monotonicity", {})
+            if mono:
+                print(f"  → 严格单调 ({period}d): {mono.get('strict_monotonic_ratio', float('nan')):.2%}")
 
-        # 累计收益
-        q_cumret = grouping_results["quantile_cumret"]
-        fig, _ = plot_quantile_cumret(q_cumret, panel.factor_name)
-        chart_paths["quantile_cumret.png"] = save_figure(fig, str(output_root / "quantile_cumret.png"))
+        # 图表和 CSV：每个持仓期各生成一套
+        for period in _gr_periods:
+            gr_period = grouping_results[period]
+            q_summary = gr_period["quantile_summary"]
+            q_cumret = gr_period["quantile_cumret"]
+            ls = gr_period.get("longshort", {})
 
-        # Long-Short 曲线
-        if ls:
-            fig, _ = plot_longshort_cumret(ls, panel.factor_name)
-            chart_paths["longshort_cumret.png"] = save_figure(fig, str(output_root / "longshort_cumret.png"))
+            suffix = f"_{period}d"
+            title = f"{panel.factor_name} ({period}d)"
 
-        # 保存 CSV
-        grouping_results["quantile_returns"].to_csv(output_root / "quantile_returns.csv")
-        if ls:
-            ls_series = ls.get("ls_series")
-            if ls_series is not None and hasattr(ls_series, "to_csv"):
-                ls_series.to_csv(output_root / "longshort_returns.csv")
+            # 柱状图
+            fig, _ = plot_quantile_returns_bar(q_summary, title)
+            key = f"quantile_returns_bar{suffix}.png"
+            chart_paths[key] = save_figure(fig, str(output_root / key))
+
+            # 累计收益
+            fig, _ = plot_quantile_cumret(q_cumret, title)
+            key = f"quantile_cumret{suffix}.png"
+            chart_paths[key] = save_figure(fig, str(output_root / key))
+
+            # Long-Short 曲线
+            if ls:
+                fig, _ = plot_longshort_cumret(ls, title)
+                key = f"longshort_cumret{suffix}.png"
+                chart_paths[key] = save_figure(fig, str(output_root / key))
+
+            # 保存 CSV
+            gr_period["quantile_returns"].to_csv(output_root / f"quantile_returns{suffix}.csv")
+            if ls:
+                ls_series = ls.get("ls_series")
+                if ls_series is not None and hasattr(ls_series, "to_csv"):
+                    ls_series.to_csv(output_root / f"longshort_returns{suffix}.csv")
 
     # ── 6. 生成报告 ──────────────────────────────────────────────────────
     print("\n生成报告...")
