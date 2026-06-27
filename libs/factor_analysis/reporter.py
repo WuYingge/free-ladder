@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from datetime import date
 from io import StringIO
@@ -494,6 +495,646 @@ def _write_summary_line(
         buf.write("（无可用数据）\n")
 
 
+# ── HTML 构建器 ────────────────────────────────────────────────────────────────
+
+
+class _HtmlBuilder:
+    """轻量 HTML 构建器，封装常用标签拼接。"""
+
+    def __init__(self):
+        self._buf = StringIO()
+
+    def __str__(self) -> str:
+        return self._buf.getvalue()
+
+    def raw(self, html: str) -> None:
+        self._buf.write(html)
+
+    def h1(self, text: str) -> None:
+        self._buf.write(f"<h1>{text}</h1>\n")
+
+    def h2(self, text: str) -> None:
+        self._buf.write(f"<h2>{text}</h2>\n")
+
+    def h3(self, text: str) -> None:
+        self._buf.write(f"<h3>{text}</h3>\n")
+
+    def p(self, text: str) -> None:
+        self._buf.write(f"<p>{text}</p>\n")
+
+    def meta(self, text: str) -> None:
+        self._buf.write(f'<p class="meta">{text}</p>\n')
+
+    def blockquote(self, text: str) -> None:
+        self._buf.write(f"<blockquote><p>{text}</p></blockquote>\n")
+
+    def details(self, summary: str, body: str) -> None:
+        self._buf.write(f"<details><summary>{summary}</summary><p>{body}</p></details>\n")
+
+    def hr(self) -> None:
+        self._buf.write("<hr>\n")
+
+    def table(self, headers: list[str], rows: list[list[str]]) -> None:
+        """生成 HTML 表格。"""
+        self._buf.write("<table>\n<thead>\n<tr>")
+        for h in headers:
+            self._buf.write(f"<th>{h}</th>")
+        self._buf.write("</tr>\n</thead>\n<tbody>\n")
+        for row in rows:
+            self._buf.write("<tr>")
+            for cell in row:
+                self._buf.write(f"<td>{cell}</td>")
+            self._buf.write("</tr>\n")
+        self._buf.write("</tbody>\n</table>\n")
+
+    def img(self, src: str, alt: str = "") -> None:
+        self._buf.write(f'<img src="{src}" alt="{alt}" loading="lazy">\n')
+
+    def html_open(self, title: str) -> None:
+        self._buf.write(
+            '<!DOCTYPE html>\n'
+            '<html lang="zh-CN">\n'
+            "<head>\n"
+            '<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+            f"<title>{title}</title>\n"
+            "<style>\n"
+            'body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",'
+            ' "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;\n'
+            "  max-width: 960px; margin: 0 auto; padding: 2rem; color: #24292e;"
+            " line-height: 1.6; }\n"
+            "h1 { border-bottom: 2px solid #e1e4e8; padding-bottom: .3em; }\n"
+            "h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: .3em;"
+            " margin-top: 2em; }\n"
+            "h3 { margin-top: 1.5em; }\n"
+            "table { border-collapse: collapse; width: 100%; margin: 1em 0;"
+            " font-size: 0.9em; }\n"
+            "th, td { border: 1px solid #dfe2e5; padding: 6px 13px;"
+            " text-align: left; }\n"
+            "th { background: #f6f8fa; font-weight: 600; }\n"
+            "tr:nth-child(even) { background: #f6f8fa; }\n"
+            "img { max-width: 100%; height: auto; margin: 0.5em 0;"
+            " display: block; }\n"
+            "blockquote { border-left: 4px solid #dfe2e5; padding: 0 1em;"
+            " color: #6a737d; margin: 1em 0; }\n"
+            "blockquote p { margin: 0.5em 0; }\n"
+            "details { margin: 0.5em 0; padding: 0.5em 1em;"
+            " background: #f6f8fa; border-radius: 4px; }\n"
+            "details summary { cursor: pointer; font-weight: 600;"
+            " color: #0366d6; }\n"
+            ".meta { color: #6a737d; font-size: 0.9em; }\n"
+            ".missing { color: #d73a49; }\n"
+            "@media (max-width: 768px) { body { padding: 1rem; } }\n"
+            "</style>\n"
+            "</head>\n"
+            "<body>\n"
+            '<article class="report">\n'
+        )
+
+    def html_close(self) -> None:
+        self._buf.write("</article>\n</body>\n</html>\n")
+
+
+# ── 图片内嵌 ───────────────────────────────────────────────────────────────────
+
+
+def _img_tag(output_root: Path, filename: str, alt: str = "") -> str:
+    """读取图片文件并返回 base64 data URI 的 img 标签。
+
+    如果图片文件不存在，返回缺失提示。
+    """
+    img_path = output_root / filename
+    if img_path.exists():
+        b64 = base64.b64encode(img_path.read_bytes()).decode("ascii")
+        return f'<img src="data:image/png;base64,{b64}" alt="{alt}" loading="lazy">'
+    return f'<p class="missing">⚠ 图片缺失: {filename}</p>'
+
+
+# ── HTML 报告生成 ──────────────────────────────────────────────────────────────
+
+
+def _generate_html_report(
+    panel: FactorPanel,
+    quality_results: dict,
+    predictive_results: dict,
+    grouping_results: dict,
+    config: FactorAnalysisConfig,
+    output_date: str,
+    output_root: Path,
+) -> str:
+    """直接根据分析结果生成自包含 HTML 报告（图片 base64 内嵌）。"""
+    b = _HtmlBuilder()
+    n_q = config.n_quantiles
+
+    b.html_open(f"因子分析报告: {panel.factor_name}")
+
+    # ── 标题 ──
+    b.h1(f"因子分析报告: {panel.factor_name}")
+    b.meta(
+        f"<strong>分析日期</strong>: {output_date} &nbsp;|&nbsp; "
+        f"<strong>因子类型</strong>: {type(config.factor).__name__}"
+    )
+    b.blockquote(
+        f"本报告评估因子 <code>{panel.factor_name}</code> 在 {panel.n_symbols} 个标的上"
+        f"（{panel.date_range[0].date()} ~ {panel.date_range[1].date()}）的表现。"
+        f"每个指标均附带「怎么算的」和「代表什么」解读。"
+    )
+
+    # ── 数据概况 ──
+    s = panel.summary()
+    b.h2("数据概况")
+    b.table(
+        ["项目", "数值"],
+        [
+            ["有效标的数", str(s["n_symbols"])],
+            ["有效日期数", str(s["n_dates"])],
+            ["日期范围", f'{s["start_date"]} ~ {s["end_date"]}'],
+            ["均值覆盖率", f'{s["coverage_mean"]:.2%}'],
+            ["加载失败", f'{s["n_errors"]} 个'],
+            ["min_bars 过滤", f'{s["n_filtered"]} 个'],
+        ],
+    )
+    b.details(
+        "怎么算的",
+        "均值覆盖率 = 每天有有效因子值的标的数 / 总标的数，再对所有交易日取平均。"
+        "它回答了因子计算有没有系统性缺失——如果某天覆盖率骤降，说明数据源出了 bug"
+        "或大量标的进入 warmup 期。",
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Layer 1: 因子质量
+    # ═══════════════════════════════════════════════════════════════════════════
+    if quality_results:
+        b.h2("Layer 1: 因子质量")
+        b.blockquote("本层定位: 只看因子自身，不涉及未来收益。回答「这个因子本身是否健康可用」。")
+
+        # ── 1.1 覆盖率 ──
+        cov = quality_results.get("coverage")
+        if cov is not None and len(cov) > 0:
+            b.h3("1.1 覆盖率")
+            b.raw(_img_tag(output_root, "coverage.png", "覆盖率时序"))
+            b.details(
+                "怎么算的 & 代表什么",
+                "每个交易日统计「有有效因子值的标的数 ÷ 总标的数」，画成时间序列。"
+                "覆盖率随时间骤降 = 因子计算有 bug 或数据源退化。"
+                "覆盖面过窄（如 &lt; 30%）的因子无法做截面比较。",
+            )
+
+        # ── 1.2 分布特征 ──
+        dist = quality_results.get("distribution_stats", {})
+        if dist:
+            skew = dist.get("skewness", 0)
+            kurt = dist.get("kurtosis", 0)
+            p01 = dist.get("p01", 0)
+            p99 = dist.get("p99", 0)
+
+            b.h3("1.2 全样本分布统计")
+            b.table(
+                ["指标", "值"],
+                [[str(k), f"{v:.6f}"] for k, v in dist.items()],
+            )
+            b.raw(_img_tag(output_root, "distribution_bands.png", "分布分位数带"))
+
+            # 偏度/峰度解读
+            parts = []
+            if abs(skew) < 0.5:
+                parts.append("偏度接近 0，分布大致对称。")
+            elif skew > 0:
+                parts.append(
+                    f"右偏 (skew={skew:.2f})——因子值向正方向拖着长尾巴，"
+                    "少数极端正值（如暴涨）拉高了均值。"
+                )
+            else:
+                parts.append(
+                    f"左偏 (skew={skew:.2f})——因子值向负方向拖着长尾巴，"
+                    "少数极端负值（如暴跌）拉低了均值。"
+                )
+            if abs(kurt) < 1:
+                parts.append("峰度接近 0（近似正态），极端值不频繁。")
+            elif kurt > 3:
+                parts.append(
+                    f"峰度={kurt:.2f}（肥尾）——极端值远多于正态分布预期，"
+                    "因子可能被少数异常值驱动。"
+                )
+            else:
+                parts.append(f"峰度={kurt:.2f}（轻微肥尾）。")
+            parts.append(
+                f"P1={p01:.4f} 到 P99={p99:.4f} 覆盖了 98% 的因子值范围。"
+                "极端偏态分布的因子不适合用 Pearson IC 评估（Spearman 更健壮）。"
+            )
+            b.details("怎么算的 & 代表什么", " ".join(parts))
+
+        # ── 1.3 缺失模式 ──
+        mv = quality_results.get("missing_by_volume", {})
+        mb = quality_results.get("missing_by_bar_count", {})
+        if mv or mb:
+            b.h3("1.3 缺失模式分析")
+            if mv:
+                b.p("<strong>按成交额分档:</strong>")
+                b.table(
+                    ["分档", "缺失率"],
+                    [[str(k), f"{v:.4%}"] for k, v in mv.items()],
+                )
+            if mb:
+                b.p("<strong>按上市时长 (bar_count) 分档:</strong>")
+                b.table(
+                    ["分档", "缺失率"],
+                    [[str(k), f"{v:.4%}"] for k, v in mb.items()],
+                )
+            b.details(
+                "怎么算的 & 代表什么",
+                "按标的的属性（日均成交额 / 有效交易日数）将它们分成 3 档，"
+                "统计每档内因子 NaN 的比例。如果缺失率在不同档次间差异很大"
+                "（如低成交额 ETF 缺失率显著更高），说明因子在截面上系统性"
+                "地偏向某一类标的，存在隐性偏差。",
+            )
+
+        # ── 1.4 自相关 ──
+        ac = quality_results.get("autocorr")
+        if ac is not None and not ac.empty:
+            lag1 = ac.iloc[0]["median_autocorr"]
+            lag20 = ac.iloc[-1]["median_autocorr"]
+            b.h3("1.4 自相关衰减")
+            b.table(
+                ["滞后 (天)", "均值自相关", "中位数自相关", "标准差"],
+                [
+                    [
+                        str(int(row["lag"])),
+                        f'{row["mean_autocorr"]:.4f}',
+                        f'{row["median_autocorr"]:.4f}',
+                        f'{row["std_autocorr"]:.4f}',
+                    ]
+                    for _, row in ac.iterrows()
+                ],
+            )
+            b.raw(_img_tag(output_root, "autocorr_decay.png", "自相关衰减"))
+
+            # 解读
+            lag1_desc = "几乎一样" if lag1 > 0.9 else ("差别很大" if lag1 < 0.3 else "有一定相似性")
+            body = (
+                f"对每个标的，计算 factor(t) 和 factor(t−lag) 的 Spearman 秩相关系数，"
+                f"取所有标的的截面均值和中位数。中位数比均值更稳健。"
+                f" lag1 中位数={lag1:.2f}，说明一半以上标的今天的因子值和昨天{lag1_desc}"
+                f"（自相关={lag1:.0%}）。"
+            )
+            if abs(lag20) > 0.3:
+                body += (
+                    f" lag20={lag20:.2f}，即使隔一个月仍有{lag20:.0%}相关性——"
+                    "因子变化缓慢，调仓频率不需要太高（如日频调仓意义不大，周频或月频更合理）。"
+                )
+            b.details("怎么算的 & 代表什么", body)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Layer 2: 预测力
+    # ═══════════════════════════════════════════════════════════════════════════
+    if predictive_results:
+        b.h2("Layer 2: 预测力")
+        b.blockquote(
+            "本层定位: 核心。回答「这个因子能否预测未来收益」"
+            "——这是评估因子价值最关键的部分。"
+        )
+
+        _rank_ic_map = predictive_results.get("rank_ic", {})
+        _pearson_ic_map = predictive_results.get("pearson_ic", {})
+        _periods = sorted(_rank_ic_map.keys())
+        _default_period = 20 if 20 in _periods else (_periods[0] if _periods else None)
+        rank = _rank_ic_map.get(_default_period, {}).get("summary", {})
+        pearson = _pearson_ic_map.get(_default_period, {}).get("summary", {})
+
+        if rank:
+            mean_ic = rank.get("mean", float("nan"))
+            ir = rank.get("ir", float("nan"))
+            pos = rank.get("pos_ratio", float("nan"))
+            t_stat = rank.get("t_stat", float("nan"))
+
+            # ── 2.1 各持仓期 IC 一览表 ──
+            b.h3("2.1 各持仓期 IC")
+            if _periods:
+                headers = ["持仓期", "Rank IC 均值", "IR", "t 统计量", "IC&gt;0 比例", "Pearson IC 均值"]
+                rows = []
+                for period in _periods:
+                    rs = _rank_ic_map[period]["summary"]
+                    ps = _pearson_ic_map.get(period, {}).get("summary", {})
+                    rows.append([
+                        f"{period}d",
+                        f'{rs["mean"]:.6f}',
+                        f'{rs["ir"]:.4f}',
+                        f'{rs["t_stat"]:.2f}',
+                        f'{rs["pos_ratio"]:.1%}',
+                        f'{ps.get("mean", float("nan")):.6f}',
+                    ])
+                b.table(headers, rows)
+
+            # IC 评级
+            if not np.isnan(mean_ic):
+                if mean_ic > 0.10:
+                    grade = "🔴 顶级 (&gt; 0.10)"
+                elif mean_ic > 0.05:
+                    grade = "🟠 靠谱 (0.05~0.10)"
+                elif mean_ic > 0.02:
+                    grade = "🟡 可用 (0.02~0.05)"
+                elif mean_ic > -0.02:
+                    grade = "⚪ 接近零 (预测力很弱)"
+                else:
+                    grade = "🔵 负向（与预期方向相反）"
+                b.p(f'<strong>IC 评级</strong> (以 {_default_period}d 为例): <span class="grade">{grade}</span>')
+
+            # IC 解读
+            ic_body = (
+                "每个交易日，在截面上计算「因子值」与「未来 N 日收益率」的 "
+                "Spearman 秩相关系数。对所有交易日取均值。"
+            )
+            if not np.isnan(mean_ic):
+                ic_body += f"（以 {_default_period}d 为例）Rank IC 均值 = {mean_ic:.4f}，"
+                if mean_ic > 0.02:
+                    ic_body += "因子值与未来收益<b>正相关</b>——因子值越高，未来收益倾向于越高。这是一个正向预测因子。"
+                elif mean_ic < -0.02:
+                    ic_body += "因子值与未来收益<b>负相关</b>——因子值越高，未来收益反而越低。可能是反转因子，或者你预期的方向反了。"
+                else:
+                    ic_body += "因子值与未来收益的截面排序关系<b>非常弱</b>，接近随机。这个因子在这个样本上几乎没有预测力。"
+            ic_body += (
+                f" Rank IC vs Pearson IC ({_default_period}d): "
+                f'{"Rank IC ≈ Pearson IC，说明因子收益不是由少数极端值驱动的，分布较均匀。" if abs(mean_ic - pearson.get("mean", float("nan"))) < 0.02 else "Rank IC 和 Pearson IC 差异较大——注意是否有肥尾效应影响线性评估。"}'
+                f" IR (信息比率) = IC 均值 ÷ IC 标准差 = {ir:.4f}。IR &gt; 0.5 意味着信号噪声比不错；IR &lt; 0.2 意味着 IC 波动很大。"
+                f" t 统计量 = {t_stat:.2f}（绝对值 &gt; 2 通常认为显著）。"
+                f" IC&gt;0 比例 = {pos:.1%}，接近 50% 说明因子方向随机。"
+            )
+            b.details("怎么算的 & 代表什么 (Rank IC)", ic_body)
+
+            # 滚动 IC 图
+            for period in sorted(predictive_results.get("rolling_ic", {}).keys()):
+                b.p(f"<strong>{period}d 滚动 IC 时序</strong>")
+                b.raw(_img_tag(output_root, f"rolling_ic_{period}d.png", f"滚动 IC 时序 ({period}d)"))
+            b.details(
+                "怎么看",
+                "滚动 IC 图显示 IC 在不同时间段的表现。IC 均值好看但近几年归零 = 因子已经失效。"
+                "「IC 在什么时间段有效」比「IC 均值多少」更重要。",
+            )
+
+        # ── IC 衰减 ──
+        decay = predictive_results.get("ic_decay")
+        if decay is not None and not decay.empty:
+            b.h3("2.3 IC 衰减曲线")
+            b.table(
+                ["持仓期 (天)", "IC 均值", "IC 标准差", "IC IR"],
+                [
+                    [
+                        str(int(row["period"])),
+                        f'{row["ic_mean"]:.6f}',
+                        f'{row["ic_std"]:.6f}',
+                        f'{row["ic_ir"]:.4f}',
+                    ]
+                    for _, row in decay.iterrows()
+                ],
+            )
+            b.raw(_img_tag(output_root, "ic_decay.png", "IC 衰减曲线"))
+            b.details(
+                "怎么算的 & 代表什么",
+                "分别对 T+5/10/20/60 日收益计算 Rank IC，画成衰减曲线。"
+                "衰减太快 = 信号太短命（需要高频交易才能抓住）；"
+                "衰减太慢 = 可能只是捕捉了长期截面特征而非定价错误。"
+                "好的因子应该有一个合理的半衰期（如 10~20 天衰减到一半）。",
+            )
+
+        # ── 参数网格 ──
+        pg = predictive_results.get("param_grid")
+        if pg is not None and not pg.get("matrix", pd.DataFrame()).empty:
+            b.raw(_img_tag(output_root, "ic_matrix.png", "参数敏感度热力图"))
+            b.details(
+                "怎么看",
+                "热力图展示了不同参数组合下 IC 的变化。如果只在某个窄参数区间有效 = 可能过拟合。"
+                "在较宽参数区间都稳定有效 = 可靠的因子。",
+            )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Layer 3: 分组检验
+    # ═══════════════════════════════════════════════════════════════════════════
+    if grouping_results:
+        b.h2("Layer 3: 分组检验")
+        b.blockquote(
+            f"本层定位: 从「因子能否排序」深化到「按因子分组能赚多少钱」。"
+            f"每天把 {panel.n_symbols} 个标的按因子值从低到高分成 {n_q} 组，"
+            f"计算未来 N 日收益。以下各表展示因子值最高组 (Top) 与最低组 (Bottom) 在各持仓期下的表现差异。"
+        )
+
+        _gr_periods = sorted(grouping_results.keys())
+        _gr_default = 20 if 20 in _gr_periods else (_gr_periods[0] if _gr_periods else None)
+
+        if _gr_periods:
+            # ── 3.1 分位组收益表 ──
+            b.h3("3.1 各持仓期分位组收益")
+            _first_qs = grouping_results[_gr_periods[0]]["quantile_summary"]
+            if not _first_qs.empty:
+                _q_labels = _first_qs.index.tolist()
+                _bottom_label = _q_labels[0]
+                _top_label = _q_labels[-1]
+                b.table(
+                    ["持仓期", f"{_bottom_label} (Bottom)", f"{_top_label} (Top)", "Top−Bottom 差值"],
+                    [
+                        [
+                            f"{period}d",
+                            f'{qs.loc[_bottom_label, "mean_return"]:.6f}' if "mean_return" in qs.columns else "N/A",
+                            f'{qs.loc[_top_label, "mean_return"]:.6f}' if "mean_return" in qs.columns else "N/A",
+                            (
+                                f'{qs.loc[_top_label, "mean_return"] - qs.loc[_bottom_label, "mean_return"]:.6f}'
+                                if "mean_return" in qs.columns
+                                else "N/A"
+                            ),
+                        ]
+                        for period in _gr_periods
+                        if not (qs := grouping_results[period]["quantile_summary"]).empty
+                    ],
+                )
+
+            # 图表
+            for period in _gr_periods:
+                b.p(f"<strong>{period}d 分位组收益柱状图</strong>")
+                b.raw(_img_tag(output_root, f"quantile_returns_bar_{period}d.png", f"分位组收益柱状图 ({period}d)"))
+                b.p(f"<strong>{period}d 分位组累计收益</strong>")
+                b.raw(_img_tag(output_root, f"quantile_cumret_{period}d.png", f"分位组累计收益 ({period}d)"))
+
+            # 解读
+            if _gr_default is not None:
+                gr_def = grouping_results[_gr_default]
+                qs_def = gr_def["quantile_summary"]
+                if not qs_def.empty:
+                    _q_labels_def = qs_def.index.tolist()
+                    _bl = _q_labels_def[0]
+                    _tl = _q_labels_def[-1]
+                    b_ret = qs_def.loc[_bl, "mean_return"] if "mean_return" in qs_def.columns else float("nan")
+                    t_ret = qs_def.loc[_tl, "mean_return"] if "mean_return" in qs_def.columns else float("nan")
+                    spread_def = t_ret - b_ret if not np.isnan(t_ret) and not np.isnan(b_ret) else float("nan")
+
+                    body = ""
+                    if not np.isnan(spread_def):
+                        if spread_def > 0.001:
+                            body = f"Top 组（{_tl}）的收益（{t_ret:.4%}）明显高于 Bottom 组（{_bl}）的收益（{b_ret:.4%}），差值为 {spread_def:.4%}。因子排序能力较好。"
+                        elif spread_def < -0.001:
+                            body = f"Top 组的收益反而低于 Bottom 组——因子方向与预期相反。如果因子本意是「追涨」，那实际表现是「反转」。"
+                        else:
+                            body = "Top 组和 Bottom 组的收益差异很小，因子无法有效区分「好标的」和「差标的」。"
+                    body += (
+                        " 理想情况：Q1 &gt; Q2 &gt; Q3 &gt; Q4 &gt; Q5 严格单调（或反过来，看因子方向）。"
+                        "如果中间组有穿插、交叉，说明因子只在极端值有效，中间不可靠。"
+                    )
+                    b.details(f"代表什么 (以 {_gr_default}d 为例)", body)
+
+            # ── 3.2 Long-Short ──
+            b.h3("3.2 各持仓期 Long-Short 多空组合")
+            ls_rows = []
+            for period in _gr_periods:
+                gr = grouping_results[period]
+                ls = gr.get("longshort", {})
+                if ls:
+                    ann_ret = ls.get("annualised_return", float("nan"))
+                    sharpe = ls.get("sharpe")
+                    mdd = ls.get("max_drawdown", float("nan"))
+                    ls_rows.append([
+                        f"{period}d",
+                        f"{ann_ret:.4%}",
+                        f"{sharpe:.2f}" if sharpe is not None else "N/A",
+                        f"{mdd:.4%}",
+                    ])
+            if ls_rows:
+                b.table(["持仓期", "年化收益", "Sharpe", "最大回撤"], ls_rows)
+
+            for period in _gr_periods:
+                b.p(f"<strong>{period}d 多空累计收益曲线</strong>")
+                b.raw(_img_tag(output_root, f"longshort_cumret_{period}d.png", "多空累计收益"))
+
+            # Long-Short 解读
+            if _gr_default is not None:
+                ls_def = grouping_results[_gr_default].get("longshort", {})
+                if ls_def:
+                    ann_ret_def = ls_def.get("annualised_return", float("nan"))
+                    sharpe_def = ls_def.get("sharpe")
+                    mdd_def = ls_def.get("max_drawdown", float("nan"))
+                    body = "做多 Top 组 + 做空 Bottom 组，计算这个多空组合的每日收益序列，再算年化收益/波动/Sharpe/最大回撤。"
+                    if not np.isnan(ann_ret_def):
+                        if ann_ret_def > 0.05:
+                            body += f" 这个因子的多空年化收益为 +{ann_ret_def:.1%}，说明按因子排序做多最强 + 做空最弱是能赚钱的。"
+                        elif ann_ret_def < -0.05:
+                            body += f" 这个因子的多空年化收益为 {ann_ret_def:.1%}（负），说明目前的排序方向是亏钱的——可能需要反向使用。"
+                        else:
+                            body += f" 这个因子的多空年化收益接近零（{ann_ret_def:.1%}），纯 alpha 很弱。"
+                    if sharpe_def is not None:
+                        body += f" Sharpe = {sharpe_def:.2f}，{'收益风险比不错' if sharpe_def > 0.5 else '收益风险比偏低' if sharpe_def > 0 else '负收益'}。"
+                    body += f" 最大回撤 = {mdd_def:.1%}（{'风险很高' if mdd_def > 0.5 else '风险中等' if mdd_def > 0.2 else '风险较低'}）。"
+                    b.details(f"怎么算的 & 代表什么 (以 {_gr_default}d 为例)", body)
+
+            # ── 3.3 单调性 ──
+            b.h3("3.4 各持仓期单调性检验")
+            mono_rows = []
+            for period in _gr_periods:
+                gr = grouping_results[period]
+                mono = gr.get("monotonicity", {})
+                if mono:
+                    strict = mono.get("strict_monotonic_ratio", float("nan"))
+                    loose = mono.get("loose_monotonic_ratio", float("nan"))
+                    direction = mono.get("monotonic_direction", "N/A")
+                    mono_rows.append([
+                        f"{period}d",
+                        f"{strict:.2%}",
+                        f"{loose:.2%}",
+                        str(direction),
+                    ])
+            if mono_rows:
+                b.table(["持仓期", "严格单调比例", "宽松单调比例", "单调方向"], mono_rows)
+
+            if _gr_default is not None:
+                mono_def = grouping_results[_gr_default].get("monotonicity", {})
+                if mono_def:
+                    strict_def = mono_def.get("strict_monotonic_ratio", float("nan"))
+                    body = "对每天截面检查 Q1 &gt; Q2 &gt; ... &gt; Qn 是否成立。严格单调 = 每个相邻组都满足大小关系。JT (Jonckheere-Terpstra) 检验评估是否存在统计显著的趋势。"
+                    if not np.isnan(strict_def):
+                        desc = (
+                            "说明因子排序在不同分位组之间的一致性很强"
+                            if strict_def > 0.5
+                            else "大多数交易日分组收益的排序并不完美，因子在中间组上的区分度有限"
+                            if strict_def > 0.1
+                            else "因子排序非常不稳定，几乎每天的组间收益顺序都不一样"
+                        )
+                        body += f" 严格单调成立仅 {strict_def:.1%}——{desc}。非单调的因子在极端值有效但中间不可靠，做分桶筛选时会有坑。"
+                    b.details(f"怎么算的 & 代表什么 (以 {_gr_default}d 为例)", body)
+
+    # ── 综合摘要 ──
+    b.hr()
+    b.h2("综合摘要")
+    _write_html_summary(b, quality_results, predictive_results, grouping_results, config)
+    b.hr()
+    b.meta(f"<em>报告由 factor_analysis 框架自动生成于 {output_date}</em>")
+
+    b.html_close()
+    return str(b)
+
+
+def _write_html_summary(
+    b: _HtmlBuilder,
+    quality_results: dict | None,
+    predictive_results: dict | None,
+    grouping_results: dict | None,
+    config: FactorAnalysisConfig,
+) -> None:
+    """生成 HTML 报告末尾的综合定性摘要。"""
+    points: list[str] = []
+
+    if quality_results:
+        cov_series = quality_results.get("coverage")
+        if cov_series is not None and len(cov_series) > 0:
+            mean_cov = float(cov_series.mean())
+            if mean_cov < 0.5:
+                points.append(f"⚠️ 因子覆盖率仅 {mean_cov:.0%}，大量缺失，数据质量堪忧")
+            elif mean_cov < 0.9:
+                points.append(f"因子覆盖率 {mean_cov:.0%}，中等水平，注意 warmup 期内的缺失")
+            else:
+                points.append(f"✅ 因子覆盖率 {mean_cov:.0%}，数据质量良好")
+
+    if predictive_results:
+        _rank_ic_map = predictive_results.get("rank_ic", {})
+        _periods = sorted(_rank_ic_map.keys())
+        _default_period = 20 if 20 in _periods else (_periods[0] if _periods else None)
+        rank = _rank_ic_map.get(_default_period, {}).get("summary", {})
+        mean_ic = rank.get("mean", float("nan"))
+        ir = rank.get("ir", float("nan"))
+        if not np.isnan(mean_ic):
+            if mean_ic > 0.05:
+                points.append(f"✅ Rank IC ({_default_period}d) = {mean_ic:.4f}（靠谱），IR = {ir:.3f}")
+            elif mean_ic > 0.02:
+                points.append(f"Rank IC ({_default_period}d) = {mean_ic:.4f}（可用但偏弱），IR = {ir:.3f}")
+            elif mean_ic > -0.02:
+                points.append(f"⚠️ Rank IC ({_default_period}d) = {mean_ic:.4f}（接近零，预测力很弱），IR = {ir:.3f}")
+            else:
+                points.append(f"🔴 Rank IC ({_default_period}d) = {mean_ic:.4f}（负值，方向与预期相反），IR = {ir:.3f}")
+
+    if grouping_results:
+        _gr_periods = sorted(grouping_results.keys())
+        _gr_default = 20 if 20 in _gr_periods else (_gr_periods[0] if _gr_periods else None)
+        gr_def = grouping_results.get(_gr_default, {}) if _gr_default is not None else {}
+        ls = gr_def.get("longshort", {})
+        ann_ret = ls.get("annualised_return", float("nan"))
+        if not np.isnan(ann_ret):
+            if ann_ret > 0.10:
+                points.append(f"✅ Long-Short ({_gr_default}d) 年化收益 = {ann_ret:.1%}（优秀）")
+            elif ann_ret > 0.03:
+                points.append(f"Long-Short ({_gr_default}d) 年化收益 = {ann_ret:.1%}（中等）")
+            elif ann_ret > -0.03:
+                points.append(f"⚠️ Long-Short ({_gr_default}d) 年化收益 ≈ 零（{ann_ret:.1%}），分组后的 top/bottom 差异太小")
+            else:
+                points.append(f"🔴 Long-Short ({_gr_default}d) 年化收益 = {ann_ret:.1%}（负值）")
+
+    if points:
+        rows = []
+        for p in points:
+            parts = p.split("，", 1)
+            if len(parts) == 2:
+                rows.append([parts[0], parts[1]])
+            else:
+                rows.append(["—", p])
+        b.table(["维度", "评价"], rows)
+    else:
+        b.p("（无可用数据）")
+
+
 # ── 报告保存 ─────────────────────────────────────────────────────────────────
 
 
@@ -504,20 +1145,20 @@ def generate_and_save_reports(
     grouping_results: dict | None,
     config: FactorAnalysisConfig,
     chart_paths: dict[str, str],
-) -> tuple[Path, Path]:
-    """生成 JSON 和 MD 报告，保存到 Linux 端输出目录。
+) -> tuple[Path, Path, Path]:
+    """生成 JSON、MD 和 HTML 报告，保存到 Linux 端输出目录。
 
     Parameters
     ----------
     panel: 因子面板。
     quality_results / predictive_results / grouping_results: 各层结果。
     config: 分析配置。
-    chart_paths: {chart_name: filepath}，用于 MD 中的图片引用。
+    chart_paths: {chart_name: filepath}，用于 MD/HTML 中的图片引用。
 
     Returns
     -------
-    tuple[Path, Path]
-        (json_path, md_path)
+    tuple[Path, Path, Path]
+        (json_path, md_path, html_path)
     """
     output_root = config.resolve_output_root()
     output_root.mkdir(parents=True, exist_ok=True)
@@ -555,8 +1196,21 @@ def generate_and_save_reports(
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(md_content)
 
-    return json_path, md_path
+    # ── HTML 报告 ──
+    html_content = _generate_html_report(
+        panel=panel,
+        quality_results=quality_results or {},
+        predictive_results=predictive_results or {},
+        grouping_results=grouping_results or {},
+        config=config,
+        output_date=output_date,
+        output_root=output_root,
+    )
+    html_path = output_root / f"report_{output_date}.html"
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
 
+    return json_path, md_path, html_path
 
 def copy_to_windows(
     linux_root: Path,

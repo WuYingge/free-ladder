@@ -254,7 +254,7 @@ def run_factor_analysis(config: FactorAnalysisConfig) -> dict[str, Any]:
 
     # ── 6. 生成报告 ──────────────────────────────────────────────────────
     print("\n生成报告...")
-    json_path, md_path = generate_and_save_reports(
+    json_path, md_path, html_path = generate_and_save_reports(
         panel=panel,
         quality_results=quality_results,
         predictive_results=predictive_results,
@@ -264,6 +264,7 @@ def run_factor_analysis(config: FactorAnalysisConfig) -> dict[str, Any]:
     )
     print(f"  → JSON: {json_path}")
     print(f"  → MD:   {md_path}")
+    print(f"  → HTML: {html_path}")
 
     # ── 7. Windows 端同步 ────────────────────────────────────────────────
     windows_root = config.resolve_windows_output_root()
