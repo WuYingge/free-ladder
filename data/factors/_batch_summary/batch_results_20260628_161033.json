@@ -1,0 +1,10 @@
+[
+  {
+    "factor": "ShortTermReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ShortTermReversal_1",
+    "runtime_sec": 35.250877912999385,
+    "error": null,
+    "stdout_tail": "rt_2026-06-28.html\n  \u2192 Windows \u540c\u6b65: \u6210\u529f (/mnt/c/Users/wyg/Documents/invest/factors/ShortTermReversal_1)\n\n============================================================\n\u5206\u6790\u5b8c\u6210\uff01\n  \u8f93\u51fa\u76ee\u5f55: /home/gouzi/projects/invest/data/factors/ShortTermReversal_1\n  \u8f93\u51fa\u6587\u4ef6 (8 \u4e2a):\n    autocorr_decay.png\n    coverage.png\n    distribution_bands.png\n    ic_decay.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_20d.png\n============================================================\n"
+  }
+]

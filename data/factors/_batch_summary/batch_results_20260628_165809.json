@@ -1,0 +1,18 @@
+[
+  {
+    "factor": "PriceReturn",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/PriceReturn_60",
+    "runtime_sec": 35.57086701899971,
+    "error": null,
+    "stdout_tail": "/PriceReturn_60\n  \u8f93\u51fa\u6587\u4ef6 (17 \u4e2a):\n    .task_fingerprint\n    autocorr_decay.png\n    coverage.png\n    distribution_bands.png\n    ic_decay.png\n    longshort_cumret.png\n    longshort_returns.csv\n    quantile_cumret.png\n    quantile_returns.csv\n    quantile_returns_bar.png\n    report_2026-06-23.json\n    report_2026-06-23.md\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic.png\n    rolling_ic_20d.png\n============================================================\n"
+  },
+  {
+    "factor": "ShortTermReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ShortTermReversal_1",
+    "runtime_sec": 36.67434676999983,
+    "error": null,
+    "stdout_tail": " Windows \u540c\u6b65: \u6210\u529f (/mnt/c/Users/wyg/Documents/invest/factors/ShortTermReversal_1)\n\n============================================================\n\u5206\u6790\u5b8c\u6210\uff01\n  \u8f93\u51fa\u76ee\u5f55: /home/gouzi/projects/invest/data/factors/ShortTermReversal_1\n  \u8f93\u51fa\u6587\u4ef6 (9 \u4e2a):\n    .task_fingerprint\n    autocorr_decay.png\n    coverage.png\n    distribution_bands.png\n    ic_decay.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_20d.png\n============================================================\n"
+  }
+]

@@ -334,7 +334,7 @@ def compute_param_grid(
         if not valid.empty:
             best_idx = valid["ic_mean"].idxmax()
             best_row = valid.loc[best_idx]
-            best = {k: best_row[k] for k in param_names + ("period", "ic_mean")}
+            best = {k: best_row[k] for k in param_names + ["period", "ic_mean"]}
 
     return {
         "records": records,

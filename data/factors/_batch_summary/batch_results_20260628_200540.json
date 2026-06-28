@@ -1,0 +1,440 @@
+[
+  {
+    "factor": "RiskAdjustedReturn",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RiskAdjustedReturn_20",
+    "runtime_sec": 94.26215167900227,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: std=0.325787, IR=0.0294\n  \u2192 Rank IC (10d): mean=0.021535, std=0.332528, IR=0.0648\n  \u2192 Rank IC (20d): mean=0.010700, std=0.323420, IR=0.0331\n  \u2192 Rank IC (60d): mean=-0.013550, std=0.312805, IR=-0.0433\n"
+  },
+  {
+    "factor": "PriceReturn",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/PriceReturn_60",
+    "runtime_sec": 103.35482695799874,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: .378532, IR=-0.0251\n  \u2192 Rank IC (10d): mean=-0.009371, std=0.375804, IR=-0.0249\n  \u2192 Rank IC (20d): mean=-0.020919, std=0.359485, IR=-0.0582\n  \u2192 Rank IC (60d): mean=-0.016329, std=0.335536, IR=-0.0487\n"
+  },
+  {
+    "factor": "IntradayMomentum",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/IntradayMomentum",
+    "runtime_sec": 95.19532122899909,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "OvernightReturn",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/OvernightReturn",
+    "runtime_sec": 94.39420514999802,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "HighPointPosition",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HighPointPosition_20",
+    "runtime_sec": 101.50461941300091,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: std=0.248611, IR=0.0866\n  \u2192 Rank IC (10d): mean=0.032327, std=0.253441, IR=0.1276\n  \u2192 Rank IC (20d): mean=0.019189, std=0.254298, IR=0.0755\n  \u2192 Rank IC (60d): mean=-0.002421, std=0.243979, IR=-0.0099\n"
+  },
+  {
+    "factor": "LowPointPosition",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/LowPointPosition_20",
+    "runtime_sec": 100.86391968899989,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: td=0.262124, IR=-0.0584\n  \u2192 Rank IC (10d): mean=-0.010860, std=0.265573, IR=-0.0409\n  \u2192 Rank IC (20d): mean=0.001818, std=0.260327, IR=0.0070\n  \u2192 Rank IC (60d): mean=0.015519, std=0.252435, IR=0.0615\n"
+  },
+  {
+    "factor": "TimeSeriesMomentum",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TimeSeriesMomentum_252",
+    "runtime_sec": 92.293766726998,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.246746, IR=0.0914\n  \u2192 Rank IC (10d): mean=0.034788, std=0.250295, IR=0.1390\n  \u2192 Rank IC (20d): mean=0.043708, std=0.256111, IR=0.1707\n  \u2192 Rank IC (60d): mean=0.056180, std=0.252065, IR=0.2229\n"
+  },
+  {
+    "factor": "ShortTermReversal",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ShortTermReversal_1",
+    "runtime_sec": 114.02975436199995,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.314163, IR=0.1181\n  \u2192 Rank IC (10d): mean=0.020790, std=0.313823, IR=0.0662\n  \u2192 Rank IC (20d): mean=0.007680, std=0.314054, IR=0.0245\n  \u2192 Rank IC (60d): mean=0.013839, std=0.302113, IR=0.0458\n"
+  },
+  {
+    "factor": "ExtremeReversal",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ExtremeReversal_20_p1",
+    "runtime_sec": 139.9530896719989,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: d=0.246510, IR=0.0425\n  \u2192 Rank IC (10d): mean=-0.006100, std=0.247259, IR=-0.0247\n  \u2192 Rank IC (20d): mean=-0.009643, std=0.257645, IR=-0.0374\n  \u2192 Rank IC (60d): mean=0.007599, std=0.247878, IR=0.0307\n"
+  },
+  {
+    "factor": "VolumeReversal",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeReversal_5_20",
+    "runtime_sec": 141.28925807300038,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: std=0.297040, IR=0.0905\n  \u2192 Rank IC (10d): mean=0.004041, std=0.304161, IR=0.0133\n  \u2192 Rank IC (20d): mean=-0.011433, std=0.312163, IR=-0.0366\n  \u2192 Rank IC (60d): mean=0.013501, std=0.295040, IR=0.0458\n"
+  },
+  {
+    "factor": "VolumeRatio",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeRatio_5",
+    "runtime_sec": 114.58082577499954,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: .136116, IR=-0.0624\n  \u2192 Rank IC (10d): mean=-0.003461, std=0.135823, IR=-0.0255\n  \u2192 Rank IC (20d): mean=-0.005176, std=0.136838, IR=-0.0378\n  \u2192 Rank IC (60d): mean=-0.008461, std=0.133354, IR=-0.0635\n"
+  },
+  {
+    "factor": "OBV",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/OBV",
+    "runtime_sec": 98.85358855899904,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumePriceCorrelation",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumePriceCorrelation_20",
+    "runtime_sec": 244.34103290400162,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: .176597, IR=-0.0901\n  \u2192 Rank IC (10d): mean=-0.018158, std=0.179402, IR=-0.1012\n  \u2192 Rank IC (20d): mean=-0.023339, std=0.182130, IR=-0.1281\n  \u2192 Rank IC (60d): mean=-0.022572, std=0.179394, IR=-0.1258\n"
+  },
+  {
+    "factor": "VPT",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VPT",
+    "runtime_sec": 97.94812012400143,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AmihudIlliquidity",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AmihudIlliquidity_20",
+    "runtime_sec": 100.45463094099978,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.139305, IR=0.1469\n  \u2192 Rank IC (10d): mean=0.024896, std=0.141955, IR=0.1754\n  \u2192 Rank IC (20d): mean=0.024895, std=0.147684, IR=0.1686\n  \u2192 Rank IC (60d): mean=0.029871, std=0.161536, IR=0.1849\n"
+  },
+  {
+    "factor": "VolumeStd",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeStd_20",
+    "runtime_sec": 99.91458828699979,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: .161166, IR=-0.1475\n  \u2192 Rank IC (10d): mean=-0.029409, std=0.151882, IR=-0.1936\n  \u2192 Rank IC (20d): mean=-0.035802, std=0.150873, IR=-0.2373\n  \u2192 Rank IC (60d): mean=-0.051276, std=0.151148, IR=-0.3392\n"
+  },
+  {
+    "factor": "VolumeSkew",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeSkew_20",
+    "runtime_sec": 100.8930505740027,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT:  std=0.115911, IR=-0.0005\n  \u2192 Rank IC (10d): mean=0.001335, std=0.116582, IR=0.0114\n  \u2192 Rank IC (20d): mean=0.005714, std=0.119581, IR=0.0478\n  \u2192 Rank IC (60d): mean=0.022693, std=0.119976, IR=0.1891\n"
+  },
+  {
+    "factor": "AverageAmount",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AverageAmount_20",
+    "runtime_sec": 103.01485327600312,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: .140540, IR=-0.1585\n  \u2192 Rank IC (10d): mean=-0.027366, std=0.139163, IR=-0.1966\n  \u2192 Rank IC (20d): mean=-0.030588, std=0.145159, IR=-0.2107\n  \u2192 Rank IC (60d): mean=-0.041545, std=0.154702, IR=-0.2686\n"
+  },
+  {
+    "factor": "DownsideVolatility",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/DownsideVolatility_20",
+    "runtime_sec": 102.27449760200034,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: 0.351949, IR=0.0219\n  \u2192 Rank IC (10d): mean=-0.000593, std=0.357789, IR=-0.0017\n  \u2192 Rank IC (20d): mean=-0.012027, std=0.360275, IR=-0.0334\n  \u2192 Rank IC (60d): mean=-0.047958, std=0.338412, IR=-0.1417\n"
+  },
+  {
+    "factor": "ParkinsonVolatility",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ParkinsonVolatility_20",
+    "runtime_sec": 102.39787780700135,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: .339379, IR=-0.0212\n  \u2192 Rank IC (10d): mean=-0.015267, std=0.346953, IR=-0.0440\n  \u2192 Rank IC (20d): mean=-0.033907, std=0.355134, IR=-0.0955\n  \u2192 Rank IC (60d): mean=-0.064604, std=0.354253, IR=-0.1824\n"
+  },
+  {
+    "factor": "GarmanKlassVolatility",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/GarmanKlassVolatility_20",
+    "runtime_sec": 102.70910371100035,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: .328057, IR=-0.0258\n  \u2192 Rank IC (10d): mean=-0.016688, std=0.335540, IR=-0.0497\n  \u2192 Rank IC (20d): mean=-0.034944, std=0.343569, IR=-0.1017\n  \u2192 Rank IC (60d): mean=-0.064855, std=0.341946, IR=-0.1897\n"
+  },
+  {
+    "factor": "VolOfVol",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolOfVol_20_60",
+    "runtime_sec": 137.87178955400304,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: .280018, IR=-0.0093\n  \u2192 Rank IC (10d): mean=-0.006458, std=0.279164, IR=-0.0231\n  \u2192 Rank IC (20d): mean=-0.021103, std=0.284330, IR=-0.0742\n  \u2192 Rank IC (60d): mean=-0.055808, std=0.269453, IR=-0.2071\n"
+  },
+  {
+    "factor": "MaxDrawdown",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MaxDrawdown_60",
+    "runtime_sec": 113.06216677699922,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT:  std=0.346515, IR=-0.0014\n  \u2192 Rank IC (10d): mean=0.014893, std=0.342334, IR=0.0435\n  \u2192 Rank IC (20d): mean=0.017528, std=0.332966, IR=0.0526\n  \u2192 Rank IC (60d): mean=0.008643, std=0.303337, IR=0.0285\n"
+  },
+  {
+    "factor": "AvgDrawdown",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AvgDrawdown_60",
+    "runtime_sec": 110.15112014099941,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.341116, IR=0.0248\n  \u2192 Rank IC (10d): mean=0.007931, std=0.342551, IR=0.0232\n  \u2192 Rank IC (20d): mean=0.015359, std=0.334305, IR=0.0459\n  \u2192 Rank IC (60d): mean=0.057199, std=0.315766, IR=0.1811\n"
+  },
+  {
+    "factor": "HurstExponent",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HurstExponent_120",
+    "runtime_sec": 117.02629440499732,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: std=0.243189, IR=0.0103\n  \u2192 Rank IC (10d): mean=0.005683, std=0.243590, IR=0.0233\n  \u2192 Rank IC (20d): mean=0.000449, std=0.247396, IR=0.0018\n  \u2192 Rank IC (60d): mean=-0.026687, std=0.248976, IR=-0.1072\n"
+  },
+  {
+    "factor": "KaufmanER",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/KaufmanER_20",
+    "runtime_sec": 101.06789600000047,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: std=0.268244, IR=0.0739\n  \u2192 Rank IC (10d): mean=0.024706, std=0.270736, IR=0.0913\n  \u2192 Rank IC (20d): mean=0.033376, std=0.266607, IR=0.1252\n  \u2192 Rank IC (60d): mean=-0.001125, std=0.263862, IR=-0.0043\n"
+  },
+  {
+    "factor": "UpDownRatio",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/UpDownRatio_20",
+    "runtime_sec": 100.03893710100238,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: std=0.247308, IR=0.0741\n  \u2192 Rank IC (10d): mean=0.027562, std=0.250158, IR=0.1102\n  \u2192 Rank IC (20d): mean=0.019903, std=0.243558, IR=0.0817\n  \u2192 Rank IC (60d): mean=-0.022668, std=0.245210, IR=-0.0924\n"
+  },
+  {
+    "factor": "ConsecutiveUpDays",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ConsecutiveUpDays",
+    "runtime_sec": 92.48110925500077,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ConsecutiveDownDays",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ConsecutiveDownDays",
+    "runtime_sec": 93.12308404600117,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ADX",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ADX_14_adx",
+    "runtime_sec": 104.30169184099941,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: d=0.235400, IR=0.0409\n  \u2192 Rank IC (10d): mean=0.007835, std=0.235841, IR=0.0332\n  \u2192 Rank IC (20d): mean=-0.000364, std=0.234070, IR=-0.0016\n  \u2192 Rank IC (60d): mean=-0.020238, std=0.211262, IR=-0.0958\n"
+  },
+  {
+    "factor": "RSI",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSI_14",
+    "runtime_sec": 102.65682041100081,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: td=0.322512, IR=-0.0086\n  \u2192 Rank IC (10d): mean=0.013864, std=0.327505, IR=0.0423\n  \u2192 Rank IC (20d): mean=0.010669, std=0.324268, IR=0.0329\n  \u2192 Rank IC (60d): mean=-0.008183, std=0.303891, IR=-0.0269\n"
+  },
+  {
+    "factor": "Stochastic",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/Stochastic_14_3_K",
+    "runtime_sec": 142.6555219949987,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: td=0.281521, IR=-0.0330\n  \u2192 Rank IC (10d): mean=0.011929, std=0.284793, IR=0.0419\n  \u2192 Rank IC (20d): mean=0.013292, std=0.286473, IR=0.0464\n  \u2192 Rank IC (60d): mean=-0.014083, std=0.273735, IR=-0.0514\n"
+  },
+  {
+    "factor": "CCI",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/CCI_20",
+    "runtime_sec": 108.79679658700115,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: std=0.302679, IR=0.0195\n  \u2192 Rank IC (10d): mean=0.024589, std=0.307738, IR=0.0799\n  \u2192 Rank IC (20d): mean=0.020520, std=0.313650, IR=0.0654\n  \u2192 Rank IC (60d): mean=-0.004612, std=0.297805, IR=-0.0155\n"
+  },
+  {
+    "factor": "WilliamsR",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/WilliamsR_14",
+    "runtime_sec": 110.27048666799965,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: td=0.281521, IR=-0.0330\n  \u2192 Rank IC (10d): mean=0.011929, std=0.284794, IR=0.0419\n  \u2192 Rank IC (20d): mean=0.013291, std=0.286473, IR=0.0464\n  \u2192 Rank IC (60d): mean=-0.014084, std=0.273734, IR=-0.0515\n"
+  },
+  {
+    "factor": "MFI",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MFI_14",
+    "runtime_sec": 110.76734129599936,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: std=0.232067, IR=0.0611\n  \u2192 Rank IC (10d): mean=0.031938, std=0.235441, IR=0.1357\n  \u2192 Rank IC (20d): mean=0.032591, std=0.235256, IR=0.1385\n  \u2192 Rank IC (60d): mean=-0.002248, std=0.230400, IR=-0.0098\n"
+  },
+  {
+    "factor": "UltimateOscillator",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/UltimateOscillator_7_14_28",
+    "runtime_sec": 94.63529313599793,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MAPosition",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MAPosition_close_200",
+    "runtime_sec": 103.50859115999992,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.373744, IR=0.0324\n  \u2192 Rank IC (10d): mean=0.024006, std=0.372857, IR=0.0644\n  \u2192 Rank IC (20d): mean=0.026594, std=0.361632, IR=0.0735\n  \u2192 Rank IC (60d): mean=0.059368, std=0.331254, IR=0.1792\n"
+  },
+  {
+    "factor": "MA",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MA_close_20",
+    "runtime_sec": 116.01518842199948,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.204940, IR=0.0772\n  \u2192 Rank IC (10d): mean=0.019255, std=0.206778, IR=0.0931\n  \u2192 Rank IC (20d): mean=0.022760, std=0.204716, IR=0.1112\n  \u2192 Rank IC (60d): mean=0.032222, std=0.213236, IR=0.1511\n"
+  },
+  {
+    "factor": "BIAS",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BIAS_close_20",
+    "runtime_sec": 103.72572348999893,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: td=0.350043, IR=-0.0338\n  \u2192 Rank IC (10d): mean=0.013772, std=0.355105, IR=0.0388\n  \u2192 Rank IC (20d): mean=0.010564, std=0.356997, IR=0.0296\n  \u2192 Rank IC (60d): mean=-0.022069, std=0.346882, IR=-0.0636\n"
+  },
+  {
+    "factor": "MAAlignment",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MAAlignment_close_5_20_60",
+    "runtime_sec": 92.19822688299973,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BollingerBandPosition",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BollingerBandPosition_close_20_2.0",
+    "runtime_sec": 184.31858745700083,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: td=0.305726, IR=-0.0243\n  \u2192 Rank IC (10d): mean=0.014425, std=0.309701, IR=0.0466\n  \u2192 Rank IC (20d): mean=0.013395, std=0.315445, IR=0.0425\n  \u2192 Rank IC (60d): mean=-0.010733, std=0.298416, IR=-0.0360\n"
+  },
+  {
+    "factor": "MASlope",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MASlope_close_20_5",
+    "runtime_sec": 184.67791536099685,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: d=0.367524, IR=0.0474\n  \u2192 Rank IC (10d): mean=0.020031, std=0.370434, IR=0.0541\n  \u2192 Rank IC (20d): mean=-0.003098, std=0.361911, IR=-0.0086\n  \u2192 Rank IC (60d): mean=-0.022824, std=0.354503, IR=-0.0644\n"
+  },
+  {
+    "factor": "MADistance",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADistance_close_5_60",
+    "runtime_sec": 182.02770947200042,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: .376878, IR=-0.0065\n  \u2192 Rank IC (10d): mean=-0.002546, std=0.377706, IR=-0.0067\n  \u2192 Rank IC (20d): mean=-0.025222, std=0.368992, IR=-0.0684\n  \u2192 Rank IC (60d): mean=-0.030834, std=0.337673, IR=-0.0913\n"
+  },
+  {
+    "factor": "MADispersion",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADispersion_close_5_10_20_60",
+    "runtime_sec": 102.37770923300195,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ReturnSkew",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ReturnSkew_60",
+    "runtime_sec": 119.26094840500082,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: =0.245645, IR=-0.0516\n  \u2192 Rank IC (10d): mean=-0.007366, std=0.244520, IR=-0.0301\n  \u2192 Rank IC (20d): mean=-0.001513, std=0.242159, IR=-0.0062\n  \u2192 Rank IC (60d): mean=0.017882, std=0.242454, IR=0.0738\n"
+  },
+  {
+    "factor": "ReturnKurtosis",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ReturnKurtosis_60",
+    "runtime_sec": 118.2808406030017,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: td=0.218287, IR=-0.0005\n  \u2192 Rank IC (10d): mean=0.000157, std=0.225010, IR=0.0007\n  \u2192 Rank IC (20d): mean=0.004846, std=0.227028, IR=0.0213\n  \u2192 Rank IC (60d): mean=-0.001422, std=0.219295, IR=-0.0065\n"
+  },
+  {
+    "factor": "HistoricalVaR",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HistoricalVaR_252_q05",
+    "runtime_sec": 98.97300471299968,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.364613, IR=0.0444\n  \u2192 Rank IC (10d): mean=0.023396, std=0.373735, IR=0.0626\n  \u2192 Rank IC (20d): mean=0.037154, std=0.379145, IR=0.0980\n  \u2192 Rank IC (60d): mean=0.061865, std=0.369300, IR=0.1675\n"
+  },
+  {
+    "factor": "CVaR",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/CVaR_252_q05",
+    "runtime_sec": 134.18920582499777,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.367968, IR=0.0329\n  \u2192 Rank IC (10d): mean=0.018313, std=0.376461, IR=0.0486\n  \u2192 Rank IC (20d): mean=0.032123, std=0.379463, IR=0.0847\n  \u2192 Rank IC (60d): mean=0.062277, std=0.366440, IR=0.1700\n"
+  },
+  {
+    "factor": "MFE",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MFE_20",
+    "runtime_sec": 110.30602688400177,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: d=0.333710, IR=0.0580\n  \u2192 Rank IC (10d): mean=0.017129, std=0.335867, IR=0.0510\n  \u2192 Rank IC (20d): mean=-0.005707, std=0.330451, IR=-0.0173\n  \u2192 Rank IC (60d): mean=-0.021509, std=0.331104, IR=-0.0650\n"
+  },
+  {
+    "factor": "MAE",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MAE_20",
+    "runtime_sec": 109.27568417899965,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: std=0.338760, IR=0.0221\n  \u2192 Rank IC (10d): mean=0.005327, std=0.346487, IR=0.0154\n  \u2192 Rank IC (20d): mean=-0.002729, std=0.341989, IR=-0.0080\n  \u2192 Rank IC (60d): mean=0.012413, std=0.328616, IR=0.0378\n"
+  },
+  {
+    "factor": "ID",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ID_20",
+    "runtime_sec": 110.47775480499695,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: td=0.173920, IR=-0.0376\n  \u2192 Rank IC (10d): mean=-0.009584, std=0.172493, IR=-0.0556\n  \u2192 Rank IC (20d): mean=0.000608, std=0.172633, IR=0.0035\n  \u2192 Rank IC (60d): mean=0.015811, std=0.168544, IR=0.0938\n"
+  },
+  {
+    "factor": "NewHigh",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/NewHigh",
+    "runtime_sec": 119.33582923200083,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "DailyRebound",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/DailyRebound",
+    "runtime_sec": 105.52962331900198,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RSRS",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSRS_zscore_adj",
+    "runtime_sec": 107.91833945599865,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.207741, IR=0.0342\n  \u2192 Rank IC (10d): mean=0.011315, std=0.212342, IR=0.0533\n  \u2192 Rank IC (20d): mean=0.010157, std=0.216163, IR=0.0470\n  \u2192 Rank IC (60d): mean=0.001999, std=0.216687, IR=0.0092\n"
+  },
+  {
+    "factor": "TrendR2",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TrendR2_120_r2",
+    "runtime_sec": 152.49653079500058,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.259249, IR=0.0684\n  \u2192 Rank IC (10d): mean=0.029852, std=0.264446, IR=0.1129\n  \u2192 Rank IC (20d): mean=0.040181, std=0.258628, IR=0.1554\n  \u2192 Rank IC (60d): mean=0.064977, std=0.273790, IR=0.2373\n"
+  },
+  {
+    "factor": "ATR",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ATR_25",
+    "runtime_sec": 113.67980169300063,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: 0.188250, IR=0.0085\n  \u2192 Rank IC (10d): mean=-0.001467, std=0.188126, IR=-0.0078\n  \u2192 Rank IC (20d): mean=-0.008629, std=0.182775, IR=-0.0472\n  \u2192 Rank IC (60d): mean=-0.021596, std=0.173427, IR=-0.1245\n"
+  },
+  {
+    "factor": "NewHighContinuous",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/NewHighContinuous_50",
+    "runtime_sec": 111.72185499099942,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: , std=0.326448, IR=0.0003\n  \u2192 Rank IC (10d): mean=0.015384, std=0.322094, IR=0.0478\n  \u2192 Rank IC (20d): mean=0.018542, std=0.315771, IR=0.0587\n  \u2192 Rank IC (60d): mean=0.012767, std=0.289169, IR=0.0442\n"
+  },
+  {
+    "factor": "NewLowContinuous",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/NewLowContinuous_50",
+    "runtime_sec": 109.49645872399924,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: =0.341549, IR=-0.0137\n  \u2192 Rank IC (10d): mean=0.001132, std=0.350046, IR=0.0032\n  \u2192 Rank IC (20d): mean=-0.022581, std=0.358487, IR=-0.0630\n  \u2192 Rank IC (60d): mean=-0.051307, std=0.335615, IR=-0.1529\n"
+  },
+  {
+    "factor": "DonchianChannelPosition",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/DonchianPosition_20",
+    "runtime_sec": 111.80781303899857,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: td=0.291587, IR=-0.0085\n  \u2192 Rank IC (10d): mean=0.017843, std=0.295082, IR=0.0605\n  \u2192 Rank IC (20d): mean=0.013235, std=0.292810, IR=0.0452\n  \u2192 Rank IC (60d): mean=-0.014548, std=0.278384, IR=-0.0523\n"
+  },
+  {
+    "factor": "ATRRatio",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ATRRatio_25",
+    "runtime_sec": 111.60952385099881,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: .355616, IR=-0.0173\n  \u2192 Rank IC (10d): mean=-0.013383, std=0.361532, IR=-0.0370\n  \u2192 Rank IC (20d): mean=-0.030984, std=0.369116, IR=-0.0839\n  \u2192 Rank IC (60d): mean=-0.062628, std=0.361258, IR=-0.1734\n"
+  },
+  {
+    "factor": "ChandelierExit",
+    "success": false,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ChandelierExit_22_22",
+    "runtime_sec": 193.5512085190021,
+    "error": "exit_code=1\nSTDERR: in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"/home/gouzi/projects/invest/libs/scripts/run_factor_analysis.py\", line 309, in main\n    results = run_factor_analysis(config)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gouzi/projects/invest/libs/factor_analysis/runner.py\", line 176, in run_factor_analysis\n    if pg and not pg.get(\"matrix\", pd.DataFrame()).empty:\n                                   ^^\nNameError: name 'pd' is not defined. Did you mean: 'pg'?\n\nSTDOUT: td=0.282088, IR=-0.0257\n  \u2192 Rank IC (10d): mean=0.011526, std=0.285096, IR=0.0404\n  \u2192 Rank IC (20d): mean=0.002852, std=0.288365, IR=0.0099\n  \u2192 Rank IC (60d): mean=-0.010630, std=0.267637, IR=-0.0397\n"
+  }
+]
