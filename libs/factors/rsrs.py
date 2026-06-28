@@ -180,10 +180,10 @@ class RsrsFactor(BaseFactor):
         return signal
 
     def _build_series_name(self) -> str:
-        # 输出名称中附带 output 类型和是否使用 R^2 修正，
+        # 输出名称中附带 output 类型、回归窗口和是否使用 R^2 修正，
         # 方便在同一 DataFrame 中同时比较多个 RSRS 变体。
         suffix = "adj" if self.use_r2_adjustment else "raw"
-        return f"{self.name}_{self.output}_{suffix}"
+        return f"{self.name}_{self.output}_reg{self.regression_window}_z{self.zscore_window}_{suffix}"
 
 
 class RsrsDerivedFactor(DerivedFactor):
