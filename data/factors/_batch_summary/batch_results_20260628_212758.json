@@ -1,0 +1,26 @@
+[
+  {
+    "factor": "RSRS",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSRS_zscore_reg14_z400_adj",
+    "runtime_sec": 73.01568504899842,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RSRS",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSRS_zscore_reg14_z200_adj",
+    "runtime_sec": 80.35791573200186,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RSRS",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSRS_zscore_reg14_z600_adj",
+    "runtime_sec": 65.30657717000213,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  }
+]

@@ -1,0 +1,34 @@
+[
+  {
+    "factor": "PriceReturn",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/PriceReturn_10",
+    "runtime_sec": 87.3594484339992,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "PriceReturn",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/PriceReturn_20",
+    "runtime_sec": 88.41089185500095,
+    "error": null,
+    "stdout_tail": "_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-23.json\n    report_2026-06-23.md\n    report_2026-06-27.html\n    report_2026-06-27.json\n    report_2026-06-27.md\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic.png\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "PriceReturn",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/PriceReturn_40",
+    "runtime_sec": 83.96136158999798,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "PriceReturn",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/PriceReturn_60",
+    "runtime_sec": 83.06269571400117,
+    "error": null,
+    "stdout_tail": "s_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar.png\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-23.json\n    report_2026-06-23.md\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic.png\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  }
+]

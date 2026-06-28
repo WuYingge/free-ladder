@@ -1,0 +1,1554 @@
+[
+  {
+    "factor": "TimeSeriesMomentum",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TimeSeriesMomentum_60",
+    "runtime_sec": 160.1328607200012,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "LowPointPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/LowPointPosition_20",
+    "runtime_sec": 174.50403323499995,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "HighPointPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HighPointPosition_40",
+    "runtime_sec": 174.5064401160016,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RiskAdjustedReturn",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RiskAdjustedReturn_40",
+    "runtime_sec": 174.8582251500011,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RiskAdjustedReturn",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RiskAdjustedReturn_20",
+    "runtime_sec": 176.5404534320005,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ShortTermReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ShortTermReversal_20",
+    "runtime_sec": 181.29486780500156,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "LowPointPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/LowPointPosition_40",
+    "runtime_sec": 187.52050598400092,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "LowPointPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/LowPointPosition_10",
+    "runtime_sec": 191.71210691300075,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RiskAdjustedReturn",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RiskAdjustedReturn_60",
+    "runtime_sec": 195.6869917019976,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ShortTermReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ShortTermReversal_1",
+    "runtime_sec": 197.46495322900228,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ShortTermReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ShortTermReversal_10",
+    "runtime_sec": 201.71261356799732,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "TimeSeriesMomentum",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TimeSeriesMomentum_240",
+    "runtime_sec": 203.61828246000005,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "HighPointPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HighPointPosition_20",
+    "runtime_sec": 206.09208731599938,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "TimeSeriesMomentum",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TimeSeriesMomentum_120",
+    "runtime_sec": 217.8127294799997,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "HighPointPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HighPointPosition_10",
+    "runtime_sec": 234.87170387199876,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ShortTermReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ShortTermReversal_5",
+    "runtime_sec": 253.69492225400245,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ExtremeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ExtremeReversal_20_p1",
+    "runtime_sec": 179.43961248599953,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ExtremeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ExtremeReversal_20_p15",
+    "runtime_sec": 178.4469692950006,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ExtremeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ExtremeReversal_10_p1",
+    "runtime_sec": 187.42158098800064,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ExtremeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ExtremeReversal_20_p05",
+    "runtime_sec": 192.34397640099996,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ExtremeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ExtremeReversal_10_p15",
+    "runtime_sec": 204.20650080599808,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeReversal_5_10",
+    "runtime_sec": 201.08086088799973,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ExtremeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ExtremeReversal_10_p05",
+    "runtime_sec": 230.57692362200032,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeReversal_10_20",
+    "runtime_sec": 203.01142521300062,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeReversal_20_10",
+    "runtime_sec": 216.83809583000038,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeReversal_10_10",
+    "runtime_sec": 223.88681914100016,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeRatio",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeRatio_3",
+    "runtime_sec": 219.6342433989994,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeReversal_20_20",
+    "runtime_sec": 229.26444357199944,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeRatio",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeRatio_5",
+    "runtime_sec": 220.6510874259984,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeReversal",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeReversal_5_20",
+    "runtime_sec": 274.7374927439996,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeRatio",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeRatio_20",
+    "runtime_sec": 221.07822388099885,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeRatio",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeRatio_10",
+    "runtime_sec": 240.76643097399938,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeStd",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeStd_10",
+    "runtime_sec": 201.15459214400107,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AmihudIlliquidity",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AmihudIlliquidity_20",
+    "runtime_sec": 216.7612566459975,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AmihudIlliquidity",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AmihudIlliquidity_40",
+    "runtime_sec": 212.24807678800062,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeStd",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeStd_20",
+    "runtime_sec": 213.43958682400262,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AmihudIlliquidity",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AmihudIlliquidity_10",
+    "runtime_sec": 247.03508187899934,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeStd",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeStd_40",
+    "runtime_sec": 200.26786072699906,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeSkew",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeSkew_20",
+    "runtime_sec": 198.29391084500094,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AverageAmount",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AverageAmount_5",
+    "runtime_sec": 205.5394804710013,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeSkew",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeSkew_10",
+    "runtime_sec": 240.53491401400242,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "DownsideVolatility",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/DownsideVolatility_10",
+    "runtime_sec": 197.85995005600125,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumeSkew",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumeSkew_40",
+    "runtime_sec": 242.45021889000054,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumePriceCorrelation",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumePriceCorrelation_40",
+    "runtime_sec": 313.68699558500157,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumePriceCorrelation",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumePriceCorrelation_10",
+    "runtime_sec": 320.4894233220002,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AverageAmount",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AverageAmount_20",
+    "runtime_sec": 203.88473364200036,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AverageAmount",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AverageAmount_10",
+    "runtime_sec": 217.67977699699986,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolumePriceCorrelation",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolumePriceCorrelation_20",
+    "runtime_sec": 356.0155491689984,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ParkinsonVolatility",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ParkinsonVolatility_10",
+    "runtime_sec": 196.4347064579997,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ParkinsonVolatility",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ParkinsonVolatility_40",
+    "runtime_sec": 188.92065411099975,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "DownsideVolatility",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/DownsideVolatility_40",
+    "runtime_sec": 214.3756941899992,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ParkinsonVolatility",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ParkinsonVolatility_20",
+    "runtime_sec": 198.11685693599793,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "DownsideVolatility",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/DownsideVolatility_20",
+    "runtime_sec": 237.14367295599732,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "GarmanKlassVolatility",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/GarmanKlassVolatility_20",
+    "runtime_sec": 209.75605211500078,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "GarmanKlassVolatility",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/GarmanKlassVolatility_10",
+    "runtime_sec": 218.92740962300013,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolOfVol",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolOfVol_10_40",
+    "runtime_sec": 208.97083782000118,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolOfVol",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolOfVol_10_60",
+    "runtime_sec": 202.37332841700118,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolOfVol",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolOfVol_20_60",
+    "runtime_sec": 201.6388705879981,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolOfVol",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolOfVol_20_40",
+    "runtime_sec": 205.2410351189974,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolOfVol",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolOfVol_10_120",
+    "runtime_sec": 206.64857645099983,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "GarmanKlassVolatility",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/GarmanKlassVolatility_40",
+    "runtime_sec": 238.5411584930007,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "VolOfVol",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/VolOfVol_20_120",
+    "runtime_sec": 228.16370116899998,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MaxDrawdown",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MaxDrawdown_40",
+    "runtime_sec": 200.0189348439999,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MaxDrawdown",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MaxDrawdown_20",
+    "runtime_sec": 246.3865680050003,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MaxDrawdown",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MaxDrawdown_120",
+    "runtime_sec": 195.96083121699849,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AvgDrawdown",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AvgDrawdown_20",
+    "runtime_sec": 191.8451630189993,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AvgDrawdown",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AvgDrawdown_40",
+    "runtime_sec": 191.02956549900046,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AvgDrawdown",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AvgDrawdown_60",
+    "runtime_sec": 190.12533694300146,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MaxDrawdown",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MaxDrawdown_60",
+    "runtime_sec": 225.00454014000206,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "AvgDrawdown",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/AvgDrawdown_120",
+    "runtime_sec": 195.16985162999845,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "HurstExponent",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HurstExponent_60",
+    "runtime_sec": 204.18106088399873,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "KaufmanER",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/KaufmanER_20",
+    "runtime_sec": 197.68912557000294,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "HurstExponent",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HurstExponent_240",
+    "runtime_sec": 206.38824356600162,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "UpDownRatio",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/UpDownRatio_10",
+    "runtime_sec": 203.2607196579993,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "KaufmanER",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/KaufmanER_10",
+    "runtime_sec": 208.55254168800093,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "HurstExponent",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HurstExponent_120",
+    "runtime_sec": 222.94320399200296,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "KaufmanER",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/KaufmanER_40",
+    "runtime_sec": 215.26137627700155,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "UpDownRatio",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/UpDownRatio_40",
+    "runtime_sec": 190.01563828399958,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ADX",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ADX_7_adx",
+    "runtime_sec": 196.87945271499848,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "UpDownRatio",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/UpDownRatio_20",
+    "runtime_sec": 242.60097348800264,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RSI",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSI_7",
+    "runtime_sec": 200.3205840139999,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ADX",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ADX_14_adx",
+    "runtime_sec": 211.05046249899897,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ADX",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ADX_21_adx",
+    "runtime_sec": 215.8603488009976,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RSI",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSI_21",
+    "runtime_sec": 201.61351752300106,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RSI",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSI_14",
+    "runtime_sec": 229.28566202000002,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "Stochastic",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/Stochastic_7_3_K",
+    "runtime_sec": 223.5887874129985,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "Stochastic",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/Stochastic_7_5_K",
+    "runtime_sec": 213.8229628830013,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "Stochastic",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/Stochastic_14_3_K",
+    "runtime_sec": 207.8827943010001,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "Stochastic",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/Stochastic_14_5_K",
+    "runtime_sec": 207.13933328500207,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "Stochastic",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/Stochastic_21_5_K",
+    "runtime_sec": 205.72800272300083,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "CCI",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/CCI_20",
+    "runtime_sec": 205.58568389799984,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "CCI",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/CCI_10",
+    "runtime_sec": 212.5288945220018,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "Stochastic",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/Stochastic_21_3_K",
+    "runtime_sec": 223.22587077700155,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "CCI",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/CCI_40",
+    "runtime_sec": 205.83147284200095,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "WilliamsR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/WilliamsR_7",
+    "runtime_sec": 230.02565973200035,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "WilliamsR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/WilliamsR_14",
+    "runtime_sec": 216.0250176059999,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MFI",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MFI_14",
+    "runtime_sec": 198.0329875239986,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MFI",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MFI_21",
+    "runtime_sec": 197.3087099359982,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "WilliamsR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/WilliamsR_21",
+    "runtime_sec": 223.26975570899958,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MAPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MAPosition_close_200",
+    "runtime_sec": 178.128075179,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MFI",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MFI_7",
+    "runtime_sec": 224.97903698899972,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MAPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MAPosition_close_120",
+    "runtime_sec": 194.435286988999,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MAPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MAPosition_close_60",
+    "runtime_sec": 210.40075181099746,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MAPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MAPosition_close_250",
+    "runtime_sec": 207.34082788900196,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MA",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MA_close_20",
+    "runtime_sec": 206.650429213998,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BIAS",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BIAS_close_10",
+    "runtime_sec": 190.28974033500344,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MA",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MA_close_60",
+    "runtime_sec": 196.1358148090003,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MA",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MA_close_10",
+    "runtime_sec": 216.23312175500178,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MA",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MA_close_40",
+    "runtime_sec": 207.08840603799763,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BIAS",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BIAS_close_20",
+    "runtime_sec": 207.00802787999783,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BollingerBandPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BollingerBandPosition_close_10_1.5",
+    "runtime_sec": 204.0642295439975,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BIAS",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BIAS_close_40",
+    "runtime_sec": 216.98289571499845,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BollingerBandPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BollingerBandPosition_close_10_2.5",
+    "runtime_sec": 197.27225197799999,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BollingerBandPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BollingerBandPosition_close_10_2.0",
+    "runtime_sec": 213.51575938099995,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BollingerBandPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BollingerBandPosition_close_20_2.0",
+    "runtime_sec": 204.3246827160001,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BollingerBandPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BollingerBandPosition_close_20_1.5",
+    "runtime_sec": 215.6293333570029,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BollingerBandPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BollingerBandPosition_close_20_2.5",
+    "runtime_sec": 211.31570686200212,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BollingerBandPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BollingerBandPosition_close_40_1.5",
+    "runtime_sec": 214.1282721489988,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BollingerBandPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BollingerBandPosition_close_40_2.0",
+    "runtime_sec": 208.1373398579999,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MASlope",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MASlope_close_10_5",
+    "runtime_sec": 197.76932386300177,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MASlope",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MASlope_close_10_3",
+    "runtime_sec": 198.73565078699903,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MASlope",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MASlope_close_10_10",
+    "runtime_sec": 206.62568085800012,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MASlope",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MASlope_close_20_3",
+    "runtime_sec": 206.0444274069996,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "BollingerBandPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/BollingerBandPosition_close_40_2.5",
+    "runtime_sec": 221.96632785900147,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MASlope",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MASlope_close_20_10",
+    "runtime_sec": 202.4134506349983,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MASlope",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MASlope_close_20_5",
+    "runtime_sec": 232.618233666999,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MASlope",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MASlope_close_40_3",
+    "runtime_sec": 191.0489253220003,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MASlope",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MASlope_close_40_5",
+    "runtime_sec": 200.89276568900095,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MADistance",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADistance_close_5_40",
+    "runtime_sec": 203.96612188800282,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MADistance",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADistance_close_5_120",
+    "runtime_sec": 196.54153190600118,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MASlope",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MASlope_close_40_10",
+    "runtime_sec": 225.7606685949977,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MADistance",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADistance_close_10_120",
+    "runtime_sec": 182.18118669899923,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MADistance",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADistance_close_10_60",
+    "runtime_sec": 192.33389671300029,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MADistance",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADistance_close_10_40",
+    "runtime_sec": 209.68310289900182,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MADistance",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADistance_close_5_60",
+    "runtime_sec": 225.9419055360013,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MADistance",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADistance_close_20_40",
+    "runtime_sec": 210.5056513769996,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MADistance",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADistance_close_20_120",
+    "runtime_sec": 201.4271056030011,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MADistance",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MADistance_close_20_60",
+    "runtime_sec": 217.7177463980006,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ReturnSkew",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ReturnSkew_20",
+    "runtime_sec": 205.57934901800036,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ReturnSkew",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ReturnSkew_40",
+    "runtime_sec": 214.29546950800068,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ReturnSkew",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ReturnSkew_120",
+    "runtime_sec": 208.89173842600212,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ReturnSkew",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ReturnSkew_60",
+    "runtime_sec": 232.75217280799916,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ReturnKurtosis",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ReturnKurtosis_20",
+    "runtime_sec": 205.6996716270005,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ReturnKurtosis",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ReturnKurtosis_40",
+    "runtime_sec": 200.5151825159992,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "HistoricalVaR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HistoricalVaR_252_q05",
+    "runtime_sec": 178.37250393199793,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "HistoricalVaR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HistoricalVaR_60_q05",
+    "runtime_sec": 197.40961228099695,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ReturnKurtosis",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ReturnKurtosis_120",
+    "runtime_sec": 202.83126641499985,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "HistoricalVaR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/HistoricalVaR_120_q05",
+    "runtime_sec": 195.87461941500078,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ReturnKurtosis",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ReturnKurtosis_60",
+    "runtime_sec": 224.91710045199943,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "CVaR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/CVaR_60_q05",
+    "runtime_sec": 204.37236752100216,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "CVaR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/CVaR_120_q05",
+    "runtime_sec": 209.78246362599748,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "CVaR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/CVaR_252_q05",
+    "runtime_sec": 191.88980651699967,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MFE",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MFE_20",
+    "runtime_sec": 203.42924922699967,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MFE",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MFE_10",
+    "runtime_sec": 210.60703623699737,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MFE",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MFE_40",
+    "runtime_sec": 227.23210319000282,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MAE",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MAE_20",
+    "runtime_sec": 211.10555081500206,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MAE",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MAE_40",
+    "runtime_sec": 211.0045274410004,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "MAE",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/MAE_10",
+    "runtime_sec": 236.52417265500117,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ID",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ID_10",
+    "runtime_sec": 206.71273203199962,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ID",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ID_20",
+    "runtime_sec": 201.0932140139994,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "TrendR2",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TrendR2_120_r2",
+    "runtime_sec": 191.93090604199824,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "TrendR2",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TrendR2_60_r2",
+    "runtime_sec": 202.39420695799708,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "TrendR2",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TrendR2_60_slope",
+    "runtime_sec": 206.6082588060017,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "TrendR2",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TrendR2_240_r2",
+    "runtime_sec": 192.39254364299995,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ID",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ID_40",
+    "runtime_sec": 230.58117402800053,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "TrendR2",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TrendR2_120_slope",
+    "runtime_sec": 211.53649422799936,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RSRS",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSRS_zscore_reg14_z600_adj",
+    "runtime_sec": 165.6321244710016,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "TrendR2",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/TrendR2_240_slope",
+    "runtime_sec": 217.32223380399955,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RSRS",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSRS_zscore_reg14_z200_adj",
+    "runtime_sec": 192.63900948800074,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "RSRS",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/RSRS_zscore_reg14_z400_adj",
+    "runtime_sec": 193.07455476500036,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ATR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ATR_14",
+    "runtime_sec": 213.7737778869996,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ATR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ATR_25",
+    "runtime_sec": 200.86616906700147,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ATR",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ATR_20",
+    "runtime_sec": 212.6129351189993,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "NewHighContinuous",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/NewHighContinuous_100",
+    "runtime_sec": 209.53265200799797,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "NewHighContinuous",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/NewHighContinuous_50",
+    "runtime_sec": 218.55009972300104,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "NewHighContinuous",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/NewHighContinuous_20",
+    "runtime_sec": 231.14493997799946,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "NewLowContinuous",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/NewLowContinuous_100",
+    "runtime_sec": 191.55354345799788,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "NewLowContinuous",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/NewLowContinuous_20",
+    "runtime_sec": 210.88153401800082,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "NewLowContinuous",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/NewLowContinuous_50",
+    "runtime_sec": 206.91725040299934,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "DonchianChannelPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/DonchianPosition_20",
+    "runtime_sec": 200.42853893999927,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "DonchianChannelPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/DonchianPosition_10",
+    "runtime_sec": 222.3196901049996,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "DonchianChannelPosition",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/DonchianPosition_40",
+    "runtime_sec": 219.95047848800095,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ATRRatio",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ATRRatio_25",
+    "runtime_sec": 205.12509943299665,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ATRRatio",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ATRRatio_14",
+    "runtime_sec": 214.91765225100244,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ATRRatio",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ATRRatio_20",
+    "runtime_sec": 214.23719060800067,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ChandelierExit",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ChandelierExit_10_10",
+    "runtime_sec": 200.12608621399704,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ChandelierExit",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ChandelierExit_10_22",
+    "runtime_sec": 180.58487077999962,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ChandelierExit",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ChandelierExit_10_40",
+    "runtime_sec": 176.62814927699947,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ChandelierExit",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ChandelierExit_22_10",
+    "runtime_sec": 171.88666125500094,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ChandelierExit",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ChandelierExit_22_22",
+    "runtime_sec": 165.17726407499867,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ChandelierExit",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ChandelierExit_22_40",
+    "runtime_sec": 162.68198145099814,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ChandelierExit",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ChandelierExit_40_10",
+    "runtime_sec": 161.13341548500102,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ChandelierExit",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ChandelierExit_40_22",
+    "runtime_sec": 134.86958490400139,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  },
+  {
+    "factor": "ChandelierExit",
+    "success": true,
+    "output_dir": "/home/gouzi/projects/invest/data/factors/ChandelierExit_40_40",
+    "runtime_sec": 129.2312962899996,
+    "error": null,
+    "stdout_tail": "uantile_cumret_60d.png\n    quantile_returns_10d.csv\n    quantile_returns_20d.csv\n    quantile_returns_5d.csv\n    quantile_returns_60d.csv\n    quantile_returns_bar_10d.png\n    quantile_returns_bar_20d.png\n    quantile_returns_bar_5d.png\n    quantile_returns_bar_60d.png\n    report_2026-06-28.html\n    report_2026-06-28.json\n    report_2026-06-28.md\n    rolling_ic_10d.png\n    rolling_ic_20d.png\n    rolling_ic_5d.png\n    rolling_ic_60d.png\n============================================================\n"
+  }
+]
