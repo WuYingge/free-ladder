@@ -3,28 +3,49 @@
 单因子分析 CLI 入口 (Factor Analysis CLI)
 
 用法:
-    python libs/scripts/run_factor_analysis.py \\
-        --factor PriceReturn --window 60 \\
-        --layers 1 2 3 \\
-        --symbols 510300 510500 159915 \\
-        --min-bars 200
+    # 默认参数
+    python libs/scripts/run_factor_analysis.py --factor PriceReturn
+
+    # 自定义参数（--param key=value 可多次指定）
+    python libs/scripts/run_factor_analysis.py \
+        --factor PriceReturn --param window=120 --param skip_recent=20
+
+    # 参数网格扫描
+    python libs/scripts/run_factor_analysis.py \
+        --factor PriceReturn \
+        --param-grid '{"window": [20, 60, 120]}'
+
+    # 完整参数控制
+    python libs/scripts/run_factor_analysis.py \
+        --factor TrendR2 --param window=60 --param output=r2 \
+        --layers 1 2 \
+        --symbols 510300 510500 159915 \
+        --forward-periods 5 10 20 60 \
+        --min-bars 200 \
+        --n-quantiles 5 \
+        --max-workers 8
 
 参数:
-    --factor        因子类名（如 PriceReturn, TrendR2, MAPosition）
-    --window        因子参数 window（如 60）
-    --layers        分析层 1 2 3（空格分隔）
-    --symbols       可选标的列表（空格分隔，默认全量 ETF_INDEX_MAP）
-    --min-bars      最少交易日数（默认 252）
-    --start-date    起始日期 YYYY-MM-DD
-    --end-date      结束日期 YYYY-MM-DD
-    --n-quantiles   分位数分组数（默认 5）
-    --max-workers   多进程 worker 数（默认 CPU 数）
-    --output-root   输出目录（默认 data/factors/{factor_name}/）
+    --factor           因子类名（如 PriceReturn, TrendR2, RSRS, RSI 等）
+    --param            因子构造参数 key=value（可多次指定，覆盖默认值）
+    --param-grid       参数网格扫描 JSON，如 '{"window": [20,60,120]}'
+    --layers           分析层 1 2 3（空格分隔，默认 1 2 3）
+    --symbols          可选标的列表（空格分隔，默认全量 ETF_INDEX_MAP）
+    --forward-periods  前向持仓期（交易日，空格分隔，默认 5 10 20 60）
+    --min-bars         最少交易日数（默认 252）
+    --start-date       起始日期 YYYY-MM-DD
+    --end-date         结束日期 YYYY-MM-DD
+    --n-quantiles      分位数分组数（默认 5）
+    --rolling-ic-window 滚动 IC 窗口（交易日，默认 120）
+    --max-workers      多进程 worker 数（默认 CPU 数）
+    --output-root      输出目录（默认 data/factors/{factor_name}/）
+    --output-date      报告日期标签（默认当天日期）
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -104,7 +125,6 @@ FACTOR_REGISTRY: dict[str, tuple[str, str, dict]] = {
     "NewHigh": ("factors.new_high", "NewHigh", {"high_window": 50, "low_window": 25}),
     "DailyRebound": ("factors.daily_rebound", "DailyRebound", {}),
     "TrendR2": ("factors.trend_r2", "TrendR2Factor", {"window": 120, "output": "r2"}),
-    # RSRS 因子需要 output="zscore" 以获得连续值（可选 output="signal" 但那是离散信号）
     "RSRS": ("factors.rsrs", "RsrsFactor", {"output": "zscore"}),
     "ATR": ("factors.average_true_range", "AverageTrueRange", {"window": 25}),
     "NewHighContinuous": ("factors.breakout_family", "NewHighContinuous", {"window": 50}),
@@ -119,12 +139,47 @@ def _import_factor(name: str) -> type:
     """动态导入因子类。"""
     if name not in FACTOR_REGISTRY:
         raise ValueError(
-            f"未知因子: {name}。可用: {list(FACTOR_REGISTRY.keys())}"
+            f"未知因子: {name}。\n可用因子 ({len(FACTOR_REGISTRY)} 个):\n  "
+            + "\n  ".join(sorted(FACTOR_REGISTRY.keys()))
         )
     module_path, class_name, _ = FACTOR_REGISTRY[name]
     import importlib
     mod = importlib.import_module(module_path)
     return getattr(mod, class_name)
+
+
+def _parse_value(raw: str) -> int | float | str | bool | list:
+    """将字符串值自动转换为合适的 Python 类型。"""
+    raw = raw.strip()
+    if raw.lower() in ("true", "false"):
+        return raw.lower() == "true"
+    if raw.startswith("[") and raw.endswith("]"):
+        import ast
+        try:
+            return ast.literal_eval(raw)
+        except (ValueError, SyntaxError):
+            inner = raw[1:-1]
+            if not inner.strip():
+                return []
+            return [_parse_value(v) for v in inner.split(",")]
+    try:
+        if "." not in raw and "e" not in raw.lower():
+            return int(raw)
+    except ValueError:
+        pass
+    try:
+        return float(raw)
+    except ValueError:
+        pass
+    return raw
+
+
+def _parse_param(pair: str) -> tuple[str, int | float | str | bool | list]:
+    """解析 key=value 字符串，自动推断类型。"""
+    if "=" not in pair:
+        raise argparse.ArgumentTypeError(f"参数格式应为 key=value，收到: {pair}")
+    key, value = pair.split("=", 1)
+    return key, _parse_value(value)
 
 
 def parse_args() -> argparse.Namespace:
@@ -134,19 +189,29 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--factor", type=str, required=True,
-        help=f"因子类名。可用: {list(FACTOR_REGISTRY.keys())}",
+        help="因子类名。可用: 见 FACTOR_REGISTRY",
     )
     parser.add_argument(
-        "--window", type=int, default=None,
-        help="因子参数 window（如果因子有的话）。如 PriceReturn --window 60",
+        "--param", nargs="*", type=str, default=[],
+        metavar="KEY=VALUE",
+        help="因子构造参数（可多次指定），如 --param window=120 --param output=r2",
+    )
+    parser.add_argument(
+        "--param-grid", type=str, default=None,
+        metavar="JSON",
+        help='参数网格扫描 JSON，如 \'{"window": [20, 60, 120]}\'',
     )
     parser.add_argument(
         "--layers", nargs="+", type=int, default=[1, 2, 3],
-        help="要运行的分析层，如 --layers 1 2 3",
+        help="要运行的分析层，如 --layers 1 2 3（默认全跑）",
     )
     parser.add_argument(
         "--symbols", nargs="*", default=None,
         help="可选标的列表（空格分隔）。默认全量 ETF_INDEX_MAP",
+    )
+    parser.add_argument(
+        "--forward-periods", nargs="+", type=int, default=[5, 10, 20, 60],
+        help="前向持仓期（交易日），默认 5 10 20 60",
     )
     parser.add_argument(
         "--min-bars", type=int, default=252,
@@ -165,12 +230,20 @@ def parse_args() -> argparse.Namespace:
         help="分位数分组数（默认 5）",
     )
     parser.add_argument(
+        "--rolling-ic-window", type=int, default=120,
+        help="滚动 IC 窗口（交易日，默认 120）",
+    )
+    parser.add_argument(
         "--max-workers", type=int, default=None,
         help="多进程 worker 数（默认 CPU 数）",
     )
     parser.add_argument(
         "--output-root", type=Path, default=None,
         help="输出目录（默认 data/factors/{factor_name}/）",
+    )
+    parser.add_argument(
+        "--output-date", type=str, default=None,
+        help="报告日期标签（默认当天日期）",
     )
     return parser.parse_args()
 
@@ -181,41 +254,71 @@ def main() -> int:
     # 1. 导入因子类
     factor_cls = _import_factor(args.factor)
 
-    # 2. 构造参数
+    # 2. 构造参数：默认值 + CLI 覆盖
     _, _, default_params = FACTOR_REGISTRY[args.factor]
     params = dict(default_params)
-    # CLI 传入的 window 覆盖默认值（仅对有 window 参数的因子）
-    if args.window is not None and "window" in params:
-        params["window"] = args.window
+    for pair in args.param:
+        key, value = _parse_param(pair)
+        params[key] = value
 
     # 3. 实例化因子
-    factor = factor_cls(**params)
+    try:
+        factor = factor_cls(**params)
+    except TypeError as e:
+        print(f"错误: 构造因子 {args.factor} 失败。参数: {params}")
+        print(f"  原因: {e}")
+        return 1
 
-    # 4. 构建配置
+    # 4. 解析参数网格
+    param_grid: dict[str, list] | None = None
+    if args.param_grid:
+        try:
+            param_grid = json.loads(args.param_grid)
+        except json.JSONDecodeError as e:
+            print(f"错误: --param-grid JSON 解析失败: {e}")
+            return 1
+        if not isinstance(param_grid, dict):
+            print("错误: --param-grid 必须是 JSON 对象")
+            return 1
+        for k, v in param_grid.items():
+            if not isinstance(v, list):
+                param_grid[k] = [v]
+
+    # 5. 构建配置
     symbols: list[str] | None = None
-    if args.symbols is not None:
+    if args.symbols is not None and len(args.symbols) > 0:
         symbols = list(args.symbols)
 
     config = FactorAnalysisConfig(
         factor=factor,
         symbols=symbols,
         layers=tuple(args.layers),
+        forward_periods=tuple(args.forward_periods),
         min_bars=args.min_bars,
         start_date=args.start_date,
         end_date=args.end_date,
         n_quantiles=args.n_quantiles,
+        rolling_ic_window=args.rolling_ic_window,
+        param_grid=param_grid,
         max_workers=args.max_workers,
         output_root=args.output_root,
+        output_date=args.output_date,
     )
 
-    # 5. 执行分析
+    # 6. 执行分析
     results = run_factor_analysis(config)
 
-    # 6. 输出摘要
+    # 7. 输出摘要
+    output = results.get("output", {})
     print("\n" + "=" * 60)
-    print("分析完成！输出文件:")
-    for f in results["output"]["files"]:
-        print(f"  {f}")
+    print("分析完成！")
+    if output.get("linux_root"):
+        print(f"  输出目录: {output['linux_root']}")
+    files = output.get("files", [])
+    if files:
+        print(f"  输出文件 ({len(files)} 个):")
+        for f in files:
+            print(f"    {f}")
     print("=" * 60)
 
     return 0
