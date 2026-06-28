@@ -12,7 +12,7 @@
     # 标准模式：所有因子默认参数，跑 Layer 1+2+3
     python libs/scripts/run_batch_factor_analysis.py --mode standard
 
-    # 完整模式：有 window 参数的因子做参数网格扫描，跑 Layer 1+2+3
+    # 完整模式：展开参数网格，每个参数组合独立跑 Layer 1+2+3
     python libs/scripts/run_batch_factor_analysis.py --mode full
 
     # 自定义：只分析特定因子族
@@ -58,6 +58,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 import hashlib
+import itertools
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -248,7 +249,8 @@ FULL_MODE_PARAM_GRIDS: dict[str, dict[str, list]] = {
     # 当前策略 regression_window=14, zscore_window=600（但实际用了 25？）
     # 注意：regression_window=14 × zscore_window=[200,400,600] 是 3 组，不算多
     "RSRS": {
-        "regression_window": [10, 18, 30],
+        "regression_window": [14],
+        "zscore_window": [200, 400, 600],
         "output": ["zscore"],
     },
     "ATR": {"window": [14, 20, 25]},
@@ -424,12 +426,9 @@ class AnalysisTask:
 
     @property
     def label(self) -> str:
-        pg = " [网格]" if self.param_grid else ""
-        extra = ""
+        dir_name = self.output_dir.name
         end_str = self.report_end_date
-        if end_str:
-            extra = f" (已有报告, 数据至 {end_str})"
-        return f"{self.factor_name}{pg}{extra}"
+        return f"{dir_name}" + (f" (已有报告, 数据至 {end_str})" if end_str else "")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -487,16 +486,32 @@ def build_tasks(
                 extra_args=list(extra_args),
             ))
         elif mode == "full":
-            # 完整模式：默认参数 + 参数网格，跑 Layer 1+2+3
+            # 完整模式：展开参数网格，每个参数组合独立跑完整 Layer 1+2+3
             pg = FULL_MODE_PARAM_GRIDS.get(name)
-            tasks.append(AnalysisTask(
-                factor_name=name,
-                factor_cls=factor_cls,
-                default_params=dict(default_params),
-                layers=(1, 2, 3),
-                param_grid=pg,
-                extra_args=list(extra_args),
-            ))
+            if pg:
+                param_names = list(pg.keys())
+                param_values = list(pg.values())
+                for combo in itertools.product(*param_values):
+                    combo_params = dict(zip(param_names, combo))
+                    merged = dict(default_params)
+                    merged.update(combo_params)
+                    tasks.append(AnalysisTask(
+                        factor_name=name,
+                        factor_cls=factor_cls,
+                        default_params=merged,
+                        layers=(1, 2, 3),
+                        param_grid=None,
+                        extra_args=list(extra_args),
+                    ))
+            else:
+                tasks.append(AnalysisTask(
+                    factor_name=name,
+                    factor_cls=factor_cls,
+                    default_params=dict(default_params),
+                    layers=(1, 2, 3),
+                    param_grid=None,
+                    extra_args=list(extra_args),
+                ))
 
     return tasks
 
@@ -622,7 +637,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--mode", type=str, default="quick",
         choices=["quick", "standard", "full"],
-        help="分析模式: quick (Layer 1+2), standard (Layer 1+2+3), full (Layer 1+2+3 + 参数网格)",
+        help="分析模式: quick (Layer 1+2), standard (Layer 1+2+3), full (展开参数网格，每个组合独立跑 Layer 1+2+3)",
     )
     parser.add_argument(
         "--factors", nargs="*", default=None,
@@ -749,13 +764,7 @@ def main() -> int:
 
     print(f"待执行任务: {len(tasks)} 个")
     for t in tasks:
-        pg_info = ""
-        if t.param_grid:
-            total_combos = 1
-            for v in t.param_grid.values():
-                total_combos *= len(v)
-            pg_info = f"  (参数组合: {total_combos})"
-        print(f"  → {t.label}{pg_info}")
+        print(f"  → {t.label}")
     print()
 
     # ── 4. 试运行 ──────────────────────────────────────────────────────────
