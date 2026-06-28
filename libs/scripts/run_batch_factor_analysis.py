@@ -24,9 +24,11 @@
     python libs/scripts/run_batch_factor_analysis.py \\
         --mode quick --parallel 4 --max-workers 2
 
-    # 断点续跑 / 强制重跑
-    python libs/scripts/run_batch_factor_analysis.py --mode full --resume
+    # 强制重跑（默认会跳过 30 天内跑过且参数未变的因子）
     python libs/scripts/run_batch_factor_analysis.py --mode full --force
+
+    # 延长数据有效期到 90 天
+    python libs/scripts/run_batch_factor_analysis.py --mode full --max-age 90
 
     # 只分析指定因子
     python libs/scripts/run_batch_factor_analysis.py \\
@@ -38,8 +40,9 @@
     --families    指定因子族（如 价格动量族，默认全部）
     --parallel    并行度：同时运行的因子分析进程数（默认 2）
     --max-workers 每个因子分析内部的多进程 worker 数（默认 2）
-    --resume      断点续跑：跳过已有 report.json 的因子
-    --force       强制重跑：即使已有报告也重新分析
+    --resume      断点续跑（默认启用，跳过未过期且参数未变的因子）
+    --force       强制重跑：忽略断点续跑，全量重跑
+    --max-age     报告有效天数（默认 30，设为 0 表示永不过期）
     --dry-run     试运行：只打印会执行的分析任务，不实际运行
     --output-dir  汇总输出目录（默认 data/factors/_batch_summary/）
 """
@@ -54,6 +57,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+import hashlib
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -118,64 +122,147 @@ def _window_grid(values: list[int]) -> dict[str, list]:
     """为 window 参数生成网格。"""
     return {"window": values}
 
-# full 模式下使用的参数网格
+# FULL_MODE_PARAM_GRIDS 推荐值
+# 基于：全量 ETF 动量轮动策略，10 日调仓，Top 5，三过滤器（MA200/RSRS≥0/趋势R²≥0.5）
+# 原则：每个参数 2-3 个值，避免组合爆炸。优先覆盖调仓周期（10 日）和动量窗口（20 日）附近的取值。
+
 FULL_MODE_PARAM_GRIDS: dict[str, dict[str, list]] = {
     # ── 价格动量族 ──
-    "PriceReturn": _window_grid([10, 20, 60]),
-    "RiskAdjustedReturn": _window_grid([20, 60, 120]),
-    # HighPointPosition/LowPointPosition: window=20 足够，不扫网格
-    # IntradayMomentum/OvernightReturn: 无参数
-    "TimeSeriesMomentum": _window_grid([60, 120, 252]),
+    # 当前策略用 20 日动量排名，以 20 为中心上下探
+    "PriceReturn": {"window": [10, 20, 40, 60]},
+    # 风险调整动量，和 PriceReturn 对齐
+    "RiskAdjustedReturn": {"window": [20, 40, 60]},
+    # 日内动量、隔夜收益：无参数
+    # 路径位置：高点位置的窗口——短窗口捕捉近期动能源，长窗口判断趋势结构
+    "HighPointPosition": {"window": [10, 20, 40]},
+    "LowPointPosition": {"window": [10, 20, 40]},
+    # 时序动量：中期方向判断，用 60/120/240 覆盖 1 季/半年/1 年
+    "TimeSeriesMomentum": {"window": [60, 120, 240]},
+
     # ── 反转族 ──
-    "ShortTermReversal": _window_grid([1, 5, 10, 20]),
+    "ShortTermReversal": {"window": [1, 5, 10, 20]},
+    # 极端反转：核心是 tail_pct，window 辅助
+    "ExtremeReversal": {
+        "window": [10, 20],
+        "tail_pct": [0.05, 0.1, 0.15],
+    },
+    # 放量反转：ret_window 是反转回看周期，vol_window 是量比基准
+    "VolumeReversal": {
+        "ret_window": [5, 10, 20],
+        "vol_window": [10, 20],
+    },
+
     # ── 成交量族 ──
-    "VolumeRatio": _window_grid([5, 10, 20]),
-    "VolumePriceCorrelation": _window_grid([10, 20, 60]),
-    "VolumeStd": _window_grid([10, 20, 60]),
-    "VolumeSkew": _window_grid([10, 20, 60]),
-    "AverageAmount": _window_grid([10, 20, 60]),
-    "AmihudIlliquidity": _window_grid([10, 20, 60]),
+    # 量比：3/5 日捕捉短期放量，10/20 日看中期量能变化
+    "VolumeRatio": {"window": [3, 5, 10, 20]},
+    # 量价相关：20 日对齐动量窗口，40 日看中期一致性
+    "VolumePriceCorrelation": {"window": [10, 20, 40]},
+    # OBV、VPT：无参数
+    # Amihud：流动性指标，窗口太短噪声大
+    "AmihudIlliquidity": {"window": [10, 20, 40]},
+    "VolumeStd": {"window": [10, 20, 40]},
+    "VolumeSkew": {"window": [10, 20, 40]},
+    # 日均成交额：对齐调仓周期
+    "AverageAmount": {"window": [5, 10, 20]},
+
     # ── 波动率族 ──
-    "DownsideVolatility": _window_grid([10, 20, 60]),
-    "ParkinsonVolatility": _window_grid([10, 20, 60]),
-    "GarmanKlassVolatility": _window_grid([10, 20, 60]),
-    "MaxDrawdown": _window_grid([20, 60, 120]),
-    "AvgDrawdown": _window_grid([20, 60, 120]),
+    # 下行波动率：对齐动量窗口
+    "DownsideVolatility": {"window": [10, 20, 40]},
+    # Parkinson/GK：高低价波动率，和收盘价波动率窗口一致
+    "ParkinsonVolatility": {"window": [10, 20, 40]},
+    "GarmanKlassVolatility": {"window": [10, 20, 40]},
+    # 波动率之波动率：vol_window 是基础波动率窗口，std_window 是稳定度计算窗口
+    "VolOfVol": {
+        "vol_window": [10, 20],
+        "std_window": [40, 60, 120],
+    },
+    # 回撤因子：中期 20/40 和长期 60/120 各覆盖一个
+    "MaxDrawdown": {"window": [20, 40, 60, 120]},
+    "AvgDrawdown": {"window": [20, 40, 60, 120]},
+
     # ── 趋势质量族 ──
-    "HurstExponent": _window_grid([60, 120, 240]),
-    "KaufmanER": _window_grid([10, 20, 60]),
-    "UpDownRatio": _window_grid([10, 20, 60]),
+    # Hurst：长窗口才有统计意义
+    "HurstExponent": {"window": [60, 120, 240]},
+    # Kaufman ER：对齐动量窗口
+    "KaufmanER": {"window": [10, 20, 40]},
+    "UpDownRatio": {"window": [10, 20, 40]},
+    # 连涨连跌：无参数
+    # ADX：经典值 14，上下游探 7 和 21
+    "ADX": {"window": [7, 14, 21]},
+
     # ── 超买超卖族 ──
-    "RSI": _window_grid([7, 14, 21]),
-    "CCI": _window_grid([10, 20, 40]),
-    "WilliamsR": _window_grid([7, 14, 28]),
-    "MFI": _window_grid([7, 14, 21]),
+    "RSI": {"window": [7, 14, 21]},
+    # Stochastic：n 是 %K 窗口，m 是 %D 平滑。A 股 9/3/3 也是常用组合
+    "Stochastic": {
+        "n": [7, 14, 21],
+        "m": [3, 5],
+    },
+    "CCI": {"window": [10, 20, 40]},
+    "WilliamsR": {"window": [7, 14, 21]},
+    "MFI": {"window": [7, 14, 21]},
+    # 终极震荡指标：三周期结构本身就是网格，不额外扫
+
     # ── 均线偏离族 ──
-    "MAPosition": _window_grid([60, 120, 200, 250]),
-    "MA": _window_grid([10, 20, 60, 120]),
-    "BIAS": _window_grid([10, 20, 60]),
-    "MASlope": {"ma_window": [10, 20, 60], "slope_window": [3, 5, 10]},
-    "MADistance": {"short_window": [5, 10, 20], "long_window": [60, 120, 200]},
+    # MAPosition：当前策略用 MA200 过滤器，覆盖这个关键值 + 上下
+    "MAPosition": {"window": [60, 120, 200, 250]},
+    "MA": {"window": [10, 20, 40, 60]},
+    "BIAS": {"window": [10, 20, 40]},
+    # 布林带位置：k=2 是经典，试试 1.5 和 2.5 看敏感度
+    "BollingerBandPosition": {
+        "window": [10, 20, 40],
+        "k": [1.5, 2.0, 2.5],
+    },
+    # 均线排列：windows 三元组本身就是参数，不扫
+    # 均线斜率：ma_window 控制哪条均线，slope_window 控制斜率计算区间
+    "MASlope": {
+        "ma_window": [10, 20, 40],
+        "slope_window": [3, 5, 10],
+    },
+    # 均线距离：短均线/长均线的相对距离
+    "MADistance": {
+        "short_window": [5, 10, 20],
+        "long_window": [40, 60, 120],
+    },
+    # 均线发散度：windows 列表是参数本身，不扫
+
     # ── 分布形态族 ──
-    "ReturnSkew": _window_grid([20, 60, 120]),
-    "ReturnKurtosis": _window_grid([20, 60, 120]),
-    "HistoricalVaR": _window_grid([60, 120, 252]),
-    "CVaR": _window_grid([60, 120, 252]),
-    "MFE": _window_grid([10, 20, 60]),
-    "MAE": _window_grid([10, 20, 60]),
-    "ID": _window_grid([10, 20, 60]),
+    # 偏度/峰度：需要较长窗口才有统计意义
+    "ReturnSkew": {"window": [20, 40, 60, 120]},
+    "ReturnKurtosis": {"window": [20, 40, 60, 120]},
+    # VaR/CVaR：年窗口是基准
+    "HistoricalVaR": {"window": [60, 120, 252]},
+    "CVaR": {"window": [60, 120, 252]},
+    # MFE/MAE：对齐动量窗口
+    "MFE": {"window": [10, 20, 40]},
+    "MAE": {"window": [10, 20, 40]},
+    # ID：Frog in the Pan，原论文用 20 日
+    "ID": {"window": [10, 20, 40]},
+
     # ── 突破族 ──
-    "TrendR2": {"window": [60, 120, 240], "output": ["r2", "slope"]},
+    # TrendR²：当前策略用 120 日 R²>0.5 作为过滤器。上下探 60/240，同时扫 slope
+    "TrendR2": {
+        "window": [60, 120, 240],
+        "output": ["r2", "slope"],
+    },
+    # RSRS：regression_window 控制回归精度，zscore_window 控制标准化基准。
+    # 当前策略 regression_window=14, zscore_window=600（但实际用了 25？）
+    # 注意：regression_window=14 × zscore_window=[200,400,600] 是 3 组，不算多
     "RSRS": {
         "regression_window": [10, 18, 30],
         "output": ["zscore"],
     },
-    "ATR": _window_grid([14, 25, 50]),
-    "NewHighContinuous": _window_grid([20, 50, 100]),
-    "NewLowContinuous": _window_grid([20, 50, 100]),
-    "DonchianChannelPosition": _window_grid([10, 20, 60]),
-    "ATRRatio": _window_grid([14, 25, 50]),
-    "ChandelierExit": {"n": [10, 22, 44], "atr_window": [10, 22, 44]},
+    "ATR": {"window": [14, 20, 25]},
+    # NewHigh：离散信号，已有单独逻辑，这里用连续版
+    "NewHighContinuous": {"window": [20, 50, 100]},
+    "NewLowContinuous": {"window": [20, 50, 100]},
+    # 唐奇安通道位置：对齐动量窗口
+    "DonchianChannelPosition": {"window": [10, 20, 40]},
+    "ATRRatio": {"window": [14, 20, 25]},
+    # 吊灯止损：n 是最高价窗口，atr_window 是 ATR 窗口。对齐调仓周期
+    "ChandelierExit": {
+        "n": [10, 22, 40],
+        "atr_window": [10, 22, 40],
+    },
 }
 
 
@@ -255,6 +342,54 @@ class AnalysisTask:
             return report.get("panel_summary", {}).get("end_date")
         except Exception:
             return None
+
+    # ── 配置指纹 ──────────────────────────────────────────────────────────
+    # 用于检测"这次跑的配置"和"上次跑的配置"是否一致，
+    # 避免 layers / param_grid / forward_periods 等参数变了还没重跑。
+
+    @property
+    def config_fingerprint(self) -> str:
+        """基于 (factor_name, layers, params, param_grid) 的 8 位短哈希。
+
+        任何参数变化都会导致指纹不同，从而触发重跑。
+        """
+        payload = json.dumps({
+            "factor": self.factor_name,
+            "layers": list(self.layers),
+            "params": self.default_params,
+            "param_grid": self.param_grid,
+            # 不包含 extra_args 中的 --forward-periods / --min-bars
+            # 因为这些视为"数据窗口"参数而非"因子配置"参数，
+            # 窗口不同的结果应共存而非互相覆盖。
+            # 如需加入，在此添加。
+        }, sort_keys=True)
+        return hashlib.sha256(payload.encode()).hexdigest()[:8]
+
+    def fingerprint_matches(self) -> bool | None:
+        """比对当前配置指纹和上次运行的指纹。
+
+        Returns
+        -------
+        True:  指纹一致，配置没变
+        False: 指纹存在但不一致，配置变了需要重跑
+        None:  没有指纹文件（首次运行）
+        """
+        fp_path = self.output_dir / ".task_fingerprint"
+        if not fp_path.exists():
+            return None
+        try:
+            saved = fp_path.read_text().strip()
+            return saved == self.config_fingerprint
+        except Exception:
+            return None
+
+    def save_fingerprint(self) -> None:
+        """保存当前配置指纹到 output_dir。"""
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        fp_path = self.output_dir / ".task_fingerprint"
+        fp_path.write_text(self.config_fingerprint)
+
+    # ── 数据新鲜度 ────────────────────────────────────────────────────────
 
     def is_fresh(self, max_age_days: int | None = None) -> bool:
         """报告是否存在且数据足够新鲜。
@@ -432,8 +567,8 @@ def generate_summary_csv(results: list[dict], output_dir: Path) -> Path:
         }
 
         # 尝试从 report_*.json 提取关键指标（取最新一个）
-        output_dir = Path(r.get("output_dir", ""))
-        report_files = sorted(output_dir.glob("report_*.json")) if output_dir.exists() else []
+        factor_dir = Path(r.get("output_dir", ""))
+        report_files = sorted(factor_dir.glob("report_*.json")) if factor_dir.exists() else []
         report_path = report_files[-1] if report_files else None
         if report_path and report_path.exists():
             try:
@@ -506,19 +641,18 @@ def parse_args() -> argparse.Namespace:
         help="每个因子内部的多进程 worker 数（默认 2）",
     )
     parser.add_argument(
-        "--resume", action="store_true", default=False,
-        help="断点续跑：跳过已有报告的因子（可与 --max-age 配合用）",
+        "--resume", action="store_true", default=True,
+        help="断点续跑：跳过已有报告的因子（默认启用，可与 --max-age 配合用）",
     )
     parser.add_argument(
-        "--max-age", type=int, default=0,
+        "--max-age", type=int, default=30,
         metavar="DAYS",
-        help="报告有效天数。与 --resume 配合：报告 end_date 距今超过此天数则视为过期、触发重跑。"
-             " 0=仅检查文件是否存在；默认 0。"
-             " 例：--resume --max-age 7 表示跳过 7 天内跑过的因子。",
+        help="报告有效天数。报告 end_date 距今超过此天数则视为过期、触发重跑。"
+             " 默认 30 天；设为 0 表示永不过期（只要指纹匹配就跳过）。",
     )
     parser.add_argument(
         "--force", action="store_true", default=False,
-        help="强制重跑：忽略所有已有报告，全量重跑",
+        help="强制重跑：忽略已有报告和断点续跑，全量重跑",
     )
     parser.add_argument(
         "--dry-run", action="store_true", default=False,
@@ -573,32 +707,40 @@ def main() -> int:
 
     if args.force:
         print("强制重跑: 将覆盖已有报告")
-    elif args.resume:
-        # 分层判断：先看 max_age（数据新鲜度），再看文件是否存在
+    else:
+        # 默认断点续跑：配置指纹 → 数据新鲜度（默认 30 天过期）→ 文件是否存在
+        config_changed: list[AnalysisTask] = []
         stale: list[AnalysisTask] = []
         skipped: list[AnalysisTask] = []
 
         for t in tasks:
-            if t.is_fresh(max_age):
+            fp_match = t.fingerprint_matches()
+            if fp_match is False:
+                # 有指纹但和当前配置不一致 → 重跑
+                config_changed.append(t)
+            elif fp_match is True and t.is_fresh(max_age):
+                # 指纹一致 + 数据新鲜 → 跳过
                 skipped.append(t)
-            elif t.is_done:
-                # 有报告但数据过期
+            elif fp_match is True and t.is_done:
+                # 指纹一致但数据过期 → 重跑
                 stale.append(t)
-            # else: 没有报告 → 留在 tasks 中
+            # else: 无指纹或无报告 → 留在 tasks 中（首次运行）
 
-        tasks = [t for t in tasks if not t.is_done or t in stale]
+        tasks = [t for t in tasks if t not in skipped]
         if skipped:
-            print(f"断点续跑: 跳过 {len(skipped)} 个新鲜任务")
+            print(f"断点续跑: 跳过 {len(skipped)} 个（配置&数据均一致）")
             for s in skipped:
                 print(f"  ✓ {s.label}")
+            print()
+        if config_changed:
+            print(f"配置变更: {len(config_changed)} 个任务将重跑（layers/params/grid 已变化）")
+            for s in config_changed:
+                print(f"  ↻ {s.label}")
             print()
         if stale:
             print(f"数据过期: {len(stale)} 个任务将重跑（报告 end_date 超过 {max_age} 天前）")
             for s in stale:
                 print(f"  ↻ {s.label}")
-            print()
-        if not skipped and not stale and not tasks:
-            print("断点续跑: 所有任务均无报告，全量运行")
             print()
 
     if not tasks:
@@ -643,7 +785,13 @@ def main() -> int:
                 status = "✓" if r["success"] else "✗"
                 elapsed = r.get("runtime_sec", 0)
                 print(f"[{completed}/{len(tasks)}] {status} {task.label} ({elapsed:.0f}s)")
-                if not r["success"]:
+                if r["success"]:
+                    # 成功完成 → 保存配置指纹，方便下次 resume 比对
+                    try:
+                        task.save_fingerprint()
+                    except Exception:
+                        pass
+                else:
                     err = r.get("error", "未知错误")
                     print(f"      错误: {err[:200]}")
             except Exception as e:
@@ -672,6 +820,14 @@ def main() -> int:
 
     # 生成汇总 CSV
     generate_summary_csv(results, summary_dir)
+
+    # ── 同步到 Windows ────────────────────────────────────────────────────
+    windows_base = DataPath.DEFAULT_WINDOWS_PATH
+    if windows_base:
+        from factor_analysis.reporter import copy_to_windows
+        windows_summary = Path(windows_base) / "factors" / "_batch_summary"
+        ok = copy_to_windows(summary_dir, windows_summary)
+        print(f"  → Windows 同步: {'成功' if ok else '失败'} ({windows_summary})")
 
     # ── 7. 总结 ────────────────────────────────────────────────────────────
     success_count = sum(1 for r in results if r["success"])
