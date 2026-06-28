@@ -41,15 +41,77 @@ from factor_analysis.runner import run_factor_analysis
 # 键 = CLI 中使用的因子名，值 = (模块路径, 类名, 默认构造参数)。
 # 新增因子时在此注册即可享受 CLI 调用的便利。
 FACTOR_REGISTRY: dict[str, tuple[str, str, dict]] = {
+    # ── 价格动量族 ──
     "PriceReturn": ("factors.price_return", "PriceReturn", {"window": 60}),
-    "TrendR2": ("factors.trend_r2", "TrendR2Factor", {"window": 120, "output": "r2"}),
+    "RiskAdjustedReturn": ("factors.price_momentum", "RiskAdjustedReturn", {"window": 20}),
+    "IntradayMomentum": ("factors.price_momentum", "IntradayMomentum", {}),
+    "OvernightReturn": ("factors.price_momentum", "OvernightReturn", {}),
+    "HighPointPosition": ("factors.price_momentum", "HighPointPosition", {"window": 20}),
+    "LowPointPosition": ("factors.price_momentum", "LowPointPosition", {"window": 20}),
+    "TimeSeriesMomentum": ("factors.price_momentum", "TimeSeriesMomentum", {"window": 252}),
+    # ── 反转族 ──
+    "ShortTermReversal": ("factors.reversal", "ShortTermReversal", {"window": 1}),
+    "ExtremeReversal": ("factors.reversal", "ExtremeReversal", {"window": 20, "tail_pct": 0.1}),
+    "VolumeReversal": ("factors.reversal", "VolumeReversal", {"ret_window": 5, "vol_window": 20}),
+    # ── 成交量/流动性族 ──
+    "VolumeRatio": ("factors.volume_family", "VolumeRatio", {"window": 5}),
+    "VolumePriceCorrelation": ("factors.volume_family", "VolumePriceCorrelation", {"window": 20}),
+    "OBV": ("factors.volume_family", "OBV", {}),
+    "VPT": ("factors.volume_family", "VPT", {}),
+    "AmihudIlliquidity": ("factors.volume_family", "AmihudIlliquidity", {"window": 20}),
+    "VolumeStd": ("factors.volume_family", "VolumeStd", {"window": 20}),
+    "VolumeSkew": ("factors.volume_family", "VolumeSkew", {"window": 20}),
+    "AverageAmount": ("factors.average_amount", "AverageAmount", {"window": 20}),
+    # ── 波动率族 ──
+    "DownsideVolatility": ("factors.volatility_family", "DownsideVolatility", {"window": 20}),
+    "ParkinsonVolatility": ("factors.volatility_family", "ParkinsonVolatility", {"window": 20}),
+    "GarmanKlassVolatility": ("factors.volatility_family", "GarmanKlassVolatility", {"window": 20}),
+    "VolOfVol": ("factors.volatility_family", "VolOfVol", {"vol_window": 20, "std_window": 60}),
+    "MaxDrawdown": ("factors.volatility_family", "MaxDrawdown", {"window": 60}),
+    "AvgDrawdown": ("factors.volatility_family", "AvgDrawdown", {"window": 60}),
+    # ── 趋势质量族 ──
+    "HurstExponent": ("factors.trend_quality", "HurstExponent", {"window": 120}),
+    "KaufmanER": ("factors.trend_quality", "KaufmanEfficiencyRatio", {"window": 20}),
+    "UpDownRatio": ("factors.trend_quality", "UpDownRatio", {"window": 20}),
+    "ConsecutiveUpDays": ("factors.trend_quality", "ConsecutiveUpDays", {}),
+    "ConsecutiveDownDays": ("factors.trend_quality", "ConsecutiveDownDays", {}),
+    "ADX": ("factors.trend_quality", "ADX", {"window": 14, "output": "adx"}),
+    # ── 超买超卖族 ──
+    "RSI": ("factors.oscillator", "RSI", {"window": 14}),
+    "Stochastic": ("factors.oscillator", "Stochastic", {"n": 14, "m": 3, "output": "K"}),
+    "CCI": ("factors.oscillator", "CCI", {"window": 20}),
+    "WilliamsR": ("factors.oscillator", "WilliamsR", {"window": 14}),
+    "MFI": ("factors.oscillator", "MFI", {"window": 14}),
+    "UltimateOscillator": ("factors.oscillator", "UltimateOscillator", {"short": 7, "mid": 14, "long": 28}),
+    # ── 均线与偏离族 ──
     "MAPosition": ("factors.ma", "MAPosition", {"window": 200}),
     "MA": ("factors.ma", "MAFactor", {"window": 20}),
+    "BIAS": ("factors.ma", "BIAS", {"window": 20}),
+    "BollingerBandPosition": ("factors.ma", "BollingerBandPosition", {"window": 20, "k": 2.0}),
+    "MAAlignment": ("factors.ma", "MAAlignment", {"windows": [5, 20, 60]}),
+    "MASlope": ("factors.ma", "MASlope", {"ma_window": 20, "slope_window": 5}),
+    "MADistance": ("factors.ma", "MADistance", {"short_window": 5, "long_window": 60}),
+    "MADispersion": ("factors.ma", "MADispersion", {"windows": [5, 10, 20, 60]}),
+    # ── 分布形态族 ──
+    "ReturnSkew": ("factors.distribution_family", "ReturnSkew", {"window": 60}),
+    "ReturnKurtosis": ("factors.distribution_family", "ReturnKurtosis", {"window": 60}),
+    "HistoricalVaR": ("factors.distribution_family", "HistoricalVaR", {"window": 252, "q": 0.05}),
+    "CVaR": ("factors.distribution_family", "CVaR", {"window": 252, "q": 0.05}),
+    "MFE": ("factors.distribution_family", "MaxFavorableExcursion", {"window": 20}),
+    "MAE": ("factors.distribution_family", "MaxAdverseExcursion", {"window": 20}),
+    "ID": ("factors.distribution_family", "InformationDiscreteness", {"window": 20}),
+    # ── 结构性/突破族 ──
     "NewHigh": ("factors.new_high", "NewHigh", {"high_window": 50, "low_window": 25}),
-    "ATR": ("factors.average_true_range", "AverageTrueRange", {"window": 25}),
     "DailyRebound": ("factors.daily_rebound", "DailyRebound", {}),
+    "TrendR2": ("factors.trend_r2", "TrendR2Factor", {"window": 120, "output": "r2"}),
     # RSRS 因子需要 output="zscore" 以获得连续值（可选 output="signal" 但那是离散信号）
     "RSRS": ("factors.rsrs", "RsrsFactor", {"output": "zscore"}),
+    "ATR": ("factors.average_true_range", "AverageTrueRange", {"window": 25}),
+    "NewHighContinuous": ("factors.breakout_family", "NewHighContinuous", {"window": 50}),
+    "NewLowContinuous": ("factors.breakout_family", "NewLowContinuous", {"window": 50}),
+    "DonchianChannelPosition": ("factors.breakout_family", "DonchianChannelPosition", {"window": 20}),
+    "ATRRatio": ("factors.breakout_family", "ATRRatio", {"window": 25}),
+    "ChandelierExit": ("factors.breakout_family", "ChandelierExit", {"n": 22, "atr_window": 22}),
 }
 
 
