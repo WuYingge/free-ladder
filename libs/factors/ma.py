@@ -477,12 +477,21 @@ class MADispersion(BaseFactor):
             mas.append(price.rolling(window=w).mean())
 
         ma_stack = np.stack([s.values for s in mas], axis=1)
-        ma_std = np.nanstd(ma_stack, axis=1, ddof=1)
-        ma_mean = np.nanmean(ma_stack, axis=1)
+
+        # 每行至少 2 个有效 MA 值才可计算 std(ddof=1)，避免全 NaN 行触发
+        # numpy warning: "Degrees of freedom <= 0" / "Mean of empty slice"
+        valid_counts = np.sum(np.isfinite(ma_stack), axis=1)
+        valid_mask = valid_counts >= 2
+
+        ma_std = np.full(len(price), np.nan, dtype=float)
+        ma_mean = np.full(len(price), np.nan, dtype=float)
+        if valid_mask.any():
+            ma_std[valid_mask] = np.nanstd(ma_stack[valid_mask], axis=1, ddof=1)
+            ma_mean[valid_mask] = np.nanmean(ma_stack[valid_mask], axis=1)
 
         # 除零保护
         result_arr = np.full(len(price), np.nan, dtype=float)
-        safe_mask = ma_mean > 0.0
+        safe_mask = valid_mask & (ma_mean > 0.0)
         result_arr[safe_mask] = ma_std[safe_mask] / ma_mean[safe_mask]
 
         result = pd.Series(result_arr, index=data.index, name=self.get_output_name())
