@@ -177,6 +177,8 @@ def main() -> None:
         ranking_factor=RANKING_FACTOR,
         factor_pipeline=FACTOR_PIPELINE,
         builtin_filters=BUILTIN_FILTERS,
+        start_date = "2020-01-01",
+        end_date = "2026-05-29"
     )
 
     print("=" * 60)

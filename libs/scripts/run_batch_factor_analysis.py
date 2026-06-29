@@ -38,8 +38,8 @@
     --mode        分析模式: quick / standard / full
     --factors     指定因子列表（空格分隔，默认全量）
     --families    指定因子族（如 价格动量族，默认全部）
-    --parallel    并行度：同时运行的因子分析进程数（默认 2）
-    --max-workers 每个因子分析内部的多进程 worker 数（默认 2）
+    --parallel    并行度：同时运行的因子分析进程数（默认 16）
+    --max-workers 每个因子分析内部的多进程 worker 数（默认 4）
     --resume      断点续跑（默认启用，跳过未过期且参数未变的因子）
     --force       强制重跑：忽略断点续跑，全量重跑
     --max-age     报告有效天数（默认 30，设为 0 表示永不过期）
@@ -648,12 +648,12 @@ def parse_args() -> argparse.Namespace:
         help=f"指定因子族，可选: {list(FACTOR_FAMILIES.keys())}",
     )
     parser.add_argument(
-        "--parallel", type=int, default=2,
-        help="并行度：同时运行的因子分析进程数（默认 2）",
+        "--parallel", type=int, default=16,
+        help="并行度：同时运行的因子分析进程数（默认 16）",
     )
     parser.add_argument(
-        "--max-workers", type=int, default=2,
-        help="每个因子内部的多进程 worker 数（默认 2）",
+        "--max-workers", type=int, default=4,
+        help="每个因子内部的多进程 worker 数（默认 4）",
     )
     parser.add_argument(
         "--resume", action="store_true", default=True,
