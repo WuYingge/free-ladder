@@ -188,8 +188,13 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--factor", type=str, required=True,
-        help="因子类名。可用: 见 FACTOR_REGISTRY",
+        "--factor", type=str, default=None,
+        help="因子类名。可用: 见 FACTOR_REGISTRY。与 --meta-spec 二选一。",
+    )
+    parser.add_argument(
+        "--meta-spec", type=str, default=None,
+        metavar="JSON",
+        help="MetaFactorSpec JSON（用于衍生因子批量分析）。与 --factor 二选一。",
     )
     parser.add_argument(
         "--param", nargs="*", type=str, default=[],
@@ -251,23 +256,49 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
 
-    # 1. 导入因子类
-    factor_cls = _import_factor(args.factor)
-
-    # 2. 构造参数：默认值 + CLI 覆盖
-    _, _, default_params = FACTOR_REGISTRY[args.factor]
-    params = dict(default_params)
-    for pair in args.param:
-        key, value = _parse_param(pair)
-        params[key] = value
-
-    # 3. 实例化因子
-    try:
-        factor = factor_cls(**params)
-    except TypeError as e:
-        print(f"错误: 构造因子 {args.factor} 失败。参数: {params}")
-        print(f"  原因: {e}")
+    if args.factor is None and args.meta_spec is None:
+        print("错误: 必须指定 --factor 或 --meta-spec")
         return 1
+    if args.factor is not None and args.meta_spec is not None:
+        print("错误: --factor 和 --meta-spec 不能同时指定")
+        return 1
+
+    # ── 路径 A: 基础因子（原有逻辑）───────────────────────────────────────
+    if args.factor is not None:
+        factor_cls = _import_factor(args.factor)
+        _, _, default_params = FACTOR_REGISTRY[args.factor]
+        params = dict(default_params)
+        for pair in args.param:
+            key, value = _parse_param(pair)
+            params[key] = value
+        try:
+            factor = factor_cls(**params)
+        except TypeError as e:
+            print(f"错误: 构造因子 {args.factor} 失败。参数: {params}")
+            print(f"  原因: {e}")
+            return 1
+
+    # ── 路径 B: 衍生因子 (meta-spec) ───────────────────────────────────────
+    else:
+        try:
+            spec_dict = json.loads(args.meta_spec)
+        except json.JSONDecodeError as e:
+            print(f"错误: --meta-spec JSON 解析失败: {e}")
+            return 1
+
+        from factors.meta_factor import MetaFactorSpec, build_meta_factor
+
+        spec = MetaFactorSpec(**spec_dict)
+        try:
+            factor = build_meta_factor(spec)
+        except Exception as e:
+            print(f"错误: 从 meta_spec 构造因子失败。spec: {spec_dict}")
+            print(f"  原因: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
+
+        params = {}  # meta 因子没有 "默认参数覆盖" 语义
 
     # 4. 解析参数网格
     param_grid: dict[str, list] | None = None

@@ -269,18 +269,102 @@ FULL_MODE_PARAM_GRIDS: dict[str, dict[str, list]] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 元因子白名单 & 阈值 (Phase 4 — 手动编辑)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# binarize_winrate 的 threshold 因因子而异，按因子名映射合理默认值。
+# 未列出的因子默认 threshold=0.0。
+BINARIZE_THRESHOLDS: dict[str, float] = {
+    # 价格动量族: 0 = 正收益算赢
+    "PriceReturn": 0.0,
+    "RiskAdjustedReturn": 0.0,
+    "HighPointPosition": 0.5,     # >0.5 算位置偏高
+    "LowPointPosition": 0.5,
+    "TimeSeriesMomentum": 0.0,
+    # 反转族: 默认 0（不做 binarize_winrate，值无正负语义）
+    # 成交量族
+    "VolumeRatio": 1.0,            # >1 算放量
+    "VolumePriceCorrelation": 0.0, # >0 算正相关
+    "AverageAmount": 0.0,          # 无固定阈值，保留默认
+    # 波动率族: 默认 0（波动率无正负方向，不适合 binarize_winrate）
+    # 趋势质量族
+    "HurstExponent": 0.5,          # >0.5 算有持续性
+    "KaufmanER": 0.5,              # >0.5 算趋势效率高
+    "UpDownRatio": 0.5,            # >0.5 算涨多跌少
+    "ADX": 25.0,                   # ADX>25 算有趋势（Wilder 经典阈值）
+    # 超买超卖族
+    "RSI": 50.0,                   # >50 算偏强
+    "Stochastic": 50.0,
+    "CCI": 0.0,                    # >0 算偏强
+    "WilliamsR": -50.0,            # >-50 算偏强
+    "MFI": 50.0,
+    # 均线偏离族
+    "BIAS": 0.0,                   # >0 算价格在均线上方
+    "BollingerBandPosition": 0.5,  # >0.5 算偏上轨
+    "MAPosition": 0.0,             # >0 算价格在均线上方
+    "MASlope": 0.0,                # >0 算均线向上
+    # 突破族
+    "TrendR2": 0.5,                # r2>0.5 算有趋势
+    "RSRS": 0.0,                   # zscore>0 算支撑强
+    "DonchianChannelPosition": 0.5,
+    "NewHighContinuous": 0.0,      # >0 算新高附近
+}
+
+# 变换预设 — 生成衍生因子时使用的默认变换参数。
+TRANSFORM_PRESETS: dict[str, dict] = {
+    "rolling_mean":     {"transform": "rolling_mean", "window": 20},
+    "rolling_std":      {"transform": "rolling_std",  "window": 20},
+    "delta":            {"transform": "delta",        "window": 20},
+    "pct_change":       {"transform": "pct_change",   "window": 20},
+    "binarize_winrate": {"transform": "binarize_winrate", "window": 20, "threshold": 0},
+    "zscore":           {"transform": "zscore",        "window": 252},
+}
+
+# 因子组合白名单 — 手动编辑。格式:
+#   {"a": "因子名", "a_params": {...}, "method": "...", "b": "因子名", "b_params": {...}}
+COMBO_WHITELIST: list[dict] = [
+    # ── 高质量动量 ──
+    {"a": "PriceReturn", "a_params": {"window": 20},
+     "method": "product",
+     "b": "KaufmanER", "b_params": {"window": 20}},
+
+    # ── 下行风险调整动量 ──
+    {"a": "PriceReturn", "a_params": {"window": 20},
+     "method": "ratio",
+     "b": "DownsideVolatility", "b_params": {"window": 20}},
+
+    # ── 短期 vs 长期动量 ──
+    {"a": "PriceReturn", "a_params": {"window": 20},
+     "method": "diff",
+     "b": "PriceReturn", "b_params": {"window": 60}},
+]
+
+# 条件因子白名单 — 手动编辑。格式:
+#   {"signal": "因子名", "signal_params": {...},
+#    "condition": "因子名", "condition_params": {...},
+#    "op": "gt", "threshold": 0.5, "false_value": "nan"}
+CONDITIONAL_WHITELIST: list[dict] = [
+    # ── 只对趋势结构好的标的使用动量 ──
+    {"signal": "PriceReturn", "signal_params": {"window": 20},
+     "condition": "TrendR2", "condition_params": {"window": 120, "output": "r2"},
+     "op": "gt", "threshold": 0.5, "false_value": "nan"},
+]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 分析任务定义
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class AnalysisTask:
     """单个因子分析任务的定义。"""
-    factor_name: str          # FACTOR_REGISTRY 键名
-    factor_cls: type          # 因子类
-    default_params: dict      # 默认构造参数
-    layers: tuple[int, ...]   # 分析层
-    param_grid: dict | None   # 参数网格（None 表示不扫）
+    factor_name: str          # FACTOR_REGISTRY 键名 或 衍生因子输出名
+    factor_cls: type | None = None  # 基础因子类（meta_spec 存在时为 None）
+    default_params: dict = field(default_factory=dict)
+    layers: tuple[int, ...] = (1, 2)  # 分析层
+    param_grid: dict | None = None   # 参数网格（None 表示不扫）
     extra_args: list[str] = field(default_factory=list)  # 额外 CLI 参数
+    meta_spec: "MetaFactorSpec | None" = None  # 衍生因子配方
 
     @property
     def cli_args(self) -> list[str]:
@@ -288,16 +372,22 @@ class AnalysisTask:
         args = [
             sys.executable,
             str(LIBS_DIR / "scripts" / "run_factor_analysis.py"),
-            "--factor", self.factor_name,
             "--layers", *[str(l) for l in self.layers],
         ]
-        # 默认参数通过 --param 传入
-        for k, v in self.default_params.items():
-            if isinstance(v, list):
-                vals = ",".join(str(x) for x in v)
-                args.extend(["--param", f"{k}=[{vals}]"])
-            else:
-                args.extend(["--param", f"{k}={v}"])
+        if self.meta_spec is not None:
+            # 衍生因子路径：传 --meta-spec JSON
+            from dataclasses import asdict
+            spec_dict = asdict(self.meta_spec)
+            args.extend(["--meta-spec", json.dumps(spec_dict, default=str)])
+        else:
+            # 基础因子路径：传 --factor + --param
+            args.extend(["--factor", self.factor_name])
+            for k, v in self.default_params.items():
+                if isinstance(v, list):
+                    vals = ",".join(str(x) for x in v)
+                    args.extend(["--param", f"{k}=[{vals}]"])
+                else:
+                    args.extend(["--param", f"{k}={v}"])
         # 参数网格
         if self.param_grid:
             args.extend(["--param-grid", json.dumps(self.param_grid)])
@@ -308,16 +398,22 @@ class AnalysisTask:
     @property
     def output_dir(self) -> Path:
         """预期的输出目录路径。"""
-        # 与 FactorAnalysisConfig.resolve_output_root() 保持一致
-        # LIBS_DIR 已在 sys.path 中，直接 import config
         from config import DataPath
-        factor_name = self.factor_name
-        # 用默认参数实例化因子来获取 output_name
-        try:
-            factor_inst = self.factor_cls(**self.default_params)
-            sanitized = factor_inst.get_output_name().replace("/", "_").replace("\\", "_").replace(":", "_")
-        except Exception:
-            sanitized = factor_name
+        if self.meta_spec is not None:
+            # 衍生因子: 用 build_meta_factor 实例化以获取 output_name
+            try:
+                from factors.meta_factor import build_meta_factor
+                factor_inst = build_meta_factor(self.meta_spec)
+                sanitized = factor_inst.get_output_name().replace("/", "_").replace("\\", "_").replace(":", "_")
+            except Exception:
+                sanitized = self.factor_name
+        else:
+            # 基础因子: 用 factor_cls + default_params 实例化
+            try:
+                factor_inst = self.factor_cls(**self.default_params)
+                sanitized = factor_inst.get_output_name().replace("/", "_").replace("\\", "_").replace(":", "_")
+            except Exception:
+                sanitized = self.factor_name
         return Path(DataPath.DATA_DIR) / "factors" / sanitized
 
     def _latest_report(self) -> Path | None:
@@ -435,6 +531,159 @@ class AnalysisTask:
 # 批量编排器
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 衍生因子配方生成 (Phase 4)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _registry_entry(name: str) -> tuple[str, str, dict]:
+    """获取 FACTOR_REGISTRY 中的条目: (module, class, params)。"""
+    if name not in FACTOR_REGISTRY:
+        raise ValueError(f"未知因子: {name!r}")
+    module_path, class_name, default_params = FACTOR_REGISTRY[name]
+    return module_path, class_name, dict(default_params)
+
+
+def generate_transform_specs(
+    factor_names: list[str],
+    transforms: list[str],
+) -> list["MetaFactorSpec"]:
+    """对每个基础因子 × 每种变换，生成 MetaFactorSpec。
+
+    Parameters
+    ----------
+    factor_names: 基础因子名列表（FACTOR_REGISTRY 键）。
+    transforms: 变换类型列表，如 ["rolling_mean", "delta"]。值必须在 TRANSFORM_PRESETS 中。
+
+    Returns
+    -------
+    list[MetaFactorSpec]
+    """
+    from factors.meta_factor import MetaFactorSpec
+
+    specs = []
+    for name in factor_names:
+        if name not in FACTOR_REGISTRY:
+            print(f"警告: 未知因子 '{name}'，跳过衍生")
+            continue
+        module, cls, params = _registry_entry(name)
+        for t_name in transforms:
+            if t_name not in TRANSFORM_PRESETS:
+                print(f"警告: 未知变换 '{t_name}'，跳过")
+                continue
+            cfg = dict(TRANSFORM_PRESETS[t_name])
+            # binarize_winrate: 查表覆盖 threshold
+            if t_name == "binarize_winrate":
+                cfg["threshold"] = BINARIZE_THRESHOLDS.get(name, 0.0)
+            specs.append(MetaFactorSpec(
+                base_factor_name=name,
+                base_factor_module=module,
+                base_factor_class=cls,
+                base_params=params,
+                meta_type="transform",
+                meta_params=cfg,
+            ))
+    return specs
+
+
+def generate_combo_specs(whitelist: list[dict]) -> list["MetaFactorSpec"]:
+    """从组合白名单生成 MetaFactorSpec。
+
+    白名单格式:
+        {"a": "因子名", "a_params": {...}, "method": "...", "b": "因子名", "b_params": {...}}
+    """
+    from factors.meta_factor import MetaFactorSpec
+
+    specs = []
+    for entry in whitelist:
+        a_module, a_cls, a_params = _registry_entry(entry["a"])
+        b_module, b_cls, b_params = _registry_entry(entry["b"])
+        # 合并 params: registry default + 白名单覆盖
+        a_merged = dict(a_params)
+        a_merged.update(entry.get("a_params", {}))
+        b_merged = dict(b_params)
+        b_merged.update(entry.get("b_params", {}))
+
+        meta_params = {
+            "method": entry["method"],
+            "_b_module": b_module,
+            "_b_class": b_cls,
+            "_b_params": b_merged,
+        }
+        # 可选参数
+        for opt in ("weight_a", "weight_b", "normalize", "normalize_window"):
+            if opt in entry:
+                meta_params[opt] = entry[opt]
+
+        specs.append(MetaFactorSpec(
+            base_factor_name=entry["a"],
+            base_factor_module=a_module,
+            base_factor_class=a_cls,
+            base_params=a_merged,
+            meta_type="combine",
+            meta_params=meta_params,
+        ))
+    return specs
+
+
+def generate_conditional_specs(whitelist: list[dict]) -> list["MetaFactorSpec"]:
+    """从条件因子白名单生成 MetaFactorSpec。
+
+    白名单格式:
+        {"signal": "因子名", "signal_params": {...},
+         "condition": "因子名", "condition_params": {...},
+         "op": "gt", "threshold": 0.5, "false_value": "nan"}
+    """
+    from factors.meta_factor import MetaFactorSpec
+
+    specs = []
+    for entry in whitelist:
+        s_module, s_cls, s_params = _registry_entry(entry["signal"])
+        c_module, c_cls, c_params = _registry_entry(entry["condition"])
+        s_merged = dict(s_params)
+        s_merged.update(entry.get("signal_params", {}))
+        c_merged = dict(c_params)
+        c_merged.update(entry.get("condition_params", {}))
+
+        meta_params = {
+            "op": entry.get("op", "gt"),
+            "threshold": entry.get("threshold", 0.0),
+            "false_value": entry.get("false_value", "nan"),
+            "_cond_module": c_module,
+            "_cond_class": c_cls,
+            "_cond_params": c_merged,
+        }
+        specs.append(MetaFactorSpec(
+            base_factor_name=entry["signal"],
+            base_factor_module=s_module,
+            base_factor_class=s_cls,
+            base_params=s_merged,
+            meta_type="conditional",
+            meta_params=meta_params,
+        ))
+    return specs
+
+
+def _make_meta_task(spec: "MetaFactorSpec", mode: str, extra_args: list[str]) -> AnalysisTask:
+    """从 MetaFactorSpec 和模式构造 AnalysisTask。"""
+    # 用 spec 实例化一次获取 output_name 作为 factor_name
+    from factors.meta_factor import build_meta_factor
+    try:
+        factor_inst = build_meta_factor(spec)
+        factor_name = factor_inst.get_output_name()
+    except Exception:
+        factor_name = f"{spec.base_factor_name}__{spec.meta_type}"
+
+    layers = (1, 2) if mode == "quick" else (1, 2, 3)
+    return AnalysisTask(
+        factor_name=factor_name,
+        factor_cls=None,
+        layers=layers,
+        extra_args=list(extra_args),
+        meta_spec=spec,
+    )
+
+
 def build_tasks(
     factor_names: list[str],
     mode: str,
@@ -512,6 +761,80 @@ def build_tasks(
                     param_grid=None,
                     extra_args=list(extra_args),
                 ))
+
+    return tasks
+
+
+def build_meta_tasks(
+    factor_names: list[str],
+    mode: str,
+    generate_meta: list[str],
+    combos_extra: list[str] | None,
+    conditionals_extra: list[str] | None,
+    extra_args: list[str] | None = None,
+) -> list[AnalysisTask]:
+    """构建元因子衍生任务。
+
+    Parameters
+    ----------
+    factor_names: 基础因子名列表（用于 transform 衍生）。
+    mode: "quick" | "standard" | "full"
+    generate_meta: 要生成的衍生类型列表。
+        "all" = 全部 6 种变换; 其他有效值: TRANSFORM_PRESETS 的键 / "combos" / "conditionals".
+    combos_extra: CLI --combos 传入的额外组合（字符串格式，V2 实现）。
+    conditionals_extra: CLI --conditionals 传入的额外条件（字符串格式，V2 实现）。
+    extra_args: 传递给 CLI 的额外参数。
+
+    Returns
+    -------
+    list[AnalysisTask]
+    """
+    if extra_args is None:
+        extra_args = []
+
+    tasks = []
+    ALL_TRANSFORMS = list(TRANSFORM_PRESETS.keys())
+
+    # 解析 generate_meta: "all" → 展开为全部 6 种变换
+    meta_set = set(generate_meta)
+    do_transforms: list[str] = []
+    do_combos = False
+    do_conditionals = False
+
+    for item in meta_set:
+        if item == "all":
+            do_transforms = list(ALL_TRANSFORMS)
+        elif item in TRANSFORM_PRESETS:
+            do_transforms.append(item)
+        elif item == "combos":
+            do_combos = True
+        elif item == "conditionals":
+            do_conditionals = True
+        else:
+            print(f"警告: 未知 --generate-meta 值 '{item}'，跳过")
+
+    # ── 1. 单因子变换 ──────────────────────────────────────────────────────
+    if do_transforms:
+        specs = generate_transform_specs(factor_names, do_transforms)
+        for spec in specs:
+            tasks.append(_make_meta_task(spec, mode, extra_args))
+
+    # ── 2. 因子组合 ────────────────────────────────────────────────────────
+    if do_combos:
+        # 合并 Python 常量 + CLI 传入（CLI 传入暂为字符串，V2 解析）
+        combo_entries = list(COMBO_WHITELIST)
+        # TODO: 解析 combos_extra 字符串 → dict 追加到 combo_entries
+        specs = generate_combo_specs(combo_entries)
+        for spec in specs:
+            tasks.append(_make_meta_task(spec, mode, extra_args))
+
+    # ── 3. 条件因子 ────────────────────────────────────────────────────────
+    if do_conditionals:
+        cond_entries = list(CONDITIONAL_WHITELIST)
+        # TODO: 解析 conditionals_extra 字符串 → dict 追加到 cond_entries
+        specs = generate_conditional_specs(cond_entries)
+        for spec in specs:
+            tasks.append(_make_meta_task(spec, mode, extra_args))
 
     return tasks
 
@@ -685,6 +1008,24 @@ def parse_args() -> argparse.Namespace:
         "--forward-periods", nargs="+", type=int, default=[5, 10, 20, 60],
         help="前向持仓期，传递给 CLI",
     )
+    parser.add_argument(
+        "--generate-meta", nargs="*", default=None,
+        help=(
+            "生成衍生因子。可用值: all (全部6种变换), rolling_mean, rolling_std, "
+            "delta, pct_change, binarize_winrate, zscore, combos, conditionals。"
+            " 默认: 不生成衍生因子，只跑基础因子。"
+        ),
+    )
+    parser.add_argument(
+        "--combos", nargs="*", default=None,
+        dest="combos_extra",
+        help="额外因子组合（字符串格式，V2 支持），与 COMBO_WHITELIST 合并。",
+    )
+    parser.add_argument(
+        "--conditionals", nargs="*", default=None,
+        dest="conditionals_extra",
+        help="额外条件因子（字符串格式，V2 支持），与 CONDITIONAL_WHITELIST 合并。",
+    )
     return parser.parse_args()
 
 
@@ -716,6 +1057,21 @@ def main() -> int:
     ]
 
     tasks = build_tasks(factor_names, args.mode, extra_cli_args)
+
+    # ── 2.5 衍生因子任务 ───────────────────────────────────────────────────
+    if args.generate_meta is not None:
+        meta_tasks = build_meta_tasks(
+            factor_names=factor_names,
+            mode=args.mode,
+            generate_meta=args.generate_meta,
+            combos_extra=args.combos_extra,
+            conditionals_extra=args.conditionals_extra,
+            extra_args=extra_cli_args,
+        )
+        if meta_tasks:
+            print(f"衍生因子任务: {len(meta_tasks)} 个")
+            tasks.extend(meta_tasks)
+        print()
 
     # ── 3. 断点续跑 / 强制重跑 / 数据新鲜度逻辑 ───────────────────────────
     max_age = args.max_age if args.max_age > 0 else None
