@@ -272,52 +272,70 @@ FULL_MODE_PARAM_GRIDS: dict[str, dict[str, list]] = {
 # 元因子白名单 & 阈值 (Phase 4 — 手动编辑)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# binarize_winrate 的 threshold 因因子而异，按因子名映射合理默认值。
+# ═══════════════════════════════════════════════════════════════════════════════
+# binarize_winrate 定制阈值（按因子族 / 按因子设，支持每因子多阈值）
 # 未列出的因子默认 threshold=0.0。
-BINARIZE_THRESHOLDS: dict[str, float] = {
-    # 价格动量族: 0 = 正收益算赢
-    "PriceReturn": 0.0,
-    "RiskAdjustedReturn": 0.0,
-    "HighPointPosition": 0.5,     # >0.5 算位置偏高
-    "LowPointPosition": 0.5,
-    "TimeSeriesMomentum": 0.0,
-    # 反转族: 默认 0（不做 binarize_winrate，值无正负语义）
-    # 成交量族
-    "VolumeRatio": 1.0,            # >1 算放量
-    "VolumePriceCorrelation": 0.0, # >0 算正相关
-    "AverageAmount": 0.0,          # 无固定阈值，保留默认
-    # 波动率族: 默认 0（波动率无正负方向，不适合 binarize_winrate）
-    # 趋势质量族
-    "HurstExponent": 0.5,          # >0.5 算有持续性
-    "KaufmanER": 0.5,              # >0.5 算趋势效率高
-    "UpDownRatio": 0.5,            # >0.5 算涨多跌少
-    "ADX": 25.0,                   # ADX>25 算有趋势（Wilder 经典阈值）
-    # 超买超卖族
-    "RSI": 50.0,                   # >50 算偏强
-    "Stochastic": 50.0,
-    "CCI": 0.0,                    # >0 算偏强
-    "WilliamsR": -50.0,            # >-50 算偏强
-    "MFI": 50.0,
-    # 均线偏离族
-    "BIAS": 0.0,                   # >0 算价格在均线上方
-    "BollingerBandPosition": 0.5,  # >0.5 算偏上轨
-    "MAPosition": 0.0,             # >0 算价格在均线上方
-    "MASlope": 0.0,                # >0 算均线向上
-    # 突破族
-    "TrendR2": 0.5,                # r2>0.5 算有趋势
-    "RSRS": 0.0,                   # zscore>0 算支撑强
-    "DonchianChannelPosition": 0.5,
-    "NewHighContinuous": 0.0,      # >0 算新高附近
+# 值 = [threshold, ...]，每个 threshold 生成一个独立 spec。
+# ═══════════════════════════════════════════════════════════════════════════════
+
+CUSTOM_THRESHOLDS: dict[str, list[float]] = {
+    # ── 需要非零阈值的因子 ──
+    "KaufmanER":         [0.3, 0.4],     # KER<0.3 噪声，>0.4 趋势可识别
+    "TrendR2":           [0.5],          # r²>0.5（三过滤器验证过的阈值）
+    "TrendR2_slope":     [0.0],          # 斜率正负=涨跌方向
+    "RSRS":              [0.0, 0.7],     # 0=中性，0.7=实盘验证有效
+    "ADX":               [20.0, 25.0],   # 经典趋势存在阈值
+    "HurstExponent":     [0.5],          # >0.5 趋势持续，<0.5 均值回归
+    "NewHighContinuous": [10.0, 20.0],   # 连续新高的最低天数门槛
+    # ATR / ATRRatio: 需要运行时用自身均值做 threshold，跳过静态生成
 }
 
-# 变换预设 — 生成衍生因子时使用的默认变换参数。
-TRANSFORM_PRESETS: dict[str, dict] = {
-    "rolling_mean":     {"transform": "rolling_mean", "window": 20},
-    "rolling_std":      {"transform": "rolling_std",  "window": 20},
-    "delta":            {"transform": "delta",        "window": 20},
-    "pct_change":       {"transform": "pct_change",   "window": 20},
-    "binarize_winrate": {"transform": "binarize_winrate", "window": 20, "threshold": 0},
-    "zscore":           {"transform": "zscore",        "window": 252},
+# ═══════════════════════════════════════════════════════════════════════════════
+# 变换配置 — 每种变换支持多个 window。
+# ═══════════════════════════════════════════════════════════════════════════════
+
+TRANSFORM_CONFIGS: dict[str, dict] = {
+    "rolling_mean":     {"windows": [5, 10]},
+    "rolling_std":      {"windows": [10]},
+    "delta":            {"windows": [5, 10]},
+    "pct_change":       {"windows": [5, 10]},
+    "binarize_winrate": {"windows": [10, 20]},
+    "zscore":           {"windows": [120]},
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 排除规则 — 某些变换不应该用于某些因子。
+# ═══════════════════════════════════════════════════════════════════════════════
+
+EXCLUSIONS: dict[str, set[str]] = {
+    "rolling_std": {
+        # 收益率的标准差 = 波动率，已有 Volatility/ATR 族覆盖
+        "PriceReturn", "RiskAdjustedReturn", "IntradayMomentum",
+        "OvernightReturn", "TimeSeriesMomentum", "HighPointPosition",
+        "LowPointPosition", "ShortTermReversal", "ExtremeReversal",
+        "VolumeReversal",
+    },
+    "zscore": {
+        # 已有固定范围或本身就是标准化信号
+        "RSRS", "ADX", "BollingerBandPosition",
+        "RSI", "Stochastic", "WilliamsR", "MFI", "UltimateOscillator",
+    },
+    "pct_change": {
+        # 累积量 / 离散 / 计数类因子，变化率无意义或产生 NaN
+        "OBV", "VPT", "ConsecutiveUpDays", "ConsecutiveDownDays",
+        "NewHigh", "DailyRebound", "NewHighContinuous", "NewLowContinuous",
+    },
+    "binarize_winrate": {
+        # 离散 / 布尔 / 反向信号，binarize 无意义
+        "ConsecutiveUpDays", "ConsecutiveDownDays", "NewHigh",
+        "NewLowContinuous", "DailyRebound",
+        # ATR/ATRRatio: 需要运行时动态阈值，跳过静态生成
+        "ATR", "ATRRatio",
+    },
+    "delta": {
+        # 累积量指标，delta 意义不大；离散值差无连续含义
+        "OBV", "VPT", "ConsecutiveUpDays", "ConsecutiveDownDays",
+    },
 }
 
 # 因子组合白名单 — 手动编辑。格式:
@@ -547,13 +565,19 @@ def _registry_entry(name: str) -> tuple[str, str, dict]:
 def generate_transform_specs(
     factor_names: list[str],
     transforms: list[str],
+    param_grids: dict[str, dict[str, list]] | None = None,
 ) -> list["MetaFactorSpec"]:
-    """对每个基础因子 × 每种变换，生成 MetaFactorSpec。
+    """对每个基础因子 × 每种变换 × 每个 window/阈值，生成 MetaFactorSpec。
+
+    根据 TRANSFORM_CONFIGS（多窗口）、EXCLUSIONS（排除规则）、
+    CUSTOM_THRESHOLDS（多阈值）生成全量衍生因子配方。
+    若提供 param_grids，对每个参数变体也生成独立的衍生因子 spec。
 
     Parameters
     ----------
     factor_names: 基础因子名列表（FACTOR_REGISTRY 键）。
-    transforms: 变换类型列表，如 ["rolling_mean", "delta"]。值必须在 TRANSFORM_PRESETS 中。
+    transforms: 变换类型列表，如 ["rolling_mean", "delta"]。值必须在 TRANSFORM_CONFIGS 中。
+    param_grids: 可选，参数网格 {因子名: {参数名: [值, ...], ...}}。与 mode=full 共用 FULL_MODE_PARAM_GRIDS。
 
     Returns
     -------
@@ -561,28 +585,62 @@ def generate_transform_specs(
     """
     from factors.meta_factor import MetaFactorSpec
 
+    def _gen_for_params(name, module, cls, base_params):
+        """对一组 base_params 生成 (因子名, 模块, 类, 参数) 的所有衍生 spec。"""
+        for t_name in transforms:
+            if t_name not in TRANSFORM_CONFIGS:
+                continue
+            if name in EXCLUSIONS.get(t_name, set()):
+                continue
+
+            cfg = TRANSFORM_CONFIGS[t_name]
+            for window in cfg["windows"]:
+                if t_name == "binarize_winrate":
+                    thresholds = CUSTOM_THRESHOLDS.get(name, [0.0])
+                else:
+                    thresholds = [None]
+
+                for threshold in thresholds:
+                    meta_params: dict[str, Any] = {
+                        "transform": t_name,
+                        "window": window,
+                    }
+                    if threshold is not None:
+                        meta_params["threshold"] = float(threshold)
+
+                    specs.append(MetaFactorSpec(
+                        base_factor_name=name,
+                        base_factor_module=module,
+                        base_factor_class=cls,
+                        base_params=dict(base_params),
+                        meta_type="transform",
+                        meta_params=meta_params,
+                    ))
+
     specs = []
     for name in factor_names:
         if name not in FACTOR_REGISTRY:
             print(f"警告: 未知因子 '{name}'，跳过衍生")
             continue
-        module, cls, params = _registry_entry(name)
-        for t_name in transforms:
-            if t_name not in TRANSFORM_PRESETS:
-                print(f"警告: 未知变换 '{t_name}'，跳过")
-                continue
-            cfg = dict(TRANSFORM_PRESETS[t_name])
-            # binarize_winrate: 查表覆盖 threshold
-            if t_name == "binarize_winrate":
-                cfg["threshold"] = BINARIZE_THRESHOLDS.get(name, 0.0)
-            specs.append(MetaFactorSpec(
-                base_factor_name=name,
-                base_factor_module=module,
-                base_factor_class=cls,
-                base_params=params,
-                meta_type="transform",
-                meta_params=cfg,
-            ))
+        module, cls, default_params = _registry_entry(name)
+
+        # 1. 默认参数的衍生因子
+        _gen_for_params(name, module, cls, default_params)
+
+        # 2. 参数网格展开（mode=full）
+        if param_grids and name in param_grids:
+            grid = param_grids[name]
+            param_names = list(grid.keys())
+            param_values = list(grid.values())
+            for combo in itertools.product(*param_values):
+                combo_params = dict(zip(param_names, combo))
+                merged = dict(default_params)
+                merged.update(combo_params)
+                # 跳过与默认参数完全相同的组合
+                if merged == default_params:
+                    continue
+                _gen_for_params(name, module, cls, merged)
+
     return specs
 
 
@@ -780,7 +838,7 @@ def build_meta_tasks(
     factor_names: 基础因子名列表（用于 transform 衍生）。
     mode: "quick" | "standard" | "full"
     generate_meta: 要生成的衍生类型列表。
-        "all" = 全部 6 种变换; 其他有效值: TRANSFORM_PRESETS 的键 / "combos" / "conditionals".
+        "all" = 全部 6 种变换; 其他有效值: TRANSFORM_CONFIGS 的键 / "combos" / "conditionals".
     combos_extra: CLI --combos 传入的额外组合（字符串格式，V2 实现）。
     conditionals_extra: CLI --conditionals 传入的额外条件（字符串格式，V2 实现）。
     extra_args: 传递给 CLI 的额外参数。
@@ -793,7 +851,7 @@ def build_meta_tasks(
         extra_args = []
 
     tasks = []
-    ALL_TRANSFORMS = list(TRANSFORM_PRESETS.keys())
+    ALL_TRANSFORMS = list(TRANSFORM_CONFIGS.keys())
 
     # 解析 generate_meta: "all" → 展开为全部 6 种变换
     meta_set = set(generate_meta)
@@ -804,7 +862,7 @@ def build_meta_tasks(
     for item in meta_set:
         if item == "all":
             do_transforms = list(ALL_TRANSFORMS)
-        elif item in TRANSFORM_PRESETS:
+        elif item in TRANSFORM_CONFIGS:
             do_transforms.append(item)
         elif item == "combos":
             do_combos = True
@@ -815,7 +873,8 @@ def build_meta_tasks(
 
     # ── 1. 单因子变换 ──────────────────────────────────────────────────────
     if do_transforms:
-        specs = generate_transform_specs(factor_names, do_transforms)
+        pg = FULL_MODE_PARAM_GRIDS if mode == "full" else None
+        specs = generate_transform_specs(factor_names, do_transforms, pg)
         for spec in specs:
             tasks.append(_make_meta_task(spec, mode, extra_args))
 

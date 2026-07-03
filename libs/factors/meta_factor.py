@@ -186,7 +186,11 @@ class TransformFactor(DerivedFactor):
 
     def get_output_name(self) -> str:
         dep_name = self._dependencies[0].get_output_name()
-        return f"{dep_name}__{self.transform}_{self.window}"
+        base = f"{dep_name}__{self.transform}_{self.window}"
+        if self.transform == "binarize_winrate":
+            # 不同 threshold 需要不同输出名，避免同名冲突
+            base += f"_{self.threshold}"
+        return base
 
     # ── compute_from_frame ──────────────────────────────────────────────────
 

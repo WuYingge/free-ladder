@@ -84,7 +84,7 @@ class TestOutputName:
             window=20,
             threshold=0.0,
         )
-        assert tf.get_output_name() == "PriceReturn_20__binarize_winrate_20"
+        assert tf.get_output_name() == "PriceReturn_20__binarize_winrate_20_0.0"
 
     def test_zscore(self):
         tf = TransformFactor(

@@ -125,6 +125,7 @@ FACTOR_REGISTRY: dict[str, tuple[str, str, dict]] = {
     "NewHigh": ("factors.new_high", "NewHigh", {"high_window": 50, "low_window": 25}),
     "DailyRebound": ("factors.daily_rebound", "DailyRebound", {}),
     "TrendR2": ("factors.trend_r2", "TrendR2Factor", {"window": 120, "output": "r2"}),
+    "TrendR2_slope": ("factors.trend_r2", "TrendR2Factor", {"window": 120, "output": "slope"}),
     "RSRS": ("factors.rsrs", "RsrsFactor", {"output": "zscore"}),
     "ATR": ("factors.average_true_range", "AverageTrueRange", {"window": 25}),
     "NewHighContinuous": ("factors.breakout_family", "NewHighContinuous", {"window": 50}),

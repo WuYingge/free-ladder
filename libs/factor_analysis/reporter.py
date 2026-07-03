@@ -74,6 +74,58 @@ def _safe_json(obj: Any) -> Any:
     return obj
 
 
+def _strip_predictive_for_json(predictive: dict | None) -> dict | None:
+    """裁剪 Layer 2 数据，去掉逐日时序序列，仅保留汇总指标用于 JSON。
+
+    - rank_ic / pearson_ic: 保留 summary，删掉 ic_series
+    - rolling_ic: 整体删除（已有图表 png）
+    - ic_decay: 保留（已是汇总表）
+    - param_grid: 保留
+    """
+    if predictive is None:
+        return None
+    stripped: dict[str, Any] = {}
+    for key, value in predictive.items():
+        if key in ("rank_ic", "pearson_ic"):
+            # {period: {"ic_series": ..., "summary": ...}, ...} → 只保留 summary
+            stripped[key] = {
+                str(period): {"summary": per["summary"]}
+                for period, per in value.items()
+            }
+        elif key == "rolling_ic":
+            continue  # 整体跳过
+        else:
+            stripped[key] = value
+    return stripped
+
+
+def _strip_grouping_for_json(grouping: dict | None) -> dict | None:
+    """裁剪 Layer 3 数据，去掉逐日时序矩阵，仅保留汇总指标用于 JSON。
+
+    - quantile_returns: 删除（已有 CSV 落盘）
+    - quantile_cumret: 删除
+    - longshort: 删除 ls_series（时序），保留标量指标
+    - quantile_summary / monotonicity: 保留
+    """
+    if grouping is None:
+        return None
+    stripped: dict[str, Any] = {}
+    for period, gr in grouping.items():
+        per_stripped: dict[str, Any] = {}
+        for key, value in gr.items():
+            if key in ("quantile_returns", "quantile_cumret"):
+                continue
+            elif key == "longshort":
+                # 保留标量指标，去掉 ls_series
+                per_stripped[key] = {
+                    k: v for k, v in value.items() if k != "ls_series"
+                }
+            else:
+                per_stripped[key] = value
+        stripped[str(period)] = per_stripped
+    return stripped
+
+
 # ── Markdown 生成 ────────────────────────────────────────────────────────────
 
 
@@ -1164,7 +1216,7 @@ def generate_and_save_reports(
     output_root.mkdir(parents=True, exist_ok=True)
     output_date = config.resolve_output_date()
 
-    # ── JSON 报告 ──
+    # ── JSON 报告（精简版：去掉逐日时序序列，仅保留汇总指标） ──
     json_data = _safe_json({
         "meta": {
             "factor_name": panel.factor_name,
@@ -1174,8 +1226,8 @@ def generate_and_save_reports(
         },
         "panel_summary": panel.summary(),
         "layer1_quality": quality_results,
-        "layer2_predictive": predictive_results,
-        "layer3_grouping": grouping_results,
+        "layer2_predictive": _strip_predictive_for_json(predictive_results),
+        "layer3_grouping": _strip_grouping_for_json(grouping_results),
     })
 
     json_path = output_root / f"report_{output_date}.json"
