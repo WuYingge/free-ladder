@@ -37,14 +37,24 @@ class BaseFactor(ABC):
     def __str__(self) -> str:
         return self.__repr__()
     
+    @staticmethod
+    def _hashable_params(params: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
+        """将 params 转为可哈希的 tuple，递归处理 list 等不可哈希类型。"""
+        def _to_hashable(v: Any) -> Any:
+            if isinstance(v, list):
+                return tuple(_to_hashable(x) for x in v)
+            if isinstance(v, dict):
+                return tuple(sorted((k, _to_hashable(v2)) for k, v2 in v.items()))
+            return v
+        return tuple(sorted((k, _to_hashable(v)) for k, v in params.items()))
+
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
-        return tuple(sorted(self.params.items())) == tuple(sorted(other.params.items()))
-    
+        return self._hashable_params(self.params) == self._hashable_params(other.params)
+
     def __hash__(self) -> int:
-        param_items = tuple(sorted(self.params.items()))
-        return hash((self.__class__, param_items))
+        return hash((self.__class__, self._hashable_params(self.params)))
 
     @property
     def dependencies(self) -> list["BaseFactor"]:
