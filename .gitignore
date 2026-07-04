@@ -24,3 +24,6 @@ playgrounds
 docs/*
 .codewhale/
 .deepseek/
+
+output/*
+data/factors/*
