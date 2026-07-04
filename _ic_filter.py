@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""筛选 data/factors/ 下所有因子中 10d rank IC 绝对值 > threshold 的因子，输出 CSV。"""
+"""筛选 data/factors/ 下所有因子中 5d rank IC 绝对值 > threshold 的因子，输出 CSV。"""
 import json, os, glob, csv
 
 FACTORS_DIR = "data/factors"
-THRESHOLD = 0.03  # abs(rank_ic_10d_mean) > 0.03
-OUTPUT_PATH = f"data/factors/ic10d_abs_gt_{THRESHOLD}.csv"
+THRESHOLD = 0.03  # abs(rank_ic_5d_mean) > 0.03
+OUTPUT_PATH = f"data/factors/ic5d_abs_gt_{THRESHOLD}.csv"
 
 results = []
 errors = []
@@ -26,8 +26,8 @@ for d in factor_dirs:
         continue
 
     try:
-        rank_mean = data["layer2_predictive"]["rank_ic"]["10"]["summary"]["mean"]
-        pearson_mean = data["layer2_predictive"]["pearson_ic"]["10"]["summary"]["mean"]
+        rank_mean = data["layer2_predictive"]["rank_ic"]["5"]["summary"]["mean"]
+        pearson_mean = data["layer2_predictive"]["pearson_ic"]["5"]["summary"]["mean"]
         if rank_mean is None:
             errors.append((name, "rank_ic mean is None"))
             continue
@@ -40,30 +40,30 @@ for d in factor_dirs:
     if rank_abs > THRESHOLD:
         results.append({
             "factor": name,
-            "rank_ic_10d_mean": round(rank_mean, 6),
-            "rank_ic_10d_abs": round(rank_abs, 6),
-            "pearson_ic_10d_mean": round(pearson_mean, 6) if pearson_mean is not None else "",
+            "rank_ic_5d_mean": round(rank_mean, 6),
+            "rank_ic_5d_abs": round(rank_abs, 6),
+            "pearson_ic_5d_mean": round(pearson_mean, 6) if pearson_mean is not None else "",
         })
 
-results.sort(key=lambda x: x["rank_ic_10d_abs"], reverse=True)
+results.sort(key=lambda x: x["rank_ic_5d_abs"], reverse=True)
 
-print(f"\n筛选结果: {len(results)} 个因子满足 abs(rank_ic_10d) > {THRESHOLD}")
+print(f"\n筛选结果: {len(results)} 个因子满足 abs(rank_ic_5d) > {THRESHOLD}")
 print(f"错误/缺失: {len(errors)} 个")
 
 with open(OUTPUT_PATH, "w", newline="") as f:
-    writer = csv.DictWriter(f, fieldnames=["factor", "rank_ic_10d_mean", "rank_ic_10d_abs", "pearson_ic_10d_mean"])
+    writer = csv.DictWriter(f, fieldnames=["factor", "rank_ic_5d_mean", "rank_ic_5d_abs", "pearson_ic_5d_mean"])
     writer.writeheader()
     for r in results:
         writer.writerow(r)
 
 print(f"结果已保存到: {OUTPUT_PATH}")
 
-print(f"\n--- 符合条件的因子 (abs(rank_ic_10d) > {THRESHOLD}), 共 {len(results)} 个 ---")
+print(f"\n--- 符合条件的因子 (abs(rank_ic_5d) > {THRESHOLD}), 共 {len(results)} 个 ---")
 print(f"{'因子名':<70} {'rank_ic':>10} {'abs':>8} {'pearson_ic':>10}")
 print("-" * 102)
 for r in results:
-    p = r["pearson_ic_10d_mean"]
-    print(f"{r['factor']:<70} {r['rank_ic_10d_mean']:>10.6f} {r['rank_ic_10d_abs']:>8.4f} {p if isinstance(p, str) else f'{p:>10.6f}'}")
+    p = r["pearson_ic_5d_mean"]
+    print(f"{r['factor']:<70} {r['rank_ic_5d_mean']:>10.6f} {r['rank_ic_5d_abs']:>8.4f} {p if isinstance(p, str) else f'{p:>10.6f}'}")
 
 if errors:
     print(f"\n--- 错误 ({len(errors)} 个) ---")

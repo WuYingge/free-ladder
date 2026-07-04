@@ -6,7 +6,8 @@
 三层架构:
     TransformFactor    — 单因子后处理变换（6 种）
     CombineFactor      — 双因子二元运算（4 种）
-    ConditionalFactor  — 条件信号（信号因子仅在条件满足时生效）
+    ConditionalFactor       — 条件信号（信号因子仅在条件满足时生效）
+    MultiConditionalFactor  — 多条件组合（AND/OR 逻辑，两个及以上条件）
 
 所有元因子继承自 DerivedFactor，复用了它的依赖注入、DataFrame 组装和
 warmup 链式计算。每个子类只需实现 compute_from_frame(frame)。
@@ -41,7 +42,7 @@ class MetaFactorSpec:
     base_factor_module: 基础因子模块路径。
     base_factor_class: 基础因子类名。
     base_params: 基础因子的构造参数。
-    meta_type: "transform" | "combine" | "conditional"
+    meta_type: "transform" | "combine" | "conditional" | "multi_conditional"
     meta_params: 传给 meta factor 构造函数的参数。
     """
     base_factor_name: str
@@ -87,6 +88,24 @@ def build_meta_factor(spec: MetaFactorSpec) -> BaseFactor:
         c_cls = getattr(c_mod, c_class)
         condition = c_cls(**c_params)
         return ConditionalFactor(signal=base, condition=condition, **spec.meta_params)
+
+    elif spec.meta_type == "multi_conditional":
+        conditions_data = spec.meta_params.pop("_conditions")
+        conditions: list[ConditionSpec] = []
+        for cd in conditions_data:
+            c_mod = importlib.import_module(cd["module"])
+            c_cls = getattr(c_mod, cd["class"])
+            cond_factor = c_cls(**cd["params"])
+            conditions.append(
+                ConditionSpec(
+                    condition=cond_factor,
+                    op=cd["op"],
+                    threshold=cd["threshold"],
+                )
+            )
+        return MultiConditionalFactor(
+            signal=base, conditions=conditions, **spec.meta_params
+        )
 
     else:
         raise ValueError(f"未知 meta_type: {spec.meta_type!r}")
@@ -579,5 +598,229 @@ class ConditionalFactor(DerivedFactor):
             fallback = 0.0
 
         result = signal_series.where(mask, other=fallback)
+        result.name = self.get_output_name()
+        return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Phase 4: MultiConditionalFactor — 多条件组合
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@dataclass
+class ConditionSpec:
+    """描述单个筛选条件，供 MultiConditionalFactor 使用。
+
+    Attributes
+    ----------
+    condition : BaseFactor
+        条件因子实例。其值与 threshold 比较。
+    op : str
+        条件运算符: gt (>), lt (<), gte (>=), lte (<=)。
+    threshold : float
+        条件阈值。
+    """
+
+    condition: BaseFactor
+    op: str
+    threshold: float
+
+    def __post_init__(self) -> None:
+        _VALID = frozenset({"gt", "lt", "gte", "lte"})
+        if self.op not in _VALID:
+            raise ValueError(
+                f"未知运算符: {self.op!r}。可选: {sorted(_VALID)}"
+            )
+
+
+class MultiConditionalFactor(DerivedFactor):
+    """多个条件因子按 AND/OR 逻辑组合后过滤信号因子。
+
+    当所有条件满足（AND）或任一条件满足（OR）时，信号因子生效；
+    否则输出 NaN（或 0）。
+
+    典型用途:
+        - "趋势 R² > 0.5 且 波动率 < 0.03 时使用动量信号"
+        - "流动性 > 阈值 或 趋势强度 > 阈值 时生效"
+
+    单个条件请使用 ConditionalFactor；两个及以上条件用本类。
+
+    Parameters
+    ----------
+    signal : BaseFactor
+        信号因子实例。
+    conditions : list[ConditionSpec]
+        条件列表，至少 2 个。每个元素描述一个条件因子 + 运算符 + 阈值。
+    logic : str
+        条件组合逻辑: "and"（全部满足，默认）或 "or"（任一满足）。
+    false_value : str
+        条件不满足时的填充值: "nan" (默认) 或 "zero"。
+
+    Examples
+    --------
+    >>> from factors.price_return import PriceReturn
+    >>> from factors.trend_r2 import TrendR2Factor
+    >>> signal = PriceReturn(window=20)
+    >>> conditions = [
+    ...     ConditionSpec(condition=PriceReturn(window=60), op="gt", threshold=0.0),
+    ...     ConditionSpec(condition=PriceReturn(window=120), op="gt", threshold=-0.01),
+    ... ]
+    >>> mcf = MultiConditionalFactor(signal=signal, conditions=conditions, logic="and")
+    >>> mcf.get_output_name()
+    'PriceReturn_20__if_PriceReturn_60_gt_0.0_and_PriceReturn_120_gt_-0.01'
+    """
+
+    name = "MultiConditionalFactor"
+
+    _VALID_OPS = frozenset({"gt", "lt", "gte", "lte"})
+    _VALID_FALSE = frozenset({"nan", "zero"})
+    _VALID_LOGIC = frozenset({"and", "or"})
+
+    _OP_FUNCS = {
+        "gt": lambda a, b: a > b,
+        "lt": lambda a, b: a < b,
+        "gte": lambda a, b: a >= b,
+        "lte": lambda a, b: a <= b,
+    }
+
+    def __init__(
+        self,
+        signal: BaseFactor,
+        conditions: list[ConditionSpec],
+        logic: str = "and",
+        false_value: str = "nan",
+    ) -> None:
+        super().__init__()
+        if len(conditions) < 2:
+            raise ValueError(
+                f"conditions 至少需要 2 个条件，收到 {len(conditions)} 个。"
+                f" 单个条件请使用 ConditionalFactor。"
+            )
+        if logic not in self._VALID_LOGIC:
+            raise ValueError(
+                f"未知逻辑: {logic!r}。可选: {sorted(self._VALID_LOGIC)}"
+            )
+        if false_value not in self._VALID_FALSE:
+            raise ValueError(
+                f"未知 false_value: {false_value!r}。可选: {sorted(self._VALID_FALSE)}"
+            )
+
+        self.logic = logic
+        self.false_value = false_value
+        self._condition_specs = list(conditions)
+
+        # 校验每个 condition spec 的 op
+        for i, spec in enumerate(self._condition_specs):
+            if spec.op not in self._VALID_OPS:
+                raise ValueError(
+                    f"conditions[{i}] 未知运算符: {spec.op!r}。"
+                    f" 可选: {sorted(self._VALID_OPS)}"
+                )
+
+        # 注册依赖并去重:
+        #   dependencies[0] = signal
+        #   dependencies[1:] = 与 signal 不等的唯一 condition 因子
+        # _cond_dep_index[i] 记录第 i 个 spec 对应的 dependencies 索引:
+        #   0 表示复用 signal 列，1+ 表示 _unique_conds[j]。
+        # 这样避免相同 params 的因子在 dependency_results / column_map
+        # 中发生 key 碰撞（BaseFactor 的 __hash__/__eq__ 基于 params）。
+        self.add_dependency(signal)
+
+        _unique_conds: list[BaseFactor] = []
+        _cond_dep_index: dict[int, int] = {}   # spec_index -> dep_index
+
+        for i, spec in enumerate(self._condition_specs):
+            # 先检查是否与 signal 相等
+            if spec.condition == signal:
+                _cond_dep_index[i] = 0
+                continue
+            # 再检查是否与已有唯一 condition 相等
+            found = False
+            for j, uc in enumerate(_unique_conds):
+                if spec.condition == uc:
+                    _cond_dep_index[i] = j + 1
+                    found = True
+                    break
+            if not found:
+                _cond_dep_index[i] = len(_unique_conds) + 1
+                _unique_conds.append(spec.condition)
+                self.add_dependency(spec.condition)
+
+        self._unique_conds = _unique_conds
+        self._cond_dep_index = _cond_dep_index
+
+        # warmup = 所有依赖的最大 warmup
+        self.warmup_period = max(
+            dep.get_max_warmup_period() for dep in self._dependencies
+        )
+
+        self._set_params(
+            logic=logic,
+            false_value=false_value,
+            conditions_count=len(self._condition_specs),
+        )
+
+    def get_output_name(self) -> str:
+        """生成可读输出名称，包含所有条件的描述。"""
+        signal_name = self._dependencies[0].get_output_name()
+        cond_parts: list[str] = []
+        for i, spec in enumerate(self._condition_specs):
+            # _cond_dep_index[i] 直接给出 dependencies 索引
+            dep_idx = self._cond_dep_index[i]
+            cond_name = self._dependencies[dep_idx].get_output_name()
+            cond_parts.append(f"{cond_name}_{spec.op}_{spec.threshold}")
+        logic_sep = f"_{self.logic}_"
+        return f"{signal_name}__if_{logic_sep.join(cond_parts)}"
+
+    # ── 依赖列映射 ──────────────────────────────────────────────────────────
+
+    def get_dependency_column_map(self) -> dict[BaseFactor, str]:
+        """为 signal 和每个唯一 condition 分配固定别名。
+
+        signal → '_signal'，第 i 个唯一 condition → '_cond_i'。
+        """
+        col_map: dict[BaseFactor, str] = {self._dependencies[0]: "_signal"}
+        for i in range(len(self._unique_conds)):
+            col_map[self._dependencies[i + 1]] = f"_cond_{i}"
+        return col_map
+
+    # ── compute_from_frame ──────────────────────────────────────────────────
+
+    def compute_from_frame(self, frame: pd.DataFrame) -> pd.Series:
+        """从 frame 中取出信号列和各条件列，按 logic 组合 mask 后过滤信号。"""
+        if "_signal" not in frame.columns:
+            raise ValueError(
+                f"MultiConditionalFactor 需要列 '_signal'，"
+                f"可用列: {list(frame.columns)}"
+            )
+        signal_series = frame["_signal"]
+
+        # 逐条件计算 mask（通过 _cond_dep_index 找到正确的列）
+        masks: list[pd.Series] = []
+        for i, spec in enumerate(self._condition_specs):
+            dep_idx = self._cond_dep_index[i]
+            col = "_signal" if dep_idx == 0 else f"_cond_{dep_idx - 1}"
+            if col not in frame.columns:
+                raise ValueError(
+                    f"MultiConditionalFactor 需要列 '{col}'，"
+                    f"可用列: {list(frame.columns)}"
+                )
+            cond_series = frame[col]
+            op_func = self._OP_FUNCS[spec.op]
+            mask = op_func(cond_series, spec.threshold)
+            masks.append(mask)
+
+        # 按 logic 组合所有 mask
+        combined = masks[0]
+        if self.logic == "and":
+            for m in masks[1:]:
+                combined = combined & m
+        else:  # "or"
+            for m in masks[1:]:
+                combined = combined | m
+
+        # 应用 mask
+        fallback: float = np.nan if self.false_value == "nan" else 0.0
+        result = signal_series.where(combined, other=fallback)
         result.name = self.get_output_name()
         return result

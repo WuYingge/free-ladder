@@ -7,7 +7,13 @@ import pandas as pd
 import pytest
 
 from factors.price_return import PriceReturn
-from factors.meta_factor import TransformFactor, CombineFactor, ConditionalFactor
+from factors.meta_factor import (
+    TransformFactor,
+    CombineFactor,
+    ConditionalFactor,
+    ConditionSpec,
+    MultiConditionalFactor,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -534,4 +540,223 @@ class TestConditionalErrors:
                 signal=PriceReturn(window=20),
                 condition=PriceReturn(window=60),
                 false_value="one",  # type: ignore[arg-type]
+            )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Phase 4: MultiConditionalFactor 测试
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestMultiConditionalOutputName:
+    """MultiConditionalFactor 输出名称格式校验。"""
+
+    def test_and_two_conditions(self):
+        conditions = [
+            ConditionSpec(condition=PriceReturn(window=60), op="gt", threshold=0.5),
+            ConditionSpec(condition=PriceReturn(window=120), op="lt", threshold=0.0),
+        ]
+        mcf = MultiConditionalFactor(
+            signal=PriceReturn(window=20),
+            conditions=conditions,
+            logic="and",
+        )
+        assert (
+            mcf.get_output_name()
+            == "PriceReturn_20__if_PriceReturn_60_gt_0.5_and_PriceReturn_120_lt_0.0"
+        )
+
+    def test_or_three_conditions(self):
+        conditions = [
+            ConditionSpec(condition=PriceReturn(window=20), op="gt", threshold=0.0),
+            ConditionSpec(condition=PriceReturn(window=60), op="gt", threshold=0.0),
+            ConditionSpec(condition=PriceReturn(window=120), op="gte", threshold=-0.01),
+        ]
+        mcf = MultiConditionalFactor(
+            signal=PriceReturn(window=20),
+            conditions=conditions,
+            logic="or",
+        )
+        name = mcf.get_output_name()
+        assert "__if_" in name
+        assert "_or_" in name
+        assert "PriceReturn_20_gt_0.0" in name
+        assert "PriceReturn_60_gt_0.0" in name
+        assert "PriceReturn_120_gte_-0.01" in name
+
+
+class TestMultiConditionalCorrectness:
+    """验证多条件运算的正确性。"""
+
+    def test_and_both_true(self, ohlcv_data: pd.DataFrame):
+        """AND 逻辑：两个条件都满足时信号生效。"""
+        signal = PriceReturn(window=20)
+        # 用同一个因子的不同窗口作为两个条件，确保有足够变化
+        cond1 = PriceReturn(window=20)
+        cond2 = PriceReturn(window=60)
+        conditions = [
+            ConditionSpec(condition=cond1, op="gt", threshold=-999.0),  # 几乎总是 True
+            ConditionSpec(condition=cond2, op="gt", threshold=-999.0),  # 几乎总是 True
+        ]
+        mcf = MultiConditionalFactor(
+            signal=signal, conditions=conditions, logic="and"
+        )
+        result = mcf(ohlcv_data)
+        expected_signal = signal(ohlcv_data)
+        # 只比较所有条件都生效后的区域（MultiConditionalFactor 的 warmup 取
+        # 所有依赖的最大值，这里 cond2(w=60) 有更长的 warmup）
+        valid = result.notna()
+        assert valid.sum() > 0, "至少应有部分数据通过所有条件"
+        pd.testing.assert_series_equal(
+            result[valid], expected_signal[valid], check_names=False
+        )
+
+    def test_and_one_false(self, ohlcv_data: pd.DataFrame):
+        """AND 逻辑：任一条不满足 → 输出 NaN。"""
+        signal = PriceReturn(window=20)
+        conditions = [
+            ConditionSpec(condition=PriceReturn(window=20), op="gt", threshold=999.0),  # 总是 False
+            ConditionSpec(condition=PriceReturn(window=20), op="gt", threshold=-999.0),  # 总是 True
+        ]
+        mcf = MultiConditionalFactor(
+            signal=signal, conditions=conditions, logic="and", false_value="nan"
+        )
+        result = mcf(ohlcv_data)
+        # 条件1 不满足，全部应为 NaN（除 NaN 本身）
+        valid = result.notna()
+        assert valid.sum() == 0
+
+    def test_or_one_true(self, ohlcv_data: pd.DataFrame):
+        """OR 逻辑：任一条件满足 → 信号生效。"""
+        signal = PriceReturn(window=20)
+        conditions = [
+            ConditionSpec(condition=PriceReturn(window=20), op="gt", threshold=999.0),   # 总是 False
+            ConditionSpec(condition=PriceReturn(window=20), op="gt", threshold=-999.0),  # 总是 True
+        ]
+        mcf = MultiConditionalFactor(
+            signal=signal, conditions=conditions, logic="or"
+        )
+        result = mcf(ohlcv_data)
+        expected_signal = signal(ohlcv_data)
+        valid = expected_signal.notna()
+        pd.testing.assert_series_equal(result[valid], expected_signal[valid], check_names=False)
+
+    def test_or_all_false(self, ohlcv_data: pd.DataFrame):
+        """OR 逻辑：所有条件都不满足 → 全部 NaN。"""
+        signal = PriceReturn(window=20)
+        conditions = [
+            ConditionSpec(condition=PriceReturn(window=20), op="gt", threshold=999.0),
+            ConditionSpec(condition=PriceReturn(window=60), op="lt", threshold=-999.0),
+        ]
+        mcf = MultiConditionalFactor(
+            signal=signal, conditions=conditions, logic="or", false_value="nan"
+        )
+        result = mcf(ohlcv_data)
+        valid = result.notna()
+        assert valid.sum() == 0
+
+    def test_false_value_zero(self, ohlcv_data: pd.DataFrame):
+        """false_value='zero' 时不满足条件的位置填充 0。"""
+        signal = PriceReturn(window=20)
+        conditions = [
+            ConditionSpec(condition=PriceReturn(window=20), op="gt", threshold=999.0),
+            ConditionSpec(condition=PriceReturn(window=20), op="gt", threshold=999.0),
+        ]
+        mcf = MultiConditionalFactor(
+            signal=signal, conditions=conditions, logic="and", false_value="zero"
+        )
+        result = mcf(ohlcv_data)
+        # 条件都不满足 → 输出 0
+        expected_signal = signal(ohlcv_data)
+        valid = expected_signal.notna()
+        assert (result[valid] == 0.0).all()
+
+    def test_result_name_matches(self, ohlcv_data: pd.DataFrame):
+        """输出 Series 的 name 应与 get_output_name() 一致。"""
+        conditions = [
+            ConditionSpec(condition=PriceReturn(window=60), op="gt", threshold=0.0),
+            ConditionSpec(condition=PriceReturn(window=120), op="lt", threshold=0.0),
+        ]
+        mcf = MultiConditionalFactor(
+            signal=PriceReturn(window=20), conditions=conditions
+        )
+        result = mcf(ohlcv_data)
+        assert result.name == mcf.get_output_name()
+
+    def test_different_condition_factors(self, ohlcv_data: pd.DataFrame):
+        """signal 和多个 condition 使用不同参数的因子。"""
+        signal = PriceReturn(window=10)
+        conditions = [
+            ConditionSpec(condition=PriceReturn(window=30), op="gt", threshold=0.0),
+            ConditionSpec(condition=PriceReturn(window=90), op="lt", threshold=0.01),
+            ConditionSpec(condition=PriceReturn(window=180), op="gte", threshold=-0.02),
+        ]
+        mcf = MultiConditionalFactor(
+            signal=signal, conditions=conditions, logic="and", false_value="nan"
+        )
+        result = mcf(ohlcv_data)
+        # 验证返回的是 Series，且 name 正确
+        assert isinstance(result, pd.Series)
+        assert result.name == mcf.get_output_name()
+        # 验证长度与输入一致
+        assert len(result) == len(ohlcv_data)
+
+
+class TestMultiConditionalErrors:
+    """非法输入应抛出明确错误。"""
+
+    def test_too_few_conditions(self):
+        """少于 2 个条件应报错。"""
+        with pytest.raises(ValueError, match="至少需要 2 个条件"):
+            MultiConditionalFactor(
+                signal=PriceReturn(window=20),
+                conditions=[],
+            )
+
+        with pytest.raises(ValueError, match="至少需要 2 个条件"):
+            MultiConditionalFactor(
+                signal=PriceReturn(window=20),
+                conditions=[
+                    ConditionSpec(condition=PriceReturn(window=60), op="gt", threshold=0.0),
+                ],
+            )
+
+    def test_invalid_logic(self):
+        """非法 logic 值应报错。"""
+        with pytest.raises(ValueError, match="未知逻辑"):
+            MultiConditionalFactor(
+                signal=PriceReturn(window=20),
+                conditions=[
+                    ConditionSpec(condition=PriceReturn(window=60), op="gt", threshold=0.0),
+                    ConditionSpec(condition=PriceReturn(window=120), op="gt", threshold=0.0),
+                ],
+                logic="xor",  # type: ignore[arg-type]
+            )
+
+    def test_invalid_false_value(self):
+        """非法 false_value 应报错。"""
+        with pytest.raises(ValueError, match="未知 false_value"):
+            MultiConditionalFactor(
+                signal=PriceReturn(window=20),
+                conditions=[
+                    ConditionSpec(condition=PriceReturn(window=60), op="gt", threshold=0.0),
+                    ConditionSpec(condition=PriceReturn(window=120), op="gt", threshold=0.0),
+                ],
+                false_value="one",  # type: ignore[arg-type]
+            )
+
+    def test_invalid_op_in_condition_spec(self):
+        """ConditionSpec 中的非法 op 应报错。"""
+        with pytest.raises(ValueError, match="未知运算符"):
+            ConditionSpec(condition=PriceReturn(window=60), op="eq", threshold=0.0)  # type: ignore[arg-type]
+
+    def test_invalid_op_in_conditions_list(self):
+        """conditions 列表中某元素的非法 op 应报错。"""
+        with pytest.raises(ValueError, match="未知运算符"):
+            MultiConditionalFactor(
+                signal=PriceReturn(window=20),
+                conditions=[
+                    ConditionSpec(condition=PriceReturn(window=60), op="gt", threshold=0.0),
+                    ConditionSpec(condition=PriceReturn(window=120), op="eq", threshold=0.0),  # type: ignore[arg-type]
+                ],
             )
