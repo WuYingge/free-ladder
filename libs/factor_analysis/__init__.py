@@ -22,6 +22,16 @@ __all__ = [
     "FactorPanel",
     "build_factor_panel",
     "run_factor_analysis",
+    "CrossCorrFingerprint",
+    "CrossCorrResult",
+    "compute_cross_sectional_corr_matrix",
+    "compute_or_load_correlation",
+    "build_cross_corr_fingerprint",
+    "compute_data_version",
+    "save_correlation_results",
+    "load_correlation_results",
+    "check_fingerprint_match",
+    "plot_clustered_heatmap",
 ]
 
 
@@ -37,4 +47,15 @@ def __getattr__(name: str):
     if name == "run_factor_analysis":
         from factor_analysis.runner import run_factor_analysis as _run
         return _run
+    # cross_correlation 模块导出
+    _corr_names = {
+        "CrossCorrFingerprint", "CrossCorrResult",
+        "compute_cross_sectional_corr_matrix", "compute_or_load_correlation",
+        "build_cross_corr_fingerprint", "compute_data_version",
+        "save_correlation_results", "load_correlation_results",
+        "check_fingerprint_match", "plot_clustered_heatmap",
+    }
+    if name in _corr_names:
+        import factor_analysis.cross_correlation as _cc
+        return getattr(_cc, name)
     raise AttributeError(f"module 'factor_analysis' has no attribute {name!r}")
