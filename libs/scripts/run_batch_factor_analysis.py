@@ -50,6 +50,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import subprocess
@@ -64,6 +65,8 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))           # 让 libs 作为包可见（配置模块需要）
 LIBS_DIR = REPO_ROOT / "libs"
 if str(LIBS_DIR) not in sys.path:
     sys.path.insert(0, str(LIBS_DIR))
@@ -71,302 +74,14 @@ if str(LIBS_DIR) not in sys.path:
 # 复用 CLI 中的 FACTOR_REGISTRY
 from scripts.run_factor_analysis import FACTOR_REGISTRY, _import_factor
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 因子族分类（用于 --families 筛选）
-# ═══════════════════════════════════════════════════════════════════════════════
-
-FACTOR_FAMILIES: dict[str, list[str]] = {
-    "价格动量族": [
-        "PriceReturn", "RiskAdjustedReturn", "IntradayMomentum",
-        "OvernightReturn", "HighPointPosition", "LowPointPosition",
-        "TimeSeriesMomentum",
-    ],
-    "反转族": ["ShortTermReversal", "ExtremeReversal", "VolumeReversal"],
-    "成交量族": [
-        "VolumeRatio", "VolumePriceCorrelation", "OBV", "VPT",
-        "AmihudIlliquidity", "VolumeStd", "VolumeSkew", "AverageAmount",
-    ],
-    "波动率族": [
-        "DownsideVolatility", "ParkinsonVolatility", "GarmanKlassVolatility",
-        "VolOfVol", "MaxDrawdown", "AvgDrawdown",
-    ],
-    "趋势质量族": [
-        "HurstExponent", "KaufmanER", "UpDownRatio",
-        "ConsecutiveUpDays", "ConsecutiveDownDays", "ADX",
-    ],
-    "超买超卖族": [
-        "RSI", "Stochastic", "CCI", "WilliamsR", "MFI", "UltimateOscillator",
-    ],
-    "均线偏离族": [
-        "MAPosition", "MA", "BIAS", "BollingerBandPosition",
-        "MAAlignment", "MASlope", "MADistance", "MADispersion",
-    ],
-    "分布形态族": [
-        "ReturnSkew", "ReturnKurtosis", "HistoricalVaR", "CVaR",
-        "MFE", "MAE", "ID",
-    ],
-    "突破族": [
-        "NewHigh", "DailyRebound", "TrendR2", "RSRS", "ATR",
-        "NewHighContinuous", "NewLowContinuous", "DonchianChannelPosition",
-        "ATRRatio", "ChandelierExit",
-    ],
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 参数网格定义
-# ═══════════════════════════════════════════════════════════════════════════════
-# 只对核心 window 类参数定义网格。每个因子跑默认参数一次（主力分析），
-# 再可选配 param_grid 做参数敏感度扫描。
-# 原则：避免组合爆炸，每个因子最多 3-4 个参数值。
-
-def _window_grid(values: list[int]) -> dict[str, list]:
-    """为 window 参数生成网格。"""
-    return {"window": values}
-
-# FULL_MODE_PARAM_GRIDS 推荐值
-# 基于：全量 ETF 动量轮动策略，10 日调仓，Top 5，三过滤器（MA200/RSRS≥0/趋势R²≥0.5）
-# 原则：每个参数 2-3 个值，避免组合爆炸。优先覆盖调仓周期（10 日）和动量窗口（20 日）附近的取值。
-
-FULL_MODE_PARAM_GRIDS: dict[str, dict[str, list]] = {
-    # ── 价格动量族 ──
-    # 当前策略用 20 日动量排名，以 20 为中心上下探
-    "PriceReturn": {"window": [10, 20, 40, 60]},
-    # 风险调整动量，和 PriceReturn 对齐
-    "RiskAdjustedReturn": {"window": [20, 40, 60]},
-    # 日内动量、隔夜收益：无参数
-    # 路径位置：高点位置的窗口——短窗口捕捉近期动能源，长窗口判断趋势结构
-    "HighPointPosition": {"window": [10, 20, 40]},
-    "LowPointPosition": {"window": [10, 20, 40]},
-    # 时序动量：中期方向判断，用 60/120/240 覆盖 1 季/半年/1 年
-    "TimeSeriesMomentum": {"window": [60, 120, 240]},
-
-    # ── 反转族 ──
-    "ShortTermReversal": {"window": [1, 5, 10, 20]},
-    # 极端反转：核心是 tail_pct，window 辅助
-    "ExtremeReversal": {
-        "window": [10, 20],
-        "tail_pct": [0.05, 0.1, 0.15],
-    },
-    # 放量反转：ret_window 是反转回看周期，vol_window 是量比基准
-    "VolumeReversal": {
-        "ret_window": [5, 10, 20],
-        "vol_window": [10, 20],
-    },
-
-    # ── 成交量族 ──
-    # 量比：3/5 日捕捉短期放量，10/20 日看中期量能变化
-    "VolumeRatio": {"window": [3, 5, 10, 20]},
-    # 量价相关：20 日对齐动量窗口，40 日看中期一致性
-    "VolumePriceCorrelation": {"window": [10, 20, 40]},
-    # OBV、VPT：无参数
-    # Amihud：流动性指标，窗口太短噪声大
-    "AmihudIlliquidity": {"window": [10, 20, 40]},
-    "VolumeStd": {"window": [10, 20, 40]},
-    "VolumeSkew": {"window": [10, 20, 40]},
-    # 日均成交额：对齐调仓周期
-    "AverageAmount": {"window": [5, 10, 20]},
-
-    # ── 波动率族 ──
-    # 下行波动率：对齐动量窗口
-    "DownsideVolatility": {"window": [10, 20, 40]},
-    # Parkinson/GK：高低价波动率，和收盘价波动率窗口一致
-    "ParkinsonVolatility": {"window": [10, 20, 40]},
-    "GarmanKlassVolatility": {"window": [10, 20, 40]},
-    # 波动率之波动率：vol_window 是基础波动率窗口，std_window 是稳定度计算窗口
-    "VolOfVol": {
-        "vol_window": [10, 20],
-        "std_window": [40, 60, 120],
-    },
-    # 回撤因子：中期 20/40 和长期 60/120 各覆盖一个
-    "MaxDrawdown": {"window": [20, 40, 60, 120]},
-    "AvgDrawdown": {"window": [20, 40, 60, 120]},
-
-    # ── 趋势质量族 ──
-    # Hurst：长窗口才有统计意义
-    "HurstExponent": {"window": [60, 120, 240]},
-    # Kaufman ER：对齐动量窗口
-    "KaufmanER": {"window": [10, 20, 40]},
-    "UpDownRatio": {"window": [10, 20, 40]},
-    # 连涨连跌：无参数
-    # ADX：经典值 14，上下游探 7 和 21
-    "ADX": {"window": [7, 14, 21]},
-
-    # ── 超买超卖族 ──
-    "RSI": {"window": [7, 14, 21]},
-    # Stochastic：n 是 %K 窗口，m 是 %D 平滑。A 股 9/3/3 也是常用组合
-    "Stochastic": {
-        "n": [7, 14, 21],
-        "m": [3, 5],
-    },
-    "CCI": {"window": [10, 20, 40]},
-    "WilliamsR": {"window": [7, 14, 21]},
-    "MFI": {"window": [7, 14, 21]},
-    # 终极震荡指标：三周期结构本身就是网格，不额外扫
-
-    # ── 均线偏离族 ──
-    # MAPosition：当前策略用 MA200 过滤器，覆盖这个关键值 + 上下
-    "MAPosition": {"window": [60, 120, 200, 250]},
-    "MA": {"window": [10, 20, 40, 60]},
-    "BIAS": {"window": [10, 20, 40]},
-    # 布林带位置：k=2 是经典，试试 1.5 和 2.5 看敏感度
-    "BollingerBandPosition": {
-        "window": [10, 20, 40],
-        "k": [1.5, 2.0, 2.5],
-    },
-    # 均线排列：windows 三元组本身就是参数，不扫
-    # 均线斜率：ma_window 控制哪条均线，slope_window 控制斜率计算区间
-    "MASlope": {
-        "ma_window": [10, 20, 40],
-        "slope_window": [3, 5, 10],
-    },
-    # 均线距离：短均线/长均线的相对距离
-    "MADistance": {
-        "short_window": [5, 10, 20],
-        "long_window": [40, 60, 120],
-    },
-    # 均线发散度：windows 列表是参数本身，不扫
-
-    # ── 分布形态族 ──
-    # 偏度/峰度：需要较长窗口才有统计意义
-    "ReturnSkew": {"window": [20, 40, 60, 120]},
-    "ReturnKurtosis": {"window": [20, 40, 60, 120]},
-    # VaR/CVaR：年窗口是基准
-    "HistoricalVaR": {"window": [60, 120, 252]},
-    "CVaR": {"window": [60, 120, 252]},
-    # MFE/MAE：对齐动量窗口
-    "MFE": {"window": [10, 20, 40]},
-    "MAE": {"window": [10, 20, 40]},
-    # ID：Frog in the Pan，原论文用 20 日
-    "ID": {"window": [10, 20, 40]},
-
-    # ── 突破族 ──
-    # TrendR²：当前策略用 120 日 R²>0.5 作为过滤器。上下探 60/240，同时扫 slope
-    "TrendR2": {
-        "window": [60, 120, 240],
-        "output": ["r2", "slope"],
-    },
-    # RSRS：regression_window 控制回归精度，zscore_window 控制标准化基准。
-    # 当前策略 regression_window=14, zscore_window=600（但实际用了 25？）
-    # 注意：regression_window=14 × zscore_window=[200,400,600] 是 3 组，不算多
-    "RSRS": {
-        "regression_window": [14],
-        "zscore_window": [200, 400, 600],
-        "output": ["zscore"],
-    },
-    "ATR": {"window": [14, 20, 25]},
-    # NewHigh：离散信号，已有单独逻辑，这里用连续版
-    "NewHighContinuous": {"window": [20, 50, 100]},
-    "NewLowContinuous": {"window": [20, 50, 100]},
-    # 唐奇安通道位置：对齐动量窗口
-    "DonchianChannelPosition": {"window": [10, 20, 40]},
-    "ATRRatio": {"window": [14, 20, 25]},
-    # 吊灯止损：n 是最高价窗口，atr_window 是 ATR 窗口。对齐调仓周期
-    "ChandelierExit": {
-        "n": [10, 22, 40],
-        "atr_window": [10, 22, 40],
-    },
-}
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 元因子白名单 & 阈值 (Phase 4 — 手动编辑)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# binarize_winrate 定制阈值（按因子族 / 按因子设，支持每因子多阈值）
-# 未列出的因子默认 threshold=0.0。
-# 值 = [threshold, ...]，每个 threshold 生成一个独立 spec。
-# ═══════════════════════════════════════════════════════════════════════════════
-
-CUSTOM_THRESHOLDS: dict[str, list[float]] = {
-    # ── 需要非零阈值的因子 ──
-    "KaufmanER":         [0.3, 0.4],     # KER<0.3 噪声，>0.4 趋势可识别
-    "TrendR2":           [0.5],          # r²>0.5（三过滤器验证过的阈值）
-    "TrendR2_slope":     [0.0],          # 斜率正负=涨跌方向
-    "RSRS":              [0.0, 0.7],     # 0=中性，0.7=实盘验证有效
-    "ADX":               [20.0, 25.0],   # 经典趋势存在阈值
-    "HurstExponent":     [0.5],          # >0.5 趋势持续，<0.5 均值回归
-    "NewHighContinuous": [10.0, 20.0],   # 连续新高的最低天数门槛
-    # ATR / ATRRatio: 需要运行时用自身均值做 threshold，跳过静态生成
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 变换配置 — 每种变换支持多个 window。
-# ═══════════════════════════════════════════════════════════════════════════════
-
-TRANSFORM_CONFIGS: dict[str, dict] = {
-    "rolling_mean":     {"windows": [5, 10]},
-    "rolling_std":      {"windows": [10]},
-    "delta":            {"windows": [5, 10]},
-    "pct_change":       {"windows": [5, 10]},
-    "binarize_winrate": {"windows": [10, 20]},
-    "zscore":           {"windows": [120]},
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 排除规则 — 某些变换不应该用于某些因子。
-# ═══════════════════════════════════════════════════════════════════════════════
-
-EXCLUSIONS: dict[str, set[str]] = {
-    "rolling_std": {
-        # 收益率的标准差 = 波动率，已有 Volatility/ATR 族覆盖
-        "PriceReturn", "RiskAdjustedReturn", "IntradayMomentum",
-        "OvernightReturn", "TimeSeriesMomentum", "HighPointPosition",
-        "LowPointPosition", "ShortTermReversal", "ExtremeReversal",
-        "VolumeReversal",
-    },
-    "zscore": {
-        # 已有固定范围或本身就是标准化信号
-        "RSRS", "ADX", "BollingerBandPosition",
-        "RSI", "Stochastic", "WilliamsR", "MFI", "UltimateOscillator",
-    },
-    "pct_change": {
-        # 累积量 / 离散 / 计数类因子，变化率无意义或产生 NaN
-        "OBV", "VPT", "ConsecutiveUpDays", "ConsecutiveDownDays",
-        "NewHigh", "DailyRebound", "NewHighContinuous", "NewLowContinuous",
-    },
-    "binarize_winrate": {
-        # 离散 / 布尔 / 反向信号，binarize 无意义
-        "ConsecutiveUpDays", "ConsecutiveDownDays", "NewHigh",
-        "NewLowContinuous", "DailyRebound",
-        # ATR/ATRRatio: 需要运行时动态阈值，跳过静态生成
-        "ATR", "ATRRatio",
-    },
-    "delta": {
-        # 累积量指标，delta 意义不大；离散值差无连续含义
-        "OBV", "VPT", "ConsecutiveUpDays", "ConsecutiveDownDays",
-    },
-}
-
-# 因子组合白名单 — 手动编辑。格式:
-#   {"a": "因子名", "a_params": {...}, "method": "...", "b": "因子名", "b_params": {...}}
-COMBO_WHITELIST: list[dict] = [
-    # ── 高质量动量 ──
-    {"a": "PriceReturn", "a_params": {"window": 20},
-     "method": "product",
-     "b": "KaufmanER", "b_params": {"window": 20}},
-
-    # ── 下行风险调整动量 ──
-    {"a": "PriceReturn", "a_params": {"window": 20},
-     "method": "ratio",
-     "b": "DownsideVolatility", "b_params": {"window": 20}},
-
-    # ── 短期 vs 长期动量 ──
-    {"a": "PriceReturn", "a_params": {"window": 20},
-     "method": "diff",
-     "b": "PriceReturn", "b_params": {"window": 60}},
-]
-
-# 条件因子白名单 — 手动编辑。格式:
-#   {"signal": "因子名", "signal_params": {...},
-#    "condition": "因子名", "condition_params": {...},
-#    "op": "gt", "threshold": 0.5, "false_value": "nan"}
-CONDITIONAL_WHITELIST: list[dict] = [
-    # ── 只对趋势结构好的标的使用动量 ──
-    {"signal": "PriceReturn", "signal_params": {"window": 20},
-     "condition": "TrendR2", "condition_params": {"window": 120, "output": "r2"},
-     "op": "gt", "threshold": 0.5, "false_value": "nan"},
-]
+# 配置变量占位（由 main() 从配置文件加载后赋值）
+FACTOR_FAMILIES: dict = {}
+FULL_MODE_PARAM_GRIDS: dict = {}
+CUSTOM_THRESHOLDS: dict = {}
+TRANSFORM_CONFIGS: dict = {}
+EXCLUSIONS: dict = {}
+COMBO_WHITELIST: list = []
+CONDITIONAL_WHITELIST: list = []
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1011,7 +726,7 @@ def generate_summary_csv(results: list[dict], output_dir: Path) -> Path:
 # CLI
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="批量因子分析 — 一键跑完全部因子",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1085,11 +800,28 @@ def parse_args() -> argparse.Namespace:
         dest="conditionals_extra",
         help="额外条件因子（字符串格式，V2 支持），与 CONDITIONAL_WHITELIST 合并。",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> int:
-    args = parse_args()
+    global FACTOR_FAMILIES, FULL_MODE_PARAM_GRIDS, CUSTOM_THRESHOLDS, \
+           TRANSFORM_CONFIGS, EXCLUSIONS, COMBO_WHITELIST, CONDITIONAL_WHITELIST
+
+    # ── 预解析 --config ──
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--config", default="libs.scripts.factor_analysis_configs.default")
+    config_args, remaining_argv = pre_parser.parse_known_args()
+
+    cfg = importlib.import_module(config_args.config)
+    FACTOR_FAMILIES        = cfg.FACTOR_FAMILIES
+    FULL_MODE_PARAM_GRIDS  = cfg.FULL_MODE_PARAM_GRIDS
+    CUSTOM_THRESHOLDS      = cfg.CUSTOM_THRESHOLDS
+    TRANSFORM_CONFIGS      = cfg.TRANSFORM_CONFIGS
+    EXCLUSIONS             = cfg.EXCLUSIONS
+    COMBO_WHITELIST        = cfg.COMBO_WHITELIST
+    CONDITIONAL_WHITELIST  = cfg.CONDITIONAL_WHITELIST
+
+    args = parse_args(remaining_argv)
 
     # ── 1. 确定因子列表 ────────────────────────────────────────────────────
     if args.factors:

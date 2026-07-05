@@ -1,14 +1,15 @@
-"""宽动量基线回测 — 排名因子替换验证（A/E 五组循环）。
+"""宽动量基线回测 — 通用引擎。
 
-基于 docs/ranking-factor-replace-plan.md，五组共用标的池/区间/持仓参数，
-区别仅在于排名因子和过滤器组合。
+通过 --config 指定配置文件，引擎只负责执行，不包含业务配置。
 
 用法：
     cd /home/gouzi/projects/invest
-    uv run python libs/scripts/run_wide_momentum_custom.py
+    uv run python libs/scripts/run_wide_momentum_custom.py [--config <module>]
 """
 from __future__ import annotations
 
+import argparse
+import importlib
 import itertools
 import multiprocessing
 import sys
@@ -17,151 +18,41 @@ from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "libs"))
+sys.path.insert(0, str(PROJECT_ROOT))           # 让 libs 作为包可见（配置模块需要）
+sys.path.insert(0, str(PROJECT_ROOT / "libs"))  # 直接导入 backtesting 等
 
 from backtesting.wide_momentum_baseline import (
     ThresholdFilter,
     WideMomentumBaselineConfig,
-    equal_weight_allocator,
-    make_factor_weighted_allocator,
-    make_tiered_weight_allocator,
     prepare_wide_momentum_universe,
     run_wide_momentum_baseline_from_prepared,
     save_wide_momentum_baseline_result,
-    score_proportional_allocator,
 )
 from backtesting.html_report import generate_wide_momentum_html_report
 from data_manager.providers.etf_index_map_provider import ETF_INDEX_MAP
-from factors.average_amount import AverageAmount
-from factors.price_return import PriceReturn
-from factors.rsrs import RsrsFactor
-from factors.trend_r2 import TrendR2Factor
-from factors.volatility import Volatility
-from factors.ma import MAFactor, MAPosition, MASlope, MADispersion
-from factors.meta_factor import TransformFactor
 
 
 # ====================================================================
-# 因子定义（共享 + 各组排名因子）
+# 配置变量占位（由 main() 从配置文件加载后赋值，fork 子进程继承）
 # ====================================================================
-
-# 共享因子
-pr_return = PriceReturn(window=20, skip_recent=1)
-trend_r2 = TrendR2Factor(window=120, output="r2")
-rsrs = RsrsFactor(regression_window=14, zscore_window=600, output="zscore")
-ma200 = MAPosition(window=200, price_column="close")
-vol20 = Volatility(window=20)                                      # 20 日波动率（反波动率加权用）
-
-# B 组排名因子：MASlope(ma_window=10, slope_window=5) → rolling_mean(5)
-maslope_10_5_rm5 = TransformFactor(
-    dependency=MASlope(ma_window=10, slope_window=5),
-    transform="rolling_mean", window=5,
-)
-
-# C 组排名因子：MADispersion([5,10,20,60]) → delta(10)
-madisp_d10 = TransformFactor(
-    dependency=MADispersion(windows=[5, 10, 20, 60]),
-    transform="delta", window=10,
-)
-
-# D/E 组排名因子：TrendR2(window=240, output="slope") → rolling_mean(5)
-tr2_240_slope_rm5 = TransformFactor(
-    dependency=TrendR2Factor(window=240, output="slope"),
-    transform="rolling_mean", window=5,
-)
-
-# 共享管道（不含排名因子 — 排名因子由各组单独指定）
-_SHARED_PIPELINE: tuple = (rsrs, trend_r2, ma200, vol20)
-
-
-# ====================================================================
-# 过滤器定义
-# ====================================================================
-FILT_MA200 = ThresholdFilter(field=ma200.get_output_name(), operator=">=", value=0)
-FILT_RSRS = ThresholdFilter(field=rsrs.get_output_name(), operator=">=", value=0)
-FILT_TR2R2 = ThresholdFilter(field=trend_r2.get_output_name(), operator=">=", value=0.5)
-
-
-# ====================================================================
-# 五组回测配置
-# ====================================================================
-# (label, ranking_factor, builtin_filters)
-GROUPS: list[tuple[str, object, tuple[ThresholdFilter, ...]]] = [
-    ("A_baseline",       pr_return,          (FILT_MA200, FILT_RSRS, FILT_TR2R2)),
-    ("B_MASlope",        maslope_10_5_rm5,   (FILT_MA200, FILT_RSRS, FILT_TR2R2)),
-    ("C_MADispersion",   madisp_d10,         (FILT_MA200, FILT_RSRS, FILT_TR2R2)),
-    ("D_TR2slope",       tr2_240_slope_rm5,  (FILT_MA200, FILT_RSRS, FILT_TR2R2)),
-    ("E_TR2slope_noTR2", tr2_240_slope_rm5,  (FILT_MA200, FILT_RSRS)),
-    ("MASlope_noFilter", maslope_10_5_rm5, ()),
-]
-
-
-# ====================================================================
-# Grid Search 参数（所有组共用）
-# ====================================================================
-GRID_TOP_N: tuple[int, ...] = (5, 10, 20)
-GRID_MIN_MOMENTUM: tuple = (None,)
-GRID_CLUSTER_MAX_PER_GROUP: tuple[int, ...] = (0,)
-GRID_REBALANCE_INTERVAL: tuple[int, ...] = (5, 10, 20)
-GRID_EXCLUDE_BONDS: tuple[bool, ...] = (True, False)
-GRID_HOLD_OVERLAP: tuple[bool, ...] = (False, True)
-
-
-# ====================================================================
-# 权重分配器定义
-# ====================================================================
-# 方案 0: 等权（基线）
-alloc_equal = equal_weight_allocator
-
-# 方案 1: 动量加权 — 权重 ∝ 20日收益（排序因子 score）
-alloc_momentum = score_proportional_allocator
-alloc_momentum.__name__ = "momentum"
-
-# 方案 2: 反波动率加权 — 权重 ∝ 1/σ_20d
-alloc_inv_vol = make_factor_weighted_allocator(vol20.get_output_name(), inverse=True)
-alloc_inv_vol.__name__ = "invvol"
-
-# 方案 3: 分档加权 — 自适应比例：前 40% 权重×1.5，后 60% 权重×1.0
-def _adaptive_tiered(candidates):
-    """自适应分档：前 40% 权重 1.5，后 60% 权重 1.0。"""
-    if not candidates:
-        return {}
-    n = len(candidates)
-    top_count = max(1, round(n * 0.4))
-    weights = {}
-    for i, c in enumerate(candidates):
-        weights[c.symbol] = 1.5 if i < top_count else 1.0
-    return weights
-
-_adaptive_tiered.__name__ = "tiered"
-alloc_tiered = _adaptive_tiered
-
-# 方案 4: RSRS 强度加权 — 权重 ∝ RSRS zscore
-alloc_rsrs = make_factor_weighted_allocator(rsrs.get_output_name())
-alloc_rsrs.__name__ = "rsrs"
-
-# Grid: 选择要跑的分配器组合（逐个跑请只留一个）
-GRID_WEIGHT_ALLOCATOR: tuple = (
-    # alloc_equal,
-    # alloc_momentum,
-    alloc_inv_vol,
-    # alloc_tiered,
-    # alloc_rsrs,
-)
-
-# Grid 并行 worker 数（None = CPU 核数）
+GROUPS: list = []
+GRID_TOP_N: tuple = ()
+GRID_MIN_MOMENTUM: tuple = ()
+GRID_CLUSTER_MAX_PER_GROUP: tuple = ()
+GRID_REBALANCE_INTERVAL: tuple = ()
+GRID_EXCLUDE_BONDS: tuple = ()
+GRID_HOLD_OVERLAP: tuple = ()
+GRID_WEIGHT_ALLOCATOR: tuple = ()
 GRID_MAX_WORKERS: int | None = None
-
-# 分段统计频率（None = 不启用分段统计）
 PERIOD_FREQ: str | None = None
+CUSTOM_PERIODS: tuple | None = None
+SHARED_PIPELINE: tuple = ()
+_output_base_dir: str = ""
+_title: str = ""
+_start_date: str = ""
+_end_date: str = ""
 
-# 自定义分段统计的时间段列表（优先级高于 PERIOD_FREQ）
-CUSTOM_PERIODS: tuple[tuple[str, str], ...] | None = None
-
-
-# ====================================================================
-# 模块级变量（fork 继承用）
-# ====================================================================
+# 运行时变量（fork 继承用）
 prepared = None
 _output_root: Path | None = None
 _current_ranking: object = None
@@ -229,17 +120,43 @@ def _build_output_basename() -> str:
     return "_".join(parts)
 
 
-def main() -> None:
+def main(config_module: str) -> None:
     """主流程：逐组 prepare → grid search → 落盘。"""
-    global prepared, _output_root, _current_ranking, _current_pipeline, _current_filters
+    global \
+        prepared, _output_root, _current_ranking, _current_pipeline, _current_filters, \
+        GROUPS, GRID_TOP_N, GRID_MIN_MOMENTUM, GRID_CLUSTER_MAX_PER_GROUP, \
+        GRID_REBALANCE_INTERVAL, GRID_EXCLUDE_BONDS, GRID_HOLD_OVERLAP, \
+        GRID_WEIGHT_ALLOCATOR, GRID_MAX_WORKERS, PERIOD_FREQ, CUSTOM_PERIODS, \
+        SHARED_PIPELINE, _output_base_dir, _title, _start_date, _end_date
 
+    # ── 加载配置 ──
+    cfg = importlib.import_module(config_module)
+
+    GROUPS                  = cfg.GROUPS
+    GRID_TOP_N              = cfg.GRID_TOP_N
+    GRID_MIN_MOMENTUM       = cfg.GRID_MIN_MOMENTUM
+    GRID_CLUSTER_MAX_PER_GROUP = cfg.GRID_CLUSTER_MAX_PER_GROUP
+    GRID_REBALANCE_INTERVAL = cfg.GRID_REBALANCE_INTERVAL
+    GRID_EXCLUDE_BONDS      = cfg.GRID_EXCLUDE_BONDS
+    GRID_HOLD_OVERLAP       = cfg.GRID_HOLD_OVERLAP
+    GRID_WEIGHT_ALLOCATOR   = cfg.WEIGHT_ALLOCATORS
+    GRID_MAX_WORKERS        = getattr(cfg, "MAX_WORKERS", None)
+    PERIOD_FREQ             = getattr(cfg, "PERIOD_FREQ", None)
+    CUSTOM_PERIODS          = getattr(cfg, "CUSTOM_PERIODS", None)
+    SHARED_PIPELINE         = cfg.SHARED_PIPELINE
+    _output_base_dir        = cfg.OUTPUT_BASE_DIR
+    _title                  = cfg.TITLE
+    _start_date             = cfg.START_DATE
+    _end_date               = cfg.END_DATE
+
+    # ── 执行 ──
     symbols = ETF_INDEX_MAP.get_all_symbols()
     group_count = len(GROUPS)
     print("=" * 60)
-    print(f"宽动量基线回测 — 排名因子替换验证（{group_count} 组）")
+    print(f"{_title}（{group_count} 组）")
     print("=" * 60)
     print(f"  标的池:         {len(symbols)} 标的 (ETF_INDEX_MAP)")
-    print(f"  回测区间:       2020-01-01 → 2026-05-29")
+    print(f"  回测区间:       {_start_date} → {_end_date}")
     print(f"  持仓数量:       Top {GRID_TOP_N}")
     print(f"  权重方案:       {[getattr(a, '__name__', str(a)) for a in GRID_WEIGHT_ALLOCATOR]}")
     print(f"  调仓频率:       {GRID_REBALANCE_INTERVAL} 日")
@@ -248,13 +165,13 @@ def main() -> None:
     print(f"  hold_overlap:   {GRID_HOLD_OVERLAP}")
     print()
 
-    output_base = Path("/mnt/c/Users/wyg/Documents/invest/backtest") / _build_output_basename()
+    output_base = Path(_output_base_dir) / _build_output_basename()
 
     all_summaries: list[dict] = []
 
     for group_idx, (group_label, ranking_factor, builtin_filters) in enumerate(GROUPS, 1):
         _current_ranking = ranking_factor
-        _current_pipeline = (ranking_factor,) + _SHARED_PIPELINE
+        _current_pipeline = (ranking_factor,) + SHARED_PIPELINE
         _current_filters = builtin_filters
 
         _output_root = output_base / f"wide_momentum_{group_label}"
@@ -270,10 +187,10 @@ def main() -> None:
         # ── 阶段 1: 准备 universe ──
         _bootstrap_config = WideMomentumBaselineConfig(
             ranking_factor=ranking_factor,
-            factor_pipeline=_SHARED_PIPELINE,
+            factor_pipeline=SHARED_PIPELINE,
             builtin_filters=builtin_filters,
-            start_date="2020-01-01",
-            end_date="2026-05-29",
+            start_date=_start_date,
+            end_date=_end_date,
         )
 
         print(f"\n[阶段 1] 准备 shared universe ...", end=" ", flush=True)
@@ -310,7 +227,7 @@ def main() -> None:
         print("=" * 60)
 
         # 打包轻量参数供 worker 使用
-        _shared_args = (ranking_factor, _SHARED_PIPELINE, builtin_filters, False)
+        _shared_args = (ranking_factor, SHARED_PIPELINE, builtin_filters, False)
 
         group_summaries: list[dict] = []
         futures_map: dict = {}
@@ -352,7 +269,7 @@ def main() -> None:
 
     # ── 全部完成 ──
     print(f"\n{'=' * 60}")
-    print(f"五组全部完成，共 {len(all_summaries)} 行汇总")
+    print(f"全部完成，共 {len(all_summaries)} 行汇总")
     print(f"输出根目录: {output_base}")
     print(f"{'=' * 60}")
 
@@ -364,7 +281,7 @@ def main() -> None:
 
         grid_params = {
             "标的池": f"{len(symbols)} 标的",
-            "回测区间": "2020-01-01 → 2026-05-29",
+            "回测区间": f"{_start_date} → {_end_date}",
             "Top N": GRID_TOP_N,
             "调仓频率(日)": GRID_REBALANCE_INTERVAL,
             "债券剔除": GRID_EXCLUDE_BONDS,
@@ -379,7 +296,7 @@ def main() -> None:
             all_summaries=all_summaries,
             output_base=output_base,
             grid_params=grid_params,
-            title="宽动量基线回测 — 排名因子替换验证",
+            title=_title,
         )
         report_path.write_text(html, encoding="utf-8")
         print(f"完成 ({report_path.stat().st_size // 1024} KB)")
@@ -463,4 +380,11 @@ def _run_single_combo(args):
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="宽动量基线回测通用引擎")
+    parser.add_argument(
+        "--config",
+        default="libs.scripts.wide_momentum_configs.pr20_replacement",
+        help="配置模块路径（默认: pr20_replacement）",
+    )
+    args = parser.parse_args()
+    main(args.config)
