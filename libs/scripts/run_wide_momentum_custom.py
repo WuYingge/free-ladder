@@ -150,7 +150,7 @@ def main(config_module: str) -> None:
     _end_date               = cfg.END_DATE
 
     # ── 执行 ──
-    symbols = ETF_INDEX_MAP.get_all_symbols()
+    symbols = getattr(cfg, "SYMBOLS", None) or ETF_INDEX_MAP.get_all_symbols()
     group_count = len(GROUPS)
     print("=" * 60)
     print(f"{_title}（{group_count} 组）")

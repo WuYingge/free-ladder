@@ -46,7 +46,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -150,6 +152,7 @@ def _collect_base_factors(
 
 def _collect_base_factors_with_grid(
     factor_names: list[str] | None,
+    full_mode_param_grids: dict[str, dict[str, list]] | None = None,
 ) -> dict[str, "BaseFactor"]:
     """收集基础因子 + 参数网格变体。
 
@@ -160,7 +163,9 @@ def _collect_base_factors_with_grid(
     dict[str, BaseFactor]
         因子输出名 → 因子实例。
     """
-    from scripts.run_batch_factor_analysis import FULL_MODE_PARAM_GRIDS
+    if full_mode_param_grids is None:
+        from scripts.run_batch_factor_analysis import FULL_MODE_PARAM_GRIDS as _grids
+        full_mode_param_grids = _grids
 
     if factor_names is None:
         factor_names = sorted(FACTOR_REGISTRY.keys())
@@ -172,7 +177,7 @@ def _collect_base_factors_with_grid(
             print(f"  警告: 跳过未知因子 {fname}")
             continue
 
-        param_grid = FULL_MODE_PARAM_GRIDS.get(fname)
+        param_grid = full_mode_param_grids.get(fname)
         if param_grid is None:
             # 无参数网格 → 只用默认参数
             try:
@@ -205,39 +210,126 @@ def _collect_base_factors_with_grid(
     return instances
 
 
-def _collect_meta_factors() -> dict[str, "BaseFactor"]:
+def _collect_meta_factors(
+    combo_whitelist: list[dict] | None = None,
+    conditional_whitelist: list[dict] | None = None,
+    meta_specs: list[dict] | None = None,
+    full_mode_param_grids: dict[str, dict[str, list]] | None = None,
+    transform_configs: dict[str, dict] | None = None,
+    exclusions: dict[str, set[str]] | None = None,
+) -> dict[str, "BaseFactor"]:
     """收集所有衍生因子（Transform + Combine + Conditional）。
 
-    复用 run_batch_factor_analysis.py 中的配方生成逻辑。
+    复用 run_batch_factor_analysis.py 中的配方生成逻辑，支持从配置文件加载。
+
+    Parameters
+    ----------
+    combo_whitelist : list[dict] | None
+        复合因子白名单。None = 使用默认配置。
+    conditional_whitelist : list[dict] | None
+        条件因子白名单。None = 使用默认配置。
+    meta_specs : list[dict] | None
+        META_SPECS 精确因子定义（如 combo_54）。None = 不使用。
+    full_mode_param_grids : dict | None
+        参数网格。None = 使用默认配置。
+    transform_configs : dict | None
+        变换配置。None = 使用默认配置。
+    exclusions : dict | None
+        排除规则。None = 使用默认配置。
 
     Returns
     -------
     dict[str, BaseFactor]
         因子输出名 → 因子实例。
     """
+    import importlib
     from scripts.run_batch_factor_analysis import (
         generate_transform_specs,
         generate_combo_specs,
         generate_conditional_specs,
-        TRANSFORM_CONFIGS,
-        COMBO_WHITELIST,
-        CONDITIONAL_WHITELIST,
-        FULL_MODE_PARAM_GRIDS,
     )
+
+    # ── 默认值：先加载 default 配置作为 fallback ──
+    _default_cfg = importlib.import_module(
+        "libs.scripts.factor_analysis_configs.default"
+    )
+    if full_mode_param_grids is None:
+        full_mode_param_grids = _default_cfg.FULL_MODE_PARAM_GRIDS
+    if transform_configs is None:
+        transform_configs = _default_cfg.TRANSFORM_CONFIGS
+    if exclusions is None:
+        exclusions = _default_cfg.EXCLUSIONS
+
+    # generate_transform_specs 内部直接读取 run_batch_factor_analysis 的模块级
+    # TRANSFORM_CONFIGS / EXCLUSIONS 变量（默认在 import 时为空）。
+    # 必须在调用前将其设置为实际配置值。
+    import scripts.run_batch_factor_analysis as _rba
+    _rba.TRANSFORM_CONFIGS = transform_configs
+    _rba.EXCLUSIONS = exclusions
+    # 同时给 CUSTOM_THRESHOLDS 设置默认值（generate_transform_specs 也会读取）
+    if getattr(_rba, 'CUSTOM_THRESHOLDS', None) is None or not _rba.CUSTOM_THRESHOLDS:
+        _rba.CUSTOM_THRESHOLDS = getattr(_default_cfg, 'CUSTOM_THRESHOLDS', {})
+
     from factors.meta_factor import build_meta_factor
+    from factors.meta_factor import MetaFactorSpec
 
     all_factor_names = sorted(FACTOR_REGISTRY.keys())
-    transform_names = list(TRANSFORM_CONFIGS.keys())
+    transform_names = list(transform_configs.keys())
 
     specs = []
     # 传入 FULL_MODE_PARAM_GRIDS 以展开参数网格变体
     # （如 AvgDrawdown_120__rolling_mean_10 而非仅 AvgDrawdown_60__rolling_mean_10）
     specs.extend(
         generate_transform_specs(all_factor_names, transform_names,
-                                 param_grids=FULL_MODE_PARAM_GRIDS)
+                                 param_grids=full_mode_param_grids)
     )
-    specs.extend(generate_combo_specs(COMBO_WHITELIST))
-    specs.extend(generate_conditional_specs(CONDITIONAL_WHITELIST))
+
+    # COMBO_WHITELIST: 始终合并 default + 传入配置（同时设置模块变量供 _find_combo_raw 引用）
+    _combo = list(_default_cfg.COMBO_WHITELIST) if combo_whitelist is None else (
+        list(_default_cfg.COMBO_WHITELIST) + list(combo_whitelist)
+    )
+    _rba.COMBO_WHITELIST = _combo
+    specs.extend(generate_combo_specs(_combo))
+
+    # CONDITIONAL_WHITELIST: 始终合并 default + 传入配置
+    _cond = list(_default_cfg.CONDITIONAL_WHITELIST) if conditional_whitelist is None else (
+        list(_default_cfg.CONDITIONAL_WHITELIST) + list(conditional_whitelist)
+    )
+    specs.extend(generate_conditional_specs(_cond))
+
+    # ── 处理 META_SPECS ──
+    if meta_specs:
+        _TF_DEFAULT_WINDOWS = {
+            "rolling_mean": 10, "rolling_std": 20, "delta": 5,
+            "pct_change": 5, "binarize_winrate": 20, "zscore": 252,
+        }
+        for entry in meta_specs:
+            etype = entry.get("type", "transform")
+            name = entry["factor"]
+            if name not in FACTOR_REGISTRY:
+                continue
+            module_path, class_name, default_params = FACTOR_REGISTRY[name]
+            merged = dict(default_params)
+            merged.update(entry.get("params", {}))
+
+            if etype == "transform":
+                t_name = entry["transform"]
+                t_window = entry.get("transform_window",
+                    _TF_DEFAULT_WINDOWS.get(t_name, 10))
+                t_threshold = entry.get("threshold", 0.0)
+                spec = MetaFactorSpec(
+                    base_factor_name=name,
+                    base_factor_module=module_path,
+                    base_factor_class=class_name,
+                    base_params=merged,
+                    meta_type="transform",
+                    meta_params={
+                        "transform": t_name,
+                        "window": t_window,
+                        "threshold": t_threshold,
+                    },
+                )
+                specs.append(spec)
 
     print(f"衍生因子配方数: {len(specs)}")
 
@@ -261,8 +353,15 @@ def _build_factor_values(
     end_date: str | None,
     max_workers: int,
     min_bars: int = DEFAULT_MIN_BARS,
+    parallel_factors: int | None = None,
 ) -> dict[str, "pd.DataFrame"]:
     """为每个因子构建 FactorPanel，提取 factor_values。
+
+    Parameters
+    ----------
+    parallel_factors : int | None
+        外层并行处理的因子数。None = auto（min(4, cpu_count, n_factors)）。
+        设为 1 退化为串行模式。
 
     Returns
     -------
@@ -271,29 +370,102 @@ def _build_factor_values(
     """
     import pandas as pd
 
-    factor_values: dict[str, pd.DataFrame] = {}
-    total = len(factor_instances)
+    cpu_count = os.cpu_count() or 4
+    n_factors = len(factor_instances)
+    if parallel_factors is None:
+        parallel_factors = 1  # 默认安全模式：串行因子 + 内层多进程
+    # 外层用线程并行调度多个因子（需配合 max_workers=1 避免 fork 死锁）
+    # 推荐用法：parallel_factors=1 + max_workers=cpu_count（内层跑满 CPU）
+    inner_workers = max_workers if parallel_factors <= 1 else 1
 
-    for idx, (out_name, factor_inst) in enumerate(factor_instances.items()):
-        print(f"  [{idx + 1}/{total}] 构建面板: {out_name}...")
-        try:
-            panel = build_factor_panel(
-                factor=factor_inst,
-                symbols=symbols,
-                min_bars=min_bars,
-                start_date=start_date,
-                end_date=end_date,
-                max_workers=max_workers,
-            )
-            factor_values[out_name] = panel.factor_values
-            print(f"    → {panel.n_symbols} 标的, {panel.n_dates} 日")
-        except Exception as e:
-            print(f"    ✗ 失败: {e}")
+    factor_values: dict[str, pd.DataFrame] = {}
+    total = n_factors
+
+    if parallel_factors <= 1:
+        # 串行模式
+        print(f"串行构建面板 (max_workers={max_workers})")
+        for idx, (out_name, factor_inst) in enumerate(factor_instances.items()):
+            print(f"  [{idx + 1}/{total}] 构建面板: {out_name}...")
+            try:
+                panel = build_factor_panel(
+                    factor=factor_inst,
+                    symbols=symbols,
+                    min_bars=min_bars,
+                    start_date=start_date,
+                    end_date=end_date,
+                    max_workers=max_workers,
+                )
+                factor_values[out_name] = panel.factor_values
+                print(f"    → {panel.n_symbols} 标的, {panel.n_dates} 日")
+            except Exception as e:
+                print(f"    ✗ 失败: {e}")
+    else:
+        # 并行模式：线程池同时发起多个因子的面板构建
+        print(f"并行构建面板: {parallel_factors} 个因子并行, "
+              f"每因子 {inner_workers} worker (CPU: {cpu_count}核)")
+        items = list(factor_instances.items())
+        completed = 0
+        with ThreadPoolExecutor(max_workers=parallel_factors) as executor:
+            future_map = {}
+            for out_name, factor_inst in items:
+                future = executor.submit(
+                    _build_single_panel,
+                    factor_inst, symbols, min_bars, start_date, end_date, inner_workers
+                )
+                future_map[future] = out_name
+
+            for future in as_completed(future_map):
+                out_name = future_map[future]
+                completed += 1
+                try:
+                    panel = future.result()
+                    if panel is not None:
+                        factor_values[out_name] = panel.factor_values
+                        print(f"  [{completed}/{total}] ✓ {out_name} "
+                              f"→ {panel.n_symbols} 标的, {panel.n_dates} 日")
+                    else:
+                        print(f"  [{completed}/{total}] ✗ {out_name}: 返回空结果")
+                except Exception as e:
+                    print(f"  [{completed}/{total}] ✗ {out_name}: {e}")
 
     return factor_values
 
 
-def _collect_factors_from_csv(csv_path: str) -> dict[str, "BaseFactor"]:
+def _build_single_panel(
+    factor_inst: "BaseFactor",
+    symbols: list[str],
+    min_bars: int,
+    start_date: str | None,
+    end_date: str | None,
+    max_workers: int,
+) -> "FactorPanel | None":
+    """构建单个因子的面板（供并行调用）。"""
+    from factor_analysis.panel import build_factor_panel
+    import traceback
+    try:
+        return build_factor_panel(
+            factor=factor_inst,
+            symbols=symbols,
+            min_bars=min_bars,
+            start_date=start_date,
+            end_date=end_date,
+            max_workers=max_workers,
+        )
+    except Exception as e:
+        print(f"    [并行错误] {factor_inst.get_output_name()}: {e}")
+        traceback.print_exc()
+        return None
+
+
+def _collect_factors_from_csv(
+    csv_path: str,
+    combo_whitelist: list[dict] | None = None,
+    conditional_whitelist: list[dict] | None = None,
+    meta_specs: list[dict] | None = None,
+    full_mode_param_grids: dict[str, dict[str, list]] | None = None,
+    transform_configs: dict[str, dict] | None = None,
+    exclusions: dict[str, set[str]] | None = None,
+) -> dict[str, "BaseFactor"]:
     """从 CSV 文件读取因子名列表，构建对应的因子实例。
 
     CSV 需有 'factor' 列（如 factor_details_10d.csv 或 ic10d_abs_gt_0.03.csv）。
@@ -323,13 +495,16 @@ def _collect_factors_from_csv(csv_path: str) -> dict[str, "BaseFactor"]:
 
     # 1. 基础因子 + 参数网格
     print("  生成基础因子 + 参数网格...")
-    base = _collect_base_factors_with_grid(None)
+    base = _collect_base_factors_with_grid(None, full_mode_param_grids=full_mode_param_grids)
     all_instances.update(base)
     print(f"    基础因子: {len(base)} 个")
 
     # 2. 衍生因子
     print("  生成衍生因子配方...")
-    meta = _collect_meta_factors()
+    meta = _collect_meta_factors(
+        combo_whitelist=combo_whitelist, conditional_whitelist=conditional_whitelist,
+        meta_specs=meta_specs, full_mode_param_grids=full_mode_param_grids,
+        transform_configs=transform_configs, exclusions=exclusions)
     all_instances.update(meta)
     print(f"    衍生因子: {len(meta)} 个")
 
@@ -361,6 +536,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--csv", type=str, default=None,
         help="从 CSV 读取因子列表（需有 'factor' 列），自动匹配因子实例",
+    )
+    parser.add_argument(
+        "--config", type=str, default="libs.scripts.factor_analysis_configs.default",
+        help="因子分析配置文件（Python 模块路径，如 libs.scripts.factor_analysis_configs.combo_54）",
     )
     parser.add_argument(
         "--factors", type=str, nargs="*",
@@ -403,8 +582,12 @@ def parse_args() -> argparse.Namespace:
         help="只检查指纹是否匹配，不计算",
     )
     parser.add_argument(
-        "--max-workers", type=int, default=8,
-        help="构建面板时的并行 worker 数（默认 8）",
+        "--max-workers", type=int, default=None,
+        help="每个因子内部的并行 worker 数（默认 cpu_count，仅 parallel_factors=1 时生效）",
+    )
+    parser.add_argument(
+        "--parallel-factors", type=int, default=None,
+        help="外层并行处理的因子数（默认 auto: min(cpu_count, n_factors)），设 1 为串行（此时 --max-workers 对内层生效）",
     )
     parser.add_argument(
         "--no-heatmap", action="store_true",
@@ -430,20 +613,58 @@ def main() -> int:
         end_date = (date.today() - timedelta(days=1)).isoformat()
         print(f"end_date 未指定，取昨天: {end_date}")
 
+    # ── 0.5 加载配置文件 ──
+    # 确保 REPO_ROOT 在 sys.path 中（importlib 需要找到 "libs" 包）
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    import importlib
+    cfg = importlib.import_module(args.config)
+    _combo_whitelist = getattr(cfg, "COMBO_WHITELIST", None)
+    _conditional_whitelist = getattr(cfg, "CONDITIONAL_WHITELIST", None)
+    _meta_specs = getattr(cfg, "META_SPECS", None)
+    _full_mode_param_grids = getattr(cfg, "FULL_MODE_PARAM_GRIDS", None)
+    _transform_configs = getattr(cfg, "TRANSFORM_CONFIGS", None)
+    _exclusions = getattr(cfg, "EXCLUSIONS", None)
+    print(f"加载配置文件: {args.config}")
+    if _meta_specs:
+        print(f"  META_SPECS: {len(_meta_specs)} 条")
+    if _combo_whitelist:
+        print(f"  COMBO_WHITELIST: {len(_combo_whitelist)} 条")
+    if _conditional_whitelist:
+        print(f"  CONDITIONAL_WHITELIST: {len(_conditional_whitelist)} 条")
+
     # ── 1. 收集因子实例 ──
     print("收集因子实例...")
     factor_instances: dict[str, "BaseFactor"] = {}
 
     if args.csv:
         print(f"  模式: 从 CSV 读取 ({args.csv})")
-        factor_instances.update(_collect_factors_from_csv(args.csv))
+        factor_instances.update(_collect_factors_from_csv(
+            args.csv,
+            combo_whitelist=_combo_whitelist,
+            conditional_whitelist=_conditional_whitelist,
+            meta_specs=_meta_specs,
+            full_mode_param_grids=_full_mode_param_grids,
+            transform_configs=_transform_configs,
+            exclusions=_exclusions,
+        ))
     elif args.meta_expand:
         print("  模式: 展开衍生因子")
-        factor_instances.update(_collect_meta_factors())
-        factor_instances.update(_collect_base_factors(args.factors))
+        factor_instances.update(_collect_meta_factors(
+            combo_whitelist=_combo_whitelist,
+            conditional_whitelist=_conditional_whitelist,
+            meta_specs=_meta_specs,
+            full_mode_param_grids=_full_mode_param_grids,
+            transform_configs=_transform_configs,
+            exclusions=_exclusions,
+        ))
+        if args.factors:
+            factor_instances.update(_collect_base_factors(args.factors))
     elif args.with_grid:
         print("  模式: 基础因子 + 参数网格")
-        factor_instances.update(_collect_base_factors_with_grid(args.factors))
+        factor_instances.update(_collect_base_factors_with_grid(
+            args.factors, full_mode_param_grids=_full_mode_param_grids,
+        ))
     else:
         print("  模式: 基础因子（默认参数）")
         factor_instances.update(_collect_base_factors(args.factors))
@@ -499,12 +720,14 @@ def main() -> int:
 
     # ── 4. 构建面板 & 提取 factor_values ──
     print("\n构建因子面板...")
+    _max_workers = args.max_workers or (os.cpu_count() or 4)
     factor_values = _build_factor_values(
         factor_instances=factor_instances,
         symbols=symbols,
         start_date=args.start_date,
         end_date=end_date,
-        max_workers=args.max_workers,
+        max_workers=_max_workers,
+        parallel_factors=args.parallel_factors,
     )
 
     if not factor_values:

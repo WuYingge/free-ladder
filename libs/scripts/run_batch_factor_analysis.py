@@ -377,11 +377,10 @@ def generate_combo_specs(whitelist: list[dict]) -> list["MetaFactorSpec"]:
         b_merged = dict(b_params)
         b_merged.update(entry.get("b_params", {}))
 
+        # _b_raw: 统一格式 (module, class, params) — _resolve_factor 递归处理
         meta_params = {
             "method": entry["method"],
-            "_b_module": b_module,
-            "_b_class": b_cls,
-            "_b_params": b_merged,
+            "_b_raw": (b_module, b_cls, b_merged),
         }
         # 可选参数
         for opt in ("weight_a", "weight_b", "normalize", "normalize_window"):
@@ -399,33 +398,287 @@ def generate_combo_specs(whitelist: list[dict]) -> list["MetaFactorSpec"]:
     return specs
 
 
+def _build_nested_raw(factor_name: str, params: dict | None = None,
+                       transform: dict | None = None, negate: bool = False):
+    """构造因子描述，可选包裹 transform + negate，返回 _resolve_factor 可用的 raw。
+
+    raw 格式: (module, class, params) 或 MetaFactorSpec（带 transform 时）。
+    """
+    from factors.meta_factor import MetaFactorSpec
+    module, cls, defaults = _registry_entry(factor_name)
+    merged = dict(defaults)
+    if params:
+        merged.update(params)
+
+    if transform:
+        spec = MetaFactorSpec(
+            base_factor_name=factor_name,
+            base_factor_module=module,
+            base_factor_class=cls,
+            base_params=merged,
+            meta_type="transform",
+            meta_params={
+                "transform": transform["transform"],
+                "window": transform.get("window", 10),
+                "threshold": transform.get("threshold", 0.0),
+            },
+        )
+        return spec
+    return (module, cls, merged)
+
+
+def _find_combo_raw(combo_name: str):
+    """在 COMBO_WHITELIST 中按名称匹配复合因子 → 生成 MetaFactorSpec。
+
+    复合因子名称匹配规则：按 a + a_params + method + b + b_params 查找。
+    支持的引用名如 "Composite_HPP_TSM"、"Composite_HPP_AvgDD"。
+    """
+    from factors.meta_factor import MetaFactorSpec
+
+    # 预计算的名称映射：遍历 COMBO_WHITELIST 为每个条目生成可引用的简称
+    name_map: dict[str, dict] = {}
+    for entry in COMBO_WHITELIST:
+        # 构造简称: "Composite_" + a 的缩写 + "_" + b 的缩写
+        a_name = entry["a"]
+        b_name = entry["b"]
+        a_params = entry.get("a_params", {})
+        b_params = entry.get("b_params", {})
+        method = entry["method"]
+
+        # 可引用名：Composite_{a}_{b}，带 param 时追加
+        short = f"Composite_{a_name}"
+        if a_params:
+            short += "_" + "_".join(f"{k}{v}" for k, v in sorted(a_params.items()))
+        short += "_" + method + "_" + b_name
+        if b_params:
+            short += "_" + "_".join(f"{k}{v}" for k, v in sorted(b_params.items()))
+        name_map[short] = entry
+
+    if combo_name not in name_map:
+        # 也尝试部分匹配
+        for k in name_map:
+            if combo_name in k or k in combo_name:
+                name_map[combo_name] = name_map[k]
+                break
+
+    if combo_name not in name_map:
+        raise ValueError(
+            f"未找到复合因子引用 '{combo_name}'。"
+            f" 可用引用: {list(name_map.keys())[:10]}..."
+        )
+
+    entry = name_map[combo_name]
+    specs = generate_combo_specs([entry])
+    if not specs:
+        raise ValueError(f"无法生成复合因子 spec: {combo_name}")
+    return specs[0]
+
+
 def generate_conditional_specs(whitelist: list[dict]) -> list["MetaFactorSpec"]:
     """从条件因子白名单生成 MetaFactorSpec。
 
-    白名单格式:
-        {"signal": "因子名", "signal_params": {...},
-         "condition": "因子名", "condition_params": {...},
+    支持五种白名单格式:
+
+    格式 A — 单条件（基础）:
+        {"signal": "...", "signal_params": {...},
+         "condition": "...", "condition_params": {...},
          "op": "gt", "threshold": 0.5, "false_value": "nan"}
+
+    格式 B — 单条件 + 衍生 signal/condition:
+        {"signal": "...", "signal_params": {...},
+         "signal_transform": {"transform": "zscore", "window": 252},
+         "condition": "...", "condition_params": {...},
+         "condition_transform": {...},
+         "op": "lt", "threshold": 1.5, "false_value": "nan"}
+
+    格式 C — 多条件（MultiConditionalFactor）:
+        {"signal": "...", "signal_params": {...},
+         "conditions": [
+             {"factor": "...", "params": {...}, "op": "gt", "threshold": 0.5},
+             {"factor": "...", "params": {...}, "transform": {...}, "op": "lt", "threshold": 1.0},
+         ], "logic": "and", "false_value": "nan"}
+
+    格式 D — 双信号切换（SwitchFactor）:
+        {"type": "switch",
+         "signal_true": "...", "true_params": {...}, "true_transform": {...},
+         "signal_false": "...", "false_params": {...}, "false_negate": True,
+         "condition": "...", "condition_params": {...},
+         "op": "gt", "threshold": 0.5}
+
+    格式 E — 复合因子作为 signal（引用 COMBO_WHITELIST）:
+        {"signal_combo": "Composite_HPP_TSM",
+         "conditions": [...], "logic": "and", "false_value": "nan"}
+        或 type="switch" 中 signal_true_combo / signal_false_combo
     """
     from factors.meta_factor import MetaFactorSpec
 
     specs = []
     for entry in whitelist:
-        s_module, s_cls, s_params = _registry_entry(entry["signal"])
-        c_module, c_cls, c_params = _registry_entry(entry["condition"])
-        s_merged = dict(s_params)
-        s_merged.update(entry.get("signal_params", {}))
-        c_merged = dict(c_params)
-        c_merged.update(entry.get("condition_params", {}))
+        # ── 格式 D: SwitchFactor ──────────────────────────────────────────
+        if entry.get("type") == "switch":
+            # True signal
+            if "signal_true_combo" in entry:
+                true_raw = _find_combo_raw(entry["signal_true_combo"])
+            else:
+                true_raw = _build_nested_raw(
+                    entry["signal_true"],
+                    entry.get("true_params"),
+                    entry.get("true_transform"),
+                )
+            # False signal
+            if "signal_false_combo" in entry:
+                false_raw = _find_combo_raw(entry["signal_false_combo"])
+            else:
+                false_raw = _build_nested_raw(
+                    entry["signal_false"],
+                    entry.get("false_params"),
+                    entry.get("false_transform"),
+                )
+
+            # Dummy for registry — SwitchFactor resolves via _true_raw/_false_raw
+            dummy_name = list(FACTOR_REGISTRY.keys())[0]
+            dummy_module, dummy_cls, dummy_params = _registry_entry(dummy_name)
+
+            # Check for multi-condition (D5, D6)
+            if "conditions" in entry:
+                # 多条件模式: 构建 _conditions 列表
+                conds_data = []
+                for cd in entry["conditions"]:
+                    cond_raw = _build_nested_raw(
+                        cd["factor"], cd.get("params"), cd.get("transform"),
+                    )
+                    conds_data.append({
+                        "_raw": cond_raw,
+                        "op": cd.get("op", "gt"),
+                        "threshold": cd.get("threshold", 0.0),
+                    })
+                meta_params = {
+                    "_true_raw": true_raw,
+                    "_false_raw": false_raw,
+                    "_conditions": conds_data,
+                    "logic": entry.get("logic", "and"),
+                    "false_negate": entry.get("false_negate", False),
+                }
+            else:
+                # 单条件模式
+                cond_raw = _build_nested_raw(
+                    entry["condition"],
+                    entry.get("condition_params"),
+                    entry.get("condition_transform"),
+                )
+                meta_params = {
+                    "_true_raw": true_raw,
+                    "_false_raw": false_raw,
+                    "_cond_raw": cond_raw,
+                    "op": entry.get("op", "gt"),
+                    "threshold": entry.get("threshold", 0.0),
+                    "false_negate": entry.get("false_negate", False),
+                }
+
+            specs.append(MetaFactorSpec(
+                base_factor_name=dummy_name,
+                base_factor_module=dummy_module,
+                base_factor_class=dummy_cls,
+                base_params=dict(dummy_params),
+                meta_type="switch",
+                meta_params=meta_params,
+            ))
+            continue
+
+        # ── 格式 E: 复合因子作为 signal — single conditional ─────────────
+        if "signal_combo" in entry and "conditions" not in entry:
+            combo_raw = _find_combo_raw(entry["signal_combo"])
+            cond_raw = _build_nested_raw(
+                entry["condition"],
+                entry.get("condition_params"),
+                entry.get("condition_transform"),
+            )
+            meta_params = {
+                "_signal_raw": combo_raw,
+                "_cond_raw": cond_raw,
+                "op": entry.get("op", "gt"),
+                "threshold": entry.get("threshold", 0.0),
+                "false_value": entry.get("false_value", "nan"),
+            }
+            dummy_name = list(FACTOR_REGISTRY.keys())[0]
+            dummy_module, dummy_cls, dummy_params = _registry_entry(dummy_name)
+            specs.append(MetaFactorSpec(
+                base_factor_name=dummy_name,
+                base_factor_module=dummy_module,
+                base_factor_class=dummy_cls,
+                base_params=dict(dummy_params),
+                meta_type="conditional",
+                meta_params=meta_params,
+            ))
+            continue
+
+        # ── 格式 C: 多条件（MultiConditionalFactor）───────────────────────
+        if "conditions" in entry:
+            # Signal
+            if "signal_combo" in entry:
+                signal_raw = _find_combo_raw(entry["signal_combo"])
+            else:
+                signal_raw = _build_nested_raw(
+                    entry["signal"],
+                    entry.get("signal_params"),
+                    entry.get("signal_transform"),
+                )
+
+            # Conditions
+            conds_data = []
+            for cd in entry["conditions"]:
+                cond_raw = _build_nested_raw(
+                    cd["factor"],
+                    cd.get("params"),
+                    cd.get("transform"),
+                )
+                conds_data.append({
+                    "_raw": cond_raw,
+                    "op": cd.get("op", "gt"),
+                    "threshold": cd.get("threshold", 0.0),
+                })
+
+            meta_params = {
+                "_signal_raw": signal_raw,
+                "_conditions": conds_data,
+                "logic": entry.get("logic", "and"),
+                "false_value": entry.get("false_value", "nan"),
+            }
+            dummy_name = list(FACTOR_REGISTRY.keys())[0]
+            dummy_module, dummy_cls, dummy_params = _registry_entry(dummy_name)
+            specs.append(MetaFactorSpec(
+                base_factor_name=dummy_name,
+                base_factor_module=dummy_module,
+                base_factor_class=dummy_cls,
+                base_params=dict(dummy_params),
+                meta_type="multi_conditional",
+                meta_params=meta_params,
+            ))
+            continue
+
+        # ── 格式 A/B: 单条件（ConditionalFactor）───────────────────────────
+        signal_raw = _build_nested_raw(
+            entry["signal"],
+            entry.get("signal_params"),
+            entry.get("signal_transform"),
+        )
+        cond_raw = _build_nested_raw(
+            entry["condition"],
+            entry.get("condition_params"),
+            entry.get("condition_transform"),
+        )
 
         meta_params = {
+            "_signal_raw": signal_raw,
+            "_cond_raw": cond_raw,
             "op": entry.get("op", "gt"),
             "threshold": entry.get("threshold", 0.0),
             "false_value": entry.get("false_value", "nan"),
-            "_cond_module": c_module,
-            "_cond_class": c_cls,
-            "_cond_params": c_merged,
         }
+        s_module, s_cls, s_params = _registry_entry(entry["signal"])
+        s_merged = dict(s_params)
+        s_merged.update(entry.get("signal_params", {}))
+
         specs.append(MetaFactorSpec(
             base_factor_name=entry["signal"],
             base_factor_module=s_module,
@@ -434,6 +687,7 @@ def generate_conditional_specs(whitelist: list[dict]) -> list["MetaFactorSpec"]:
             meta_type="conditional",
             meta_params=meta_params,
         ))
+
     return specs
 
 
@@ -820,11 +1074,14 @@ def main() -> int:
     EXCLUSIONS             = cfg.EXCLUSIONS
     COMBO_WHITELIST        = cfg.COMBO_WHITELIST
     CONDITIONAL_WHITELIST  = cfg.CONDITIONAL_WHITELIST
+    META_SPECS             = getattr(cfg, 'META_SPECS', None)
 
     args = parse_args(remaining_argv)
 
     # ── 1. 确定因子列表 ────────────────────────────────────────────────────
-    if args.factors:
+    has_explicit_factors = args.factors is not None or args.families is not None
+
+    if args.factors is not None:
         factor_names = list(args.factors)
     elif args.families:
         factor_names = []
@@ -837,7 +1094,12 @@ def main() -> int:
     else:
         factor_names = list(FACTOR_REGISTRY.keys())
 
-    print(f"模式: {args.mode} | 因子数: {len(factor_names)} | 并行度: {args.parallel}")
+    # META_SPECS 模式：未显式指定 --factors/--families 时，跳过全量基础因子
+    if META_SPECS and not has_explicit_factors:
+        factor_names = []
+        print(f"META_SPECS 模式: {len(META_SPECS)} 个精确因子定义")
+
+    print(f"模式: {args.mode} | 基础因子数: {len(factor_names)} | 并行度: {args.parallel}")
     print()
 
     # ── 2. 构建任务 ────────────────────────────────────────────────────────
@@ -848,6 +1110,61 @@ def main() -> int:
     ]
 
     tasks = build_tasks(factor_names, args.mode, extra_cli_args)
+
+    # ── 2.3 META_SPECS 精确任务（从配置文件直读，绕过全交叉笛卡尔积） ──
+    if META_SPECS:
+        from factors.meta_factor import MetaFactorSpec
+        _TF_DEFAULT_WINDOWS = {
+            "rolling_mean": 10, "rolling_std": 20, "delta": 5,
+            "pct_change": 5, "binarize_winrate": 20, "zscore": 252,
+        }
+        layers = (1, 2) if args.mode == "quick" else (1, 2, 3)
+        for entry in META_SPECS:
+            etype = entry.get("type", "transform")
+            name = entry["factor"]
+            if name not in FACTOR_REGISTRY:
+                print(f"警告: META_SPECS 未知因子 '{name}'，跳过")
+                continue
+            module_path, class_name, default_params = FACTOR_REGISTRY[name]
+            merged = dict(default_params)
+            merged.update(entry.get("params", {}))
+
+            if etype == "base":
+                factor_cls = _import_factor(name)
+                tasks.append(AnalysisTask(
+                    factor_name=name,
+                    factor_cls=factor_cls,
+                    default_params=merged,
+                    layers=layers,
+                    extra_args=list(extra_cli_args),
+                ))
+            elif etype == "transform":
+                t_name = entry["transform"]
+                t_window = entry.get("transform_window",
+                    _TF_DEFAULT_WINDOWS.get(t_name, 10))
+                t_threshold = entry.get("threshold", 0.0)
+                spec = MetaFactorSpec(
+                    base_factor_name=name,
+                    base_factor_module=module_path,
+                    base_factor_class=class_name,
+                    base_params=merged,
+                    meta_type="transform",
+                    meta_params={
+                        "transform": t_name,
+                        "window": t_window,
+                        "threshold": t_threshold,
+                    },
+                )
+                tasks.append(AnalysisTask(
+                    factor_name=f"{name}__{t_name}_{t_window}",
+                    factor_cls=None,
+                    layers=layers,
+                    extra_args=list(extra_cli_args),
+                    meta_spec=spec,
+                ))
+            else:
+                print(f"警告: META_SPECS 未知 type '{etype}'，跳过 {name}")
+        print(f"META_SPECS 任务: {len(tasks)} 个总任务")
 
     # ── 2.5 衍生因子任务 ───────────────────────────────────────────────────
     if args.generate_meta is not None:

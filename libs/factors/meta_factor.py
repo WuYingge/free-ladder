@@ -6,6 +6,7 @@
 三层架构:
     TransformFactor    — 单因子后处理变换（6 种）
     CombineFactor      — 双因子二元运算（4 种）
+    SwitchFactor       — 条件切换因子（True/False 双路径）
     ConditionalFactor       — 条件信号（信号因子仅在条件满足时生效）
     MultiConditionalFactor  — 多条件组合（AND/OR 逻辑，两个及以上条件）
 
@@ -15,6 +16,7 @@ warmup 链式计算。每个子类只需实现 compute_from_frame(frame)。
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
@@ -53,49 +55,106 @@ class MetaFactorSpec:
     meta_params: dict[str, Any]
 
 
+def _resolve_factor(raw):
+    """递归解析因子构造描述。
+
+    MetaFactorSpec → build_meta_factor 递归构建
+    dict → MetaFactorSpec(**dict) → build_meta_factor（JSON 反序列化恢复）
+    tuple/list (module, class_name, params) → import + 实例化
+    """
+    import importlib
+    if isinstance(raw, MetaFactorSpec):
+        return build_meta_factor(raw)
+    if isinstance(raw, dict):
+        # JSON 反序列化后的嵌套 MetaFactorSpec 恢复
+        return build_meta_factor(MetaFactorSpec(**raw))
+    module, cls_name, params = raw
+    mod = importlib.import_module(module)
+    return getattr(mod, cls_name)(**params)
+
+
 def build_meta_factor(spec: MetaFactorSpec) -> BaseFactor:
     """从 MetaFactorSpec 配方实例化衍生因子。
 
     在 worker 进程中调用，将序列化的配方还原为可调用的因子对象。
+    支持递归嵌套：meta_params 中可携带 MetaFactorSpec 或 base-factor tuple。
     """
     import importlib
 
-    # 1. 动态导入基础因子类
-    mod = importlib.import_module(spec.base_factor_module)
-    base_cls = getattr(mod, spec.base_factor_class)
+    # 深拷贝 meta_params，避免 pop 破坏原始 spec（对 dry-run/重试等场景至关重要）
+    meta = deepcopy(spec.meta_params)
 
-    # 2. 实例化第一个基础因子
-    base = base_cls(**spec.base_params)
+    # 1. 解析 signal/base 因子 — 优先使用 _signal_raw（嵌套），否则用 base_* 字段
+    if "_signal_raw" in meta:
+        signal_raw = meta.pop("_signal_raw")
+        base = _resolve_factor(signal_raw)
+    else:
+        mod = importlib.import_module(spec.base_factor_module)
+        base_cls = getattr(mod, spec.base_factor_class)
+        base = base_cls(**spec.base_params)
 
-    # 3. 根据 meta_type 构建衍生因子
+    # 2. 根据 meta_type 构建衍生因子
     if spec.meta_type == "transform":
-        return TransformFactor(dependency=base, **spec.meta_params)
+        if "_dependency_raw" in meta:
+            dep_raw = meta.pop("_dependency_raw")
+            dep = _resolve_factor(dep_raw)
+        else:
+            mod = importlib.import_module(spec.base_factor_module)
+            base_cls = getattr(mod, spec.base_factor_class)
+            dep = base_cls(**spec.base_params)
+        return TransformFactor(dependency=dep, **meta)
+
+    elif spec.meta_type == "switch":
+        true_raw = meta.pop("_true_raw")
+        false_raw = meta.pop("_false_raw")
+        signal_true = _resolve_factor(true_raw)
+        signal_false = _resolve_factor(false_raw)
+
+        if "_conditions" in meta:
+            # 多条件模式
+            conditions_data = meta.pop("_conditions")
+            conditions: list[ConditionSpec] = []
+            for cd in conditions_data:
+                cond_factor = _resolve_factor(cd["_raw"])
+                conditions.append(
+                    ConditionSpec(
+                        condition=cond_factor,
+                        op=cd["op"],
+                        threshold=cd["threshold"],
+                    )
+                )
+            return SwitchFactor(
+                signal_true=signal_true,
+                signal_false=signal_false,
+                conditions=conditions,
+                **meta,
+            )
+        else:
+            cond_raw = meta.pop("_cond_raw")
+            condition = _resolve_factor(cond_raw)
+            return SwitchFactor(
+                signal_true=signal_true,
+                signal_false=signal_false,
+                condition=condition,
+                **meta,
+            )
 
     elif spec.meta_type == "combine":
-        b_module = spec.meta_params.pop("_b_module")
-        b_class = spec.meta_params.pop("_b_class")
-        b_params = spec.meta_params.pop("_b_params")
-        b_mod = importlib.import_module(b_module)
-        b_cls = getattr(b_mod, b_class)
-        factor_b = b_cls(**b_params)
-        return CombineFactor(factor_a=base, factor_b=factor_b, **spec.meta_params)
+        b_raw = meta.pop("_b_raw")
+        factor_b = _resolve_factor(b_raw)
+        return CombineFactor(factor_a=base, factor_b=factor_b, **meta)
 
     elif spec.meta_type == "conditional":
-        c_module = spec.meta_params.pop("_cond_module")
-        c_class = spec.meta_params.pop("_cond_class")
-        c_params = spec.meta_params.pop("_cond_params")
-        c_mod = importlib.import_module(c_module)
-        c_cls = getattr(c_mod, c_class)
-        condition = c_cls(**c_params)
-        return ConditionalFactor(signal=base, condition=condition, **spec.meta_params)
+        cond_raw = meta.pop("_cond_raw")
+        condition = _resolve_factor(cond_raw)
+        return ConditionalFactor(signal=base, condition=condition, **meta)
 
     elif spec.meta_type == "multi_conditional":
-        conditions_data = spec.meta_params.pop("_conditions")
+        conditions_data = meta.pop("_conditions")
         conditions: list[ConditionSpec] = []
         for cd in conditions_data:
-            c_mod = importlib.import_module(cd["module"])
-            c_cls = getattr(c_mod, cd["class"])
-            cond_factor = c_cls(**cd["params"])
+            cond_raw = cd["_raw"]
+            cond_factor = _resolve_factor(cond_raw)
             conditions.append(
                 ConditionSpec(
                     condition=cond_factor,
@@ -104,7 +163,7 @@ def build_meta_factor(spec: MetaFactorSpec) -> BaseFactor:
                 )
             )
         return MultiConditionalFactor(
-            signal=base, conditions=conditions, **spec.meta_params
+            signal=base, conditions=conditions, **meta
         )
 
     else:
@@ -822,5 +881,179 @@ class MultiConditionalFactor(DerivedFactor):
         # 应用 mask
         fallback: float = np.nan if self.false_value == "nan" else 0.0
         result = signal_series.where(combined, other=fallback)
+        result.name = self.get_output_name()
+        return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Phase 5: SwitchFactor — 条件切换因子
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class SwitchFactor(DerivedFactor):
+    """条件切换因子：条件满足 → signal_true，否则 → signal_false。
+
+    与 ConditionalFactor 的区别：
+        - ConditionalFactor 的 False 状态只能是 NaN 或 0
+        - SwitchFactor 的 False 状态是另一个完整的因子
+
+    对应场景：趋势强→动量因子，趋势弱→反转因子；牛市→HPP+TSM，熊市→HPP+AvgDD。
+
+    Parameters
+    ----------
+    signal_true : BaseFactor
+        条件满足时输出的因子。
+    signal_false : BaseFactor
+        条件不满足时输出的因子。
+    condition : BaseFactor
+        条件因子实例。其值与 threshold 比较。
+    op : str
+        条件运算符: gt (>), lt (<), gte (>=), lte (<=)。默认 "gt"。
+    threshold : float
+        条件阈值。默认 0.0。
+    false_negate : bool
+        True 时对 signal_false 的输出取负。默认 False。
+
+    Examples
+    --------
+    >>> from factors.price_return import PriceReturn
+    >>> from factors.trend_r2 import TrendR2Factor
+    >>> signal_t = PriceReturn(window=20)
+    >>> signal_f = PriceReturn(window=60)
+    >>> cond = TrendR2Factor(window=120, output="r2")
+    >>> sw = SwitchFactor(signal_t, signal_f, cond, "gt", 0.5)
+    >>> sw.get_output_name()
+    'PriceReturn_20__if_TrendR2_120_r2_gt_0.5__else_PriceReturn_60'
+    """
+
+    name = "SwitchFactor"
+
+    _VALID_OPS = frozenset({"gt", "lt", "gte", "lte"})
+
+    _OP_FUNCS = {
+        "gt": lambda a, b: a > b,
+        "lt": lambda a, b: a < b,
+        "gte": lambda a, b: a >= b,
+        "lte": lambda a, b: a <= b,
+    }
+
+    _VALID_LOGIC = frozenset({"and", "or"})
+
+    def __init__(
+        self,
+        signal_true: BaseFactor,
+        signal_false: BaseFactor,
+        condition: BaseFactor | None = None,
+        conditions: list[ConditionSpec] | None = None,
+        logic: str = "and",
+        op: str = "gt",
+        threshold: float = 0.0,
+        false_negate: bool = False,
+    ) -> None:
+        super().__init__()
+        if condition is None and conditions is None:
+            raise ValueError("SwitchFactor 需要 condition 或 conditions")
+        if condition is not None and conditions is not None:
+            raise ValueError("SwitchFactor 不能同时指定 condition 和 conditions")
+        if conditions is not None and len(conditions) < 2:
+            raise ValueError(f"conditions 至少需要 2 个条件，收到 {len(conditions)}。单个请用 condition 参数")
+        if logic not in self._VALID_LOGIC:
+            raise ValueError(f"未知 logic: {logic!r}。可选: {sorted(self._VALID_LOGIC)}")
+
+        self.op = op
+        self.threshold = float(threshold)
+        self.false_negate = bool(false_negate)
+        self.logic = logic
+        self._condition_specs: list[ConditionSpec] = []
+
+        # 注册依赖
+        self.add_dependency(signal_true)   # _dependencies[0] = "_true"
+        self.add_dependency(signal_false)  # _dependencies[1] = "_false"
+
+        if condition is not None:
+            if op not in self._VALID_OPS:
+                raise ValueError(f"未知运算符: {op!r}。可选: {sorted(self._VALID_OPS)}")
+            self.add_dependency(condition)  # _dependencies[2] = "_cond"
+            self._cond_dep_index: dict[int, int] = {}
+        else:
+            # 多条件模式
+            self._cond_dep_index = {}
+            for i, spec in enumerate(conditions):
+                if spec.op not in self._VALID_OPS:
+                    raise ValueError(f"conditions[{i}] 未知运算符: {spec.op!r}")
+                self._condition_specs.append(spec)
+                self.add_dependency(spec.condition)
+                self._cond_dep_index[i] = i + 2  # offset by _true(0) and _false(1)
+
+        self.warmup_period = max(
+            signal_true.get_max_warmup_period(),
+            signal_false.get_max_warmup_period(),
+            max((dep.get_max_warmup_period() for dep in self._dependencies[2:]), default=0),
+        )
+
+        self._set_params(op=op, threshold=threshold, false_negate=false_negate,
+                         logic=logic, conditions_count=len(self._condition_specs))
+
+    def get_dependency_column_map(self) -> dict[BaseFactor, str]:
+        col_map = {
+            self._dependencies[0]: "_true",
+            self._dependencies[1]: "_false",
+        }
+        if self._condition_specs:
+            # 多条件模式: _cond_0, _cond_1, ...
+            for i in range(len(self._condition_specs)):
+                col_map[self._dependencies[i + 2]] = f"_cond_{i}"
+        else:
+            col_map[self._dependencies[2]] = "_cond"
+        return col_map
+
+    def get_output_name(self) -> str:
+        t_name = self._dependencies[0].get_output_name()
+        f_name = self._dependencies[1].get_output_name()
+        neg = "_neg" if self.false_negate else ""
+        if self._condition_specs:
+            parts = []
+            for i, spec in enumerate(self._condition_specs):
+                c_name = self._dependencies[i + 2].get_output_name()
+                parts.append(f"{c_name}_{spec.op}_{spec.threshold}")
+            c_name = f"_{self.logic}_".join(parts)
+        else:
+            c_name = f"{self._dependencies[2].get_output_name()}_{self.op}_{self.threshold}"
+        return f"{t_name}__if_{c_name}__else_{f_name}{neg}"
+
+    def compute_from_frame(self, frame: pd.DataFrame) -> pd.Series:
+        if "_true" not in frame.columns or "_false" not in frame.columns:
+            raise ValueError(
+                f"SwitchFactor 需要列 '_true', '_false'，"
+                f"可用列: {list(frame.columns)}"
+            )
+
+        # 构造条件 mask
+        if self._condition_specs:
+            masks = []
+            for i, spec in enumerate(self._condition_specs):
+                col = f"_cond_{i}"
+                if col not in frame.columns:
+                    raise ValueError(f"SwitchFactor 需要列 '{col}'，可用列: {list(frame.columns)}")
+                masks.append(self._OP_FUNCS[spec.op](frame[col], spec.threshold))
+            combined = masks[0]
+            if self.logic == "and":
+                for m in masks[1:]:
+                    combined = combined & m
+            else:
+                for m in masks[1:]:
+                    combined = combined | m
+            mask = combined
+        else:
+            if "_cond" not in frame.columns:
+                raise ValueError(f"SwitchFactor 需要列 '_cond'，可用列: {list(frame.columns)}")
+            mask = self._OP_FUNCS[self.op](frame["_cond"], self.threshold)
+
+        true_vals = frame["_true"]
+        false_vals = -frame["_false"] if self.false_negate else frame["_false"]
+
+        result = pd.Series(
+            np.where(mask.fillna(False), true_vals, false_vals),
+            index=frame.index,
+        )
         result.name = self.get_output_name()
         return result
