@@ -47,8 +47,12 @@ GRID_MAX_WORKERS: int | None = None
 PERIOD_FREQ: str | None = None
 CUSTOM_PERIODS: tuple | None = None
 SHARED_PIPELINE: tuple = ()
+RANKING_FACTOR_CANDIDATES: tuple = ()
+IC_WINDOW: int = 120
+IC_SELECTION_MODE: str = "icir"
 _output_base_dir: str = ""
 _title: str = ""
+_basename_tag: str = ""
 _start_date: str = ""
 _end_date: str = ""
 
@@ -60,12 +64,18 @@ _current_pipeline: tuple = ()
 _current_filters: tuple[ThresholdFilter, ...] = ()
 
 
-def _build_output_basename() -> str:
-    """根据当前 GRID 参数生成输出目录名称。"""
+def _build_output_basename(tag: str = "") -> str:
+    """根据当前 GRID 参数生成输出目录名称。
+
+    tag 非空时用 tag 替代组数标记；否则回退到 "{n}g"。
+    """
     parts: list[str] = ["wide_momentum"]
 
-    # 组数
-    parts.append(f"{len(GROUPS)}g")
+    # 标识：优先使用 tag，否则组数
+    if tag:
+        parts.append(tag)
+    else:
+        parts.append(f"{len(GROUPS)}g")
 
     # top_n：紧凑表示
     tops = sorted(GRID_TOP_N)
@@ -127,7 +137,8 @@ def main(config_module: str) -> None:
         GROUPS, GRID_TOP_N, GRID_MIN_MOMENTUM, GRID_CLUSTER_MAX_PER_GROUP, \
         GRID_REBALANCE_INTERVAL, GRID_EXCLUDE_BONDS, GRID_HOLD_OVERLAP, \
         GRID_WEIGHT_ALLOCATOR, GRID_MAX_WORKERS, PERIOD_FREQ, CUSTOM_PERIODS, \
-        SHARED_PIPELINE, _output_base_dir, _title, _start_date, _end_date
+        SHARED_PIPELINE, RANKING_FACTOR_CANDIDATES, IC_WINDOW, IC_SELECTION_MODE, \
+        _output_base_dir, _title, _basename_tag, _start_date, _end_date
 
     # ── 加载配置 ──
     cfg = importlib.import_module(config_module)
@@ -144,8 +155,12 @@ def main(config_module: str) -> None:
     PERIOD_FREQ             = getattr(cfg, "PERIOD_FREQ", None)
     CUSTOM_PERIODS          = getattr(cfg, "CUSTOM_PERIODS", None)
     SHARED_PIPELINE         = cfg.SHARED_PIPELINE
+    RANKING_FACTOR_CANDIDATES = getattr(cfg, "RANKING_FACTOR_CANDIDATES", ())
+    IC_WINDOW               = getattr(cfg, "IC_WINDOW", 120)
+    IC_SELECTION_MODE       = getattr(cfg, "IC_SELECTION_MODE", "icir")
     _output_base_dir        = cfg.OUTPUT_BASE_DIR
     _title                  = cfg.TITLE
+    _basename_tag           = getattr(cfg, "BASENAME_TAG", "")
     _start_date             = cfg.START_DATE
     _end_date               = cfg.END_DATE
 
@@ -165,7 +180,7 @@ def main(config_module: str) -> None:
     print(f"  hold_overlap:   {GRID_HOLD_OVERLAP}")
     print()
 
-    output_base = Path(_output_base_dir) / _build_output_basename()
+    output_base = Path(_output_base_dir) / _build_output_basename(tag=_basename_tag)
 
     all_summaries: list[dict] = []
 
@@ -191,6 +206,9 @@ def main(config_module: str) -> None:
             builtin_filters=builtin_filters,
             start_date=_start_date,
             end_date=_end_date,
+            ranking_factor_candidates=RANKING_FACTOR_CANDIDATES,
+            ic_window=IC_WINDOW,
+            ic_selection_mode=IC_SELECTION_MODE,
         )
 
         print(f"\n[阶段 1] 准备 shared universe ...", end=" ", flush=True)
@@ -346,6 +364,9 @@ def _run_single_combo(args):
         period_freq=PERIOD_FREQ,
         custom_periods=CUSTOM_PERIODS,
         weight_allocator=weight_allocator,
+        ranking_factor_candidates=RANKING_FACTOR_CANDIDATES,
+        ic_window=IC_WINDOW,
+        ic_selection_mode=IC_SELECTION_MODE,
     )
 
     output_dir = _output_root / grid_label

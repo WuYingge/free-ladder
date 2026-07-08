@@ -26,7 +26,9 @@ from data_manager.etf_data_manager import get_etf_data_by_symbol
 from data_manager.providers.cluster_provider import ClusterInfo
 from data_manager.providers.etf_list_provider import ETF_LIST
 from factors.base_factor import BaseFactor
+from factors.meta_factor import CompositeRankFactor
 from factors.price_return import PriceReturn
+import numpy as np
 
 from .performance import (
     annualised_return,
@@ -196,7 +198,7 @@ class WideMomentumBaselineConfig:
     momentum_skip_recent: int = 1
     min_momentum_value: Optional[float] = None
     builtin_filters: tuple[ThresholdFilter, ...] = field(default_factory=tuple)
-    ranking_factor: Optional[BaseFactor] = None
+    ranking_factor: Optional[BaseFactor | CompositeRankFactor] = None
     factor_pipeline: tuple[BaseFactor, ...] = field(default_factory=tuple)
     candidate_filters: tuple[CandidateFilterCallable | CandidateFilterSpec, ...] = field(
         default_factory=tuple
@@ -230,6 +232,13 @@ class WideMomentumBaselineConfig:
     # 权重分配器 —— 接收已选出的 top-N 候选列表，返回 {symbol: weight}。
     # None 时等价于 equal_weight_allocator（等权）。
     weight_allocator: Optional[WeightAllocatorCallable] = None
+
+    # ── ICIR 动态因子选择 ────────────────────────────────────────────────
+    ranking_factor_candidates: tuple[BaseFactor, ...] = field(default_factory=tuple)
+    ic_window: int = 120
+    # 因子选择模式: "icir"=IC_IR, "ic"=IC 均值
+    ic_selection_mode: str = "icir"
+    _ic_ir_data: dict[str, "pd.DataFrame"] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """尽早校验配置，减少下游流程中的防御性判断。"""
@@ -288,8 +297,10 @@ class WideMomentumBaselineConfig:
             raise ValueError("stable_pool_size must be >= 1")
         if int(self.min_listing_days) < 0:
             raise ValueError("min_listing_days must be >= 0")
-        if self.ranking_factor is not None and not isinstance(self.ranking_factor, BaseFactor):
-            raise TypeError("ranking_factor must inherit from BaseFactor")
+        if self.ranking_factor is not None and not isinstance(
+            self.ranking_factor, (BaseFactor, CompositeRankFactor)
+        ):
+            raise TypeError("ranking_factor must be a BaseFactor or CompositeRankFactor")
         if any(not isinstance(factor, BaseFactor) for factor in self.factor_pipeline):
             raise TypeError("factor_pipeline must contain only BaseFactor instances")
         for candidate_filter in self.candidate_filters:
@@ -300,6 +311,31 @@ class WideMomentumBaselineConfig:
             )
             if not callable(resolved_callable):
                 raise TypeError("candidate_filters must contain callables or CandidateFilterSpec")
+
+        # ── 校验 ICIR 动态因子选择 ──────────────────────────────────────────
+        if self.ranking_factor_candidates:
+            candidate_names = {f.get_output_name() for f in self.ranking_factor_candidates}
+            if self.ranking_factor is None:
+                raise ValueError("ranking_factor is required when ranking_factor_candidates is set")
+            if self.ranking_factor.get_output_name() not in candidate_names:
+                raise ValueError(
+                    f"ranking_factor ({self.ranking_factor.get_output_name()}) "
+                    f"must be included in ranking_factor_candidates"
+                )
+            pipeline = _resolve_factor_pipeline(self)
+            pipeline_names = {f.get_output_name() for f in pipeline}
+            for f in self.ranking_factor_candidates:
+                if f.get_output_name() not in pipeline_names:
+                    raise ValueError(
+                        f"ranking_factor_candidate {f.get_output_name()} "
+                        f"not found in factor_pipeline"
+                    )
+            if int(self.ic_window) <= 0:
+                raise ValueError("ic_window must be >= 1")
+            if self.ic_selection_mode not in ("icir", "ic"):
+                raise ValueError(
+                    f"ic_selection_mode must be 'icir' or 'ic', got {self.ic_selection_mode!r}"
+                )
 
         # 将 min_momentum_value 转换为 ThresholdFilter，保持向后兼容
         if self.min_momentum_value is not None:
@@ -334,6 +370,7 @@ class PreparedWideMomentumUniverse:
     source_symbol_count: int
     load_errors: list[dict[str, str]] = field(default_factory=list)
     excluded_symbols: dict[str, str] = field(default_factory=dict)
+    ic_ir_data: dict[str, pd.DataFrame] = field(default_factory=dict)
 
     @property
     def stable_start_month(self) -> Optional[pd.Timestamp]:
@@ -379,7 +416,9 @@ class BaselineCandidate:
     factor_values: dict[str, float] = field(default_factory=dict)
 
 
-def _resolve_ranking_factor(config: WideMomentumBaselineConfig) -> BaseFactor:
+def _resolve_ranking_factor(
+    config: WideMomentumBaselineConfig,
+) -> BaseFactor | CompositeRankFactor:
     """解析当前回测用于排序的主因子。"""
 
     if config.ranking_factor is not None:
@@ -391,19 +430,209 @@ def _resolve_ranking_factor(config: WideMomentumBaselineConfig) -> BaseFactor:
 
 
 def _resolve_factor_pipeline(config: WideMomentumBaselineConfig) -> tuple[BaseFactor, ...]:
-    """解析完整因子管线，并确保排序因子始终包含在其中。"""
+    """解析完整因子管线，并确保排序因子始终包含在其中。
+
+    当 ranking_factor 是 CompositeRankFactor 时，其子因子展开加入管线。
+    """
 
     ranking_factor = _resolve_ranking_factor(config)
     resolved_factors: list[BaseFactor] = []
     seen_factors: set[BaseFactor] = set()
 
-    for factor in (ranking_factor, *config.factor_pipeline):
+    if isinstance(ranking_factor, CompositeRankFactor):
+        # 将子因子展开加入管线，CompositeRankFactor 本身不是 BaseFactor
+        for sub in ranking_factor.get_sub_factors():
+            if sub in seen_factors:
+                continue
+            seen_factors.add(sub)
+            resolved_factors.append(sub)
+    else:
+        if ranking_factor not in seen_factors:
+            seen_factors.add(ranking_factor)
+            resolved_factors.append(ranking_factor)
+
+    for factor in config.factor_pipeline:
         if factor in seen_factors:
             continue
         seen_factors.add(factor)
         resolved_factors.append(factor)
 
     return tuple(resolved_factors)
+
+
+# ── 横截面 rank 加权合成 ──
+
+
+def _apply_composite_rank(
+    symbol_data_map: dict[str, SymbolBaselineData],
+    composite: CompositeRankFactor,
+) -> dict[str, SymbolBaselineData]:
+    """横截面 rank 加权合成后处理。
+
+    对所有标的的多个子因子做横截面 rank 百分位归一化后加权求和，
+    将合成结果作为新列写回每个标的的 frame，并更新 ranking_output_name。
+    """
+    factor_names = [f.get_output_name() for f, _ in composite.factors]
+    weights = [w for _, w in composite.factors]
+    symbols = sorted(symbol_data_map.keys())
+
+    # 1. 收集因子矩阵: {factor_name: date × symbol DataFrame}
+    #    先收集所有日期的并集
+    all_dates: list[pd.Timestamp] = []
+    date_set: set[pd.Timestamp] = set()
+    for sd in symbol_data_map.values():
+        for dt in sd.frame.index:
+            date_set.add(dt)
+    all_dates = sorted(date_set)
+
+    factor_matrices: dict[str, pd.DataFrame] = {}
+    for fn in factor_names:
+        mat = pd.DataFrame(index=all_dates, columns=symbols, dtype=float)
+        for sym in symbols:
+            sd = symbol_data_map[sym]
+            if fn in sd.frame.columns:
+                mat[sym] = sd.frame[fn].reindex(all_dates)
+        factor_matrices[fn] = mat
+
+    # 2. 横截面 rank + 加权合成
+    composite_matrix = pd.DataFrame(0.0, index=all_dates, columns=symbols)
+    total_weight = sum(abs(w) for w in weights)
+
+    for fn, w in zip(factor_names, weights):
+        mat = factor_matrices[fn]
+        if composite.rank_method == "pct":
+            ranked = mat.rank(axis=1, pct=True, na_option="keep")
+        else:  # minmax
+            ranked = mat.copy()
+            for i, row in mat.iterrows():
+                valid = row.dropna()
+                if len(valid) < 2:
+                    ranked.loc[i] = np.nan
+                    continue
+                rmin = valid.min()
+                rmax = valid.max()
+                if rmax - rmin < 1e-12:
+                    ranked.loc[i] = 0.5
+                else:
+                    ranked.loc[i] = (row - rmin) / (rmax - rmin)
+        composite_matrix += ranked * w
+
+    if total_weight > 0:
+        composite_matrix /= total_weight
+
+    # 3. 写回每个 symbol 的 frame
+    output_name = composite.get_output_name()
+    for sym in symbols:
+        sd = symbol_data_map[sym]
+        sd.frame[output_name] = composite_matrix[sym]
+        sd.ranking_output_name = output_name
+        # 同时更新 momentum 列为合成值（供 _collect_raw_candidates 回退使用）
+        sd.frame["momentum"] = pd.to_numeric(
+            composite_matrix[sym], errors="coerce"
+        )
+
+    return symbol_data_map
+
+
+# ── ICIR 预计算辅助 ──────────────────────────────────────────────────────────
+
+
+def _build_close_matrix(
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+) -> pd.DataFrame:
+    """从 symbol_data_map 构建 date × symbol 的收盘价矩阵。"""
+    series_map: dict[str, pd.Series] = {}
+    for symbol, sd in symbol_data_map.items():
+        close = sd.frame.get("close")
+        if close is not None and not close.dropna().empty:
+            series_map[symbol] = pd.to_numeric(close, errors="coerce")
+    if not series_map:
+        return pd.DataFrame()
+    return pd.DataFrame(series_map).sort_index()
+
+
+def _build_factor_matrix(
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+    factor_output_name: str,
+) -> pd.DataFrame:
+    """从 symbol_data_map 构建 date × symbol 的单因子值矩阵。"""
+    series_map: dict[str, pd.Series] = {}
+    for symbol, sd in symbol_data_map.items():
+        frame = sd.frame
+        if factor_output_name in frame.columns:
+            series = pd.to_numeric(frame[factor_output_name], errors="coerce")
+            if not series.dropna().empty:
+                series_map[symbol] = series
+    if not series_map:
+        return pd.DataFrame()
+    return pd.DataFrame(series_map).sort_index()
+
+
+def _compute_single_factor_icir_worker(args: tuple) -> tuple[str, pd.DataFrame]:
+    """多进程 worker：为单个因子计算滚动 ICIR。"""
+    factor_matrix, fwd, output_name, ic_window = args
+    from factor_analysis.predictive import _daily_ic
+    ic_series = _daily_ic(factor_matrix, fwd, method="spearman")
+    if ic_series.empty:
+        return output_name, pd.DataFrame()
+    min_periods = max(20, ic_window // 2)
+    rolling_mean = ic_series.rolling(window=ic_window, min_periods=min_periods).mean()
+    rolling_std = ic_series.rolling(window=ic_window, min_periods=min_periods).std()
+    with np.errstate(divide="ignore", invalid="ignore"):
+        icir = rolling_mean / rolling_std
+    result_df = pd.DataFrame(
+        {"ic_raw": ic_series, "ic_rolling_mean": rolling_mean, "icir": icir},
+        index=ic_series.index,
+    )
+    return output_name, result_df
+
+
+def _precompute_ranking_candidate_ic_ir(
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+    config: WideMomentumBaselineConfig,
+) -> dict[str, pd.DataFrame]:
+    """为每个候选排名因子预计算 120 日滚动 IC 均值 / 标准差 / ICIR 时间序列。
+
+    ICIR = rolling_mean(IC) / rolling_std(IC)，用于在调仓日选择最优因子。
+    候选因子间的计算通过多进程并行执行。
+
+    信息泄露防护：
+        IC_i 需要 D_i + forward_period 的未来收益。因此查询时需将 icir
+        列按 forward_period lag 处理，保证不使用当时不可知的未来数据。
+        预计算阶段产出完整原始序列，lag 由查询侧负责。
+    """
+    candidates = config.ranking_factor_candidates
+    if not candidates:
+        return {}
+    rebalance_interval = int(config.rebalance_interval)
+    ic_window = int(config.ic_window)
+    close_matrix = _build_close_matrix(symbol_data_map)
+    if close_matrix.empty:
+        return {}
+    from factor_analysis.forward_returns import compute_forward_returns
+    fwd_map = compute_forward_returns(close_matrix, periods=(rebalance_interval,))
+    fwd = fwd_map[rebalance_interval]
+    worker_jobs: list[tuple] = []
+    for factor in candidates:
+        output_name = factor.get_output_name()
+        factor_matrix = _build_factor_matrix(symbol_data_map, output_name)
+        if factor_matrix.empty:
+            continue
+        worker_jobs.append((factor_matrix, fwd, output_name, ic_window))
+    if not worker_jobs:
+        return {}
+    max_workers = min(os.cpu_count() or 2, len(worker_jobs))
+    result: dict[str, pd.DataFrame] = {}
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {
+            executor.submit(_compute_single_factor_icir_worker, job): job[2]
+            for job in worker_jobs
+        }
+        for future in concurrent.futures.as_completed(future_map):
+            output_name, df = future.result()
+            if not df.empty:
+                result[output_name] = df
+    return result
 
 
 def _resolve_candidate_filter_name(
@@ -432,9 +661,24 @@ def _resolve_candidate_filter_callable(
     return candidate_filter
 
 
-def _serialize_factor(factor: BaseFactor) -> dict[str, Any]:
+def _serialize_factor(factor: BaseFactor | CompositeRankFactor) -> dict[str, Any]:
     """将因子配置整理为可写入元数据的字典。"""
 
+    if isinstance(factor, CompositeRankFactor):
+        return {
+            "class_name": factor.__class__.__name__,
+            "output_name": factor.get_output_name(),
+            "rank_method": factor.rank_method,
+            "sub_factors": [
+                {
+                    "class_name": f.__class__.__name__,
+                    "output_name": f.get_output_name(),
+                    "weight": w,
+                    "params": dict(getattr(f, "params", {})),
+                }
+                for f, w in factor.factors
+            ],
+        }
     return {
         "class_name": factor.__class__.__name__,
         "output_name": factor.get_output_name(),
@@ -787,11 +1031,21 @@ def _process_single_symbol(args: tuple) -> tuple[
 
         listing_proxy_date = pd.Timestamp(local_frame.index[0])
         listing_cutoff = listing_proxy_date + pd.Timedelta(days=int(min_listing_days))
-        ranking_series = pd.to_numeric(local_frame[ranking_output_name], errors="coerce")
-        eligible_signal = (local_frame.index > listing_cutoff) & ranking_series.notna()
 
-        if ranking_output_name != "momentum":
-            local_frame["momentum"] = ranking_series.astype(float)
+        if ranking_output_name in local_frame.columns:
+            ranking_series = pd.to_numeric(
+                local_frame[ranking_output_name], errors="coerce"
+            )
+            eligible_signal = (
+                (local_frame.index > listing_cutoff) & ranking_series.notna()
+            )
+            if ranking_output_name != "momentum":
+                local_frame["momentum"] = ranking_series.astype(float)
+        else:
+            # ranking_output_name 列不存在（如 CompositeRankFactor 后处理尚未执行），
+            # eligibility 仅基于上市天数；后续后处理会填充该列
+            eligible_signal = local_frame.index > listing_cutoff
+
         local_frame["eligible_signal"] = eligible_signal.astype(bool)
 
         if not bool(local_frame["eligible_signal"].any()):
@@ -947,6 +1201,21 @@ def prepare_wide_momentum_universe_from_frames(
     if not symbol_data_map:
         raise ValueError("No symbols remain after eligibility filtering")
 
+    # ── 横截面 rank 合成后处理（CompositeRankFactor） ────────────────────────
+    ranking_factor = _resolve_ranking_factor(config)
+    if isinstance(ranking_factor, CompositeRankFactor):
+        symbol_data_map = _apply_composite_rank(
+            symbol_data_map=symbol_data_map, composite=ranking_factor
+        )
+
+    # ── ICIR 预计算（可选） ──────────────────────────────────────────────────
+    ic_ir_data: dict[str, pd.DataFrame] = {}
+    if config.ranking_factor_candidates:
+        ic_ir_data = _precompute_ranking_candidate_ic_ir(
+            symbol_data_map=symbol_data_map,
+            config=config,
+        )
+
     # 阶段 3：将所有标的对齐到共同的模拟窗口，并生成诊断信息。
     start_date = _resolve_universe_start_date(symbol_data_map=symbol_data_map, config=config)
 
@@ -973,6 +1242,7 @@ def prepare_wide_momentum_universe_from_frames(
         source_symbol_count=len(symbol_frame_map),
         load_errors=load_errors,
         excluded_symbols=excluded_symbols,
+        ic_ir_data=ic_ir_data,
     )
 
 
@@ -1066,12 +1336,56 @@ def _portfolio_weights(
     return weights
 
 
+def _resolve_dynamic_ranking_column(
+    config: WideMomentumBaselineConfig,
+    ic_ir_data: dict[str, pd.DataFrame],
+    signal_date: pd.Timestamp,
+    fallback_column: str,
+) -> str:
+    """在信号日根据预计算的 IC 指标选择最优排名因子。
+
+    ic_selection_mode="icir" → 用滚动 ICIR（=IC均值/IC标准差），
+    ic_selection_mode="ic" → 用滚动 IC 均值。
+
+    信息泄露防护：
+        IC 计算需要 D + rebalance_interval 的未来收益。
+        因此查询指标列时整体向前 shift rebalance_interval 天。
+    数据不足的因子直接跳过，所有因子都不足时回退到 fallback_column。
+    """
+    if not config.ranking_factor_candidates or not ic_ir_data:
+        return fallback_column
+
+    mode = config.ic_selection_mode
+    metric_col = "icir" if mode == "icir" else "ic_rolling_mean"
+
+    period = int(config.rebalance_interval)
+    best_output_name: Optional[str] = None
+    best_value: float = -float("inf")
+    for factor in config.ranking_factor_candidates:
+        output_name = factor.get_output_name()
+        ic_df = ic_ir_data.get(output_name)
+        if ic_df is None or ic_df.empty or metric_col not in ic_df.columns:
+            continue
+        shifted = ic_df[metric_col].shift(period)
+        past = shifted.loc[:signal_date].dropna()
+        if past.empty:
+            continue
+        latest = float(past.iloc[-1])
+        if latest > best_value:
+            best_value = latest
+            best_output_name = output_name
+    if best_output_name is None:
+        return fallback_column
+    return best_output_name
+
+
 def _collect_raw_candidates(
     symbol_data_map: Mapping[str, SymbolBaselineData],
     signal_date: pd.Timestamp,
     execution_date: pd.Timestamp,
     *,
     exclude_clusters: tuple[int, ...] = (),
+    ranking_col_override: str = "",
 ) -> list[BaselineCandidate]:
     """收集在信号日满足资格且可在下一开盘执行的标的。"""
 
@@ -1088,7 +1402,9 @@ def _collect_raw_candidates(
             continue
 
         ranking_column = symbol_data.ranking_output_name
-        if ranking_column not in frame.columns:
+        if ranking_col_override and ranking_col_override in frame.columns:
+            ranking_column = ranking_col_override
+        elif ranking_column not in frame.columns:
             if "ranking_value" in frame.columns:
                 ranking_column = "ranking_value"
             elif "momentum" in frame.columns:
@@ -1262,14 +1578,39 @@ def _select_target_weights(
     execution_date: pd.Timestamp,
     top_n: int,
     config: WideMomentumBaselineConfig,
-) -> tuple[dict[str, float], int, int, list[str]]:
-    """对过滤后的候选标的进行排序，并为 top-N 结果分配等权重。"""
+    *,
+    ic_ir_data: Optional[dict[str, pd.DataFrame]] = None,
+) -> tuple[dict[str, float], int, int, list[str], str]:
+    """对过滤后的候选标的进行排序，并为 top-N 结果分配等权重。
+
+    ic_ir_data 非空时，在信号日根据各候选因子的滚动 ICIR 动态选择排名因子。
+    返回的最后一个元素为当次调仓实际使用的排名因子列名。
+    """
+    # ── 动态排名因子选择（可选） ──
+    dynamic_ranking_col = _resolve_dynamic_ranking_column(
+        config=config,
+        ic_ir_data=ic_ir_data or {},
+        signal_date=signal_date,
+        fallback_column="",
+    )
+
+    # 确定本次调仓实际使用的排名因子（用于日志）
+    ranking_factor_used: str
+    if dynamic_ranking_col:
+        ranking_factor_used = dynamic_ranking_col
+    else:
+        fallback = ""
+        for sd in symbol_data_map.values():
+            fallback = sd.ranking_output_name
+            break
+        ranking_factor_used = fallback
 
     candidates = _collect_raw_candidates(
         symbol_data_map=symbol_data_map,
         signal_date=signal_date,
         execution_date=execution_date,
         exclude_clusters=config.exclude_clusters,
+        ranking_col_override=dynamic_ranking_col,
     )
     filtered_candidates, active_candidate_filters = _apply_candidate_filters(
         candidates=candidates,
@@ -1300,7 +1641,7 @@ def _select_target_weights(
         selected = filtered_candidates[: int(top_n)]
 
     if not selected:
-        return {}, len(candidates), len(filtered_candidates), active_candidate_filters
+        return {}, len(candidates), len(filtered_candidates), active_candidate_filters, ranking_factor_used
 
     allocator = config.weight_allocator or equal_weight_allocator
     raw_weights = allocator(selected)
@@ -1315,6 +1656,7 @@ def _select_target_weights(
         len(candidates),
         len(filtered_candidates),
         active_candidate_filters,
+        ranking_factor_used,
     )
 
 
@@ -1790,13 +2132,15 @@ def _create_rebalance_plan(
     """为单个信号日生成调仓日志项和延迟执行计划。"""
 
     execution_date = pd.Timestamp(prepared.calendar[bar_index + 1])
-    target_weights, candidate_count, filtered_candidate_count, active_candidate_filters = (
+    (target_weights, candidate_count, filtered_candidate_count,
+     active_candidate_filters, ranking_factor_used) = (
         _select_target_weights(
             symbol_data_map=prepared.symbol_data_map,
             signal_date=signal_date,
             execution_date=execution_date,
             top_n=top_n,
             config=config,
+            ic_ir_data=prepared.ic_ir_data,
         )
     )
     current_weights = _portfolio_weights(
@@ -1816,6 +2160,7 @@ def _create_rebalance_plan(
         "selected_symbols": sorted(target_weights.keys()),
         "current_weights": current_weights,
         "target_weights": target_weights,
+        "ranking_factor_used": ranking_factor_used,
         "signal_equity": float(signal_equity),
     }
     pending_rebalance = {

@@ -64,10 +64,10 @@ class BaseFactor(ABC):
         self._dependencies.append(dependency)
         self._dep_res[dependency] = None
         
-    def get_dependency_results(self, data: pd.DataFrame) -> dict["BaseFactor", pd.Series]:
-        results = {}
+    def get_dependency_results(self, data: pd.DataFrame) -> list[tuple["BaseFactor", pd.Series]]:
+        results: list[tuple[BaseFactor, pd.Series]] = []
         for dependency in self._dependencies:
-            results[dependency] = dependency(data)
+            results.append((dependency, dependency(data)))
         return results
 
     def get_warmup_period(self) -> int:

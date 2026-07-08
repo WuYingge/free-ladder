@@ -24,7 +24,11 @@ This project uses Git. See .gitignore for excluded files.
 - **Never edit:** Files generated or owned by akshare/backtrader; `data/etf_data/*.csv` directly with `pd.read_csv` — always wrap via `EtfData` or `libs/data_manager/**`.
 - **Always test with:** `pytest libs/` (run relevant test file for the changed subsystem)
 - **Reuse mindset:** When you write code or logic that could be reused elsewhere, extract and settle it into `libs/` proactively.
-- **Before creating a new script:** Check `libs/scripts/` first — any "run this analysis" task likely already has a CLI entry point there. Do not create one-off scripts in the project root.
+- **Script placement (硬约束):**
+  - 项目根目录 (`/`) **禁止**放置任何 `.py` 脚本。禁止创建、禁止保留。
+  - 可复用的 CLI 入口 → `libs/scripts/`（含 docstring 用法说明）。
+  - 一次性临时脚本 → 用完即删，不得提交。如果确需保留以供日后参考，移入 `libs/scripts/`。
+  - 已有根目录脚本 `_analyze_factors.py` / `_cleanup_exec.py` / `_ic_filter.py` 为历史遗留，待后续迁移。
 
 ## Architecture
 
@@ -42,6 +46,7 @@ A quantitative investment analysis toolkit. `libs/` contains reusable implementa
   - `export_rsrs_local_etfs.py` — 导出 RSRS 因子
   - `tranfer_etf_columns.py` — ETF 列格式转换
   - `rename_data.py` — 数据文件重命名
+  - `generate_wide_momentum_configs.py` — 从 factors_to_analyze.csv 批量生成 config
 
 ### Key Modules
 

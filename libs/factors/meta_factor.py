@@ -342,6 +342,45 @@ class TransformFactor(DerivedFactor):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Phase 1b: NegateFactor — 因子方向反转
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class NegateFactor(DerivedFactor):
+    """对依赖因子取反（乘 -1），用于反转因子方向。
+
+    典型场景：将"越高越差"的因子（如最大不利偏移 MAE）转为"越高越好"，
+    使其与"越高越好"的动量因子方向一致，便于统一 ranking。
+
+    与 TransformFactor 不同：NegateFactor 不依赖窗口参数，是纯符号反转。
+
+    Examples
+    --------
+    >>> from factors.distribution_family import MaxAdverseExcursion
+    >>> mae = MaxAdverseExcursion(window=40)
+    >>> anti_mae = NegateFactor(mae)
+    >>> anti_mae.get_output_name()
+    'MaxAdverseExcursion_40__neg'
+    """
+
+    name = "NegateFactor"
+
+    def __init__(self, dependency: BaseFactor) -> None:
+        super().__init__()
+        self.add_dependency(dependency)
+        self.warmup_period = dependency.get_max_warmup_period()
+
+    def get_output_name(self) -> str:
+        dep_name = self._dependencies[0].get_output_name()
+        return f"{dep_name}__neg"
+
+    def compute_from_frame(self, frame: pd.DataFrame) -> pd.Series:
+        dep_name = self._dependencies[0].get_output_name()
+        result = -frame[dep_name]
+        result.name = self.get_output_name()
+        return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Phase 2: CombineFactor — 双因子运算
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -436,17 +475,9 @@ class CombineFactor(DerivedFactor):
 
     # ── 依赖列映射：使用固定别名避免同名冲突 ──────────────────────────────
 
-    def get_dependency_column_map(self) -> dict[BaseFactor, str]:
-        """为两个依赖分配固定别名 '_a' 和 '_b'。
-
-        DerivedFactor 默认用依赖因子的 get_output_name() 作为列名，
-        当两个依赖同名时（如都用了 PriceReturn_20）会冲突。
-        固定别名彻底避免此问题。
-        """
-        return {
-            self._dependencies[0]: "_a",
-            self._dependencies[1]: "_b",
-        }
+    def get_dependency_column_map(self) -> list[str]:
+        """为两个依赖分配固定别名 '_a' 和 '_b'。"""
+        return ["_a", "_b"]
 
     # ── compute_from_frame ──────────────────────────────────────────────────
 
@@ -615,18 +646,11 @@ class ConditionalFactor(DerivedFactor):
 
     # ── 依赖列映射：使用固定别名避免同名冲突 ──────────────────────────────
 
-    def get_dependency_column_map(self) -> dict[BaseFactor, str]:
-        """为 signal 和 condition 分配固定别名。
-
-        当 self_conditional 时只有一个依赖，列名为 '_val'；
-        否则分别为 '_signal' 和 '_cond'。
-        """
+    def get_dependency_column_map(self) -> list[str]:
+        """为 signal 和 condition 分配固定别名。"""
         if self.self_conditional:
-            return {self._dependencies[0]: "_val"}
-        return {
-            self._dependencies[0]: "_signal",
-            self._dependencies[1]: "_cond",
-        }
+            return ["_val"]
+        return ["_signal", "_cond"]
 
     # ── compute_from_frame ──────────────────────────────────────────────────
 
@@ -833,15 +857,12 @@ class MultiConditionalFactor(DerivedFactor):
 
     # ── 依赖列映射 ──────────────────────────────────────────────────────────
 
-    def get_dependency_column_map(self) -> dict[BaseFactor, str]:
-        """为 signal 和每个唯一 condition 分配固定别名。
-
-        signal → '_signal'，第 i 个唯一 condition → '_cond_i'。
-        """
-        col_map: dict[BaseFactor, str] = {self._dependencies[0]: "_signal"}
+    def get_dependency_column_map(self) -> list[str]:
+        """signal → '_signal'，后续依序为 '_cond_0', '_cond_1', ..."""
+        cols = ["_signal"]
         for i in range(len(self._unique_conds)):
-            col_map[self._dependencies[i + 1]] = f"_cond_{i}"
-        return col_map
+            cols.append(f"_cond_{i}")
+        return cols
 
     # ── compute_from_frame ──────────────────────────────────────────────────
 
@@ -993,18 +1014,14 @@ class SwitchFactor(DerivedFactor):
         self._set_params(op=op, threshold=threshold, false_negate=false_negate,
                          logic=logic, conditions_count=len(self._condition_specs))
 
-    def get_dependency_column_map(self) -> dict[BaseFactor, str]:
-        col_map = {
-            self._dependencies[0]: "_true",
-            self._dependencies[1]: "_false",
-        }
+    def get_dependency_column_map(self) -> list[str]:
+        cols = ["_true", "_false"]
         if self._condition_specs:
-            # 多条件模式: _cond_0, _cond_1, ...
             for i in range(len(self._condition_specs)):
-                col_map[self._dependencies[i + 2]] = f"_cond_{i}"
+                cols.append(f"_cond_{i}")
         else:
-            col_map[self._dependencies[2]] = "_cond"
-        return col_map
+            cols.append("_cond")
+        return cols
 
     def get_output_name(self) -> str:
         t_name = self._dependencies[0].get_output_name()
@@ -1057,3 +1074,70 @@ class SwitchFactor(DerivedFactor):
         )
         result.name = self.get_output_name()
         return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Phase 6: CompositeRankFactor — 横截面 rank 加权合成
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class CompositeRankFactor:
+    """横截面 rank 加权合成因子配方。
+
+    不是一个 BaseFactor 子类 —— 它标记回测引擎在 symbol_data_map
+    构建完成后，对多个子因子做横截面 rank 百分位归一化后加权求和。
+
+    典型用法:
+        ranking = CompositeRankFactor(
+            factors=[
+                (PriceReturn(window=60), 1.0),
+                (PriceReturn(window=20), 0.5),
+            ]
+        )
+
+    Attributes
+    ----------
+    factors : list[tuple[BaseFactor, float]]
+        子因子及其权重的列表。每个子因子是一个 BaseFactor 实例。
+    rank_method : str
+        排名方法: "pct" (百分位归一化, 默认) 或 "minmax" (最小-最大归一化)。
+
+    Examples
+    --------
+    >>> from factors.price_return import PriceReturn
+    >>> ranking = CompositeRankFactor(
+    ...     factors=[
+    ...         (PriceReturn(window=60), 1.0),
+    ...         (PriceReturn(window=20), 0.5),
+    ...     ]
+    ... )
+    >>> ranking.get_output_name()
+    'cs_rank_PriceReturn_60_w1.0__PriceReturn_20_w0.5'
+    """
+
+    def __init__(
+        self,
+        factors: list[tuple[BaseFactor, float]],
+        rank_method: str = "pct",
+    ) -> None:
+        if not factors:
+            raise ValueError("factors 不能为空")
+        if rank_method not in ("pct", "minmax"):
+            raise ValueError(f"不支持的 rank_method: {rank_method!r}，可选: 'pct', 'minmax'")
+
+        self.factors = list(factors)
+        self.rank_method = rank_method
+
+    def get_output_name(self) -> str:
+        """生成唯一的输出列名。"""
+        parts = [f"{f.get_output_name()}_w{w}" for f, w in self.factors]
+        return "cs_rank_" + "__".join(parts)
+
+    def get_sub_factors(self) -> list[BaseFactor]:
+        """返回所有子因子列表（供注入 factor_pipeline 使用）。"""
+        return [f for f, _ in self.factors]
+
+    def __repr__(self) -> str:
+        return (
+            f"CompositeRankFactor(factors={self.factors!r}, "
+            f"rank_method={self.rank_method!r})"
+        )

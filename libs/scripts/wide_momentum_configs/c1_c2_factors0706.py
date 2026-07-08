@@ -22,34 +22,7 @@ from factors.volatility import Volatility
 from factors.volatility_family import AvgDrawdown
 from factors.ma import MAPosition
 from factors.distribution_family import MaxAdverseExcursion
-from factors.meta_factor import TransformFactor
-from factors.base_factor import BaseFactor
-from factors.derived_factor import DerivedFactor
-
-
-# ====================================================================
-# 小工具：取反包装
-# ====================================================================
-
-class _Negate(DerivedFactor):
-    """对依赖因子取反（乘 -1），用于反转因子方向。"""
-    name = "_Negate"
-
-    def __init__(self, dependency: BaseFactor) -> None:
-        super().__init__()
-        self.add_dependency(dependency)
-        self.warmup_period = dependency.get_max_warmup_period()
-
-    def get_output_name(self) -> str:
-        dep_name = self._dependencies[0].get_output_name()
-        return f"{dep_name}__neg"
-
-    def compute_from_frame(self, frame):
-        import pandas as pd
-        dep_name = self._dependencies[0].get_output_name()
-        result = -frame[dep_name]
-        result.name = self.get_output_name()
-        return result
+from factors.meta_factor import NegateFactor, TransformFactor
 
 
 # ====================================================================
@@ -63,7 +36,7 @@ c1_factor = TransformFactor(dependency=avgdd_120, transform="rolling_mean", wind
 # ── C2: MAE_40__zscore_120（负向，取反）──
 mae_40 = MaxAdverseExcursion(window=40)
 mae_zscore = TransformFactor(dependency=mae_40, transform="zscore", window=120)
-c2_factor = _Negate(mae_zscore)
+c2_factor = NegateFactor(mae_zscore)
 
 
 # ====================================================================
