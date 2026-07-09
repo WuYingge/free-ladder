@@ -170,7 +170,7 @@ function buildChartOption(data: TrendPoint[], cfg: ChartSeriesConfig) {
       axisLabel: { color: "#8b949e", rotate: 45 },
     },
     yAxis: [
-      { type: "value", name: cfg.y1Name, nameTextStyle: { color: "#8b949e" }, axisLabel: { color: "#8b949e" } },
+      { type: "value", name: cfg.y1Name, nameTextStyle: { color: "#8b949e" }, axisLabel: { color: "#8b949e" }, scale: true },
       { type: "value", name: cfg.y2Name, nameTextStyle: { color: "#8b949e" }, axisLabel: { color: "#8b949e" } },
     ],
     series: [
