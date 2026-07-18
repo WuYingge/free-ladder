@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import override
 from typing_extensions import Self
+from pathlib import Path
 import pandas as pd
 from config import DataPath
 from data_manager.providers.base_provider import BaseProvider
@@ -19,10 +20,18 @@ class _ETFListProvider(BaseProvider):
         return cls()
         
     def _initialize_etf_list(self) -> None:
-        df = pd.read_excel(DataPath.ETF_NAME_LIST_DF, dtype=str)
-        df.index = df['symbol'].astype(str)
-        self._type.update(df['type'].to_dict())
-        self._name.update(df['name'].to_dict())
+        # 优先使用 CSV（与 LongTermUpdate.ipynb 输出一致），fallback 到 xlsx
+        csv_path = str(DataPath.ETF_NAME_LIST_DF).replace(".xlsx", ".csv")
+        if Path(csv_path).exists():
+            df = pd.read_csv(csv_path, dtype=str, encoding="utf-8-sig")
+        else:
+            df = pd.read_excel(DataPath.ETF_NAME_LIST_DF, dtype=str)
+        df.columns = df.columns.str.strip().str.lstrip("\ufeff")
+        df.index = df["symbol"].astype(str).str.strip().str.zfill(6)
+        if "type" in df.columns:
+            self._type.update(df["type"].to_dict())
+        if "name" in df.columns:
+            self._name.update(df["name"].to_dict())
         
     def get_type(self, symbol: str) -> str:
         return self._type.get(symbol, "")

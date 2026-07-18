@@ -16,6 +16,6 @@ class DataPath:
     DEFAULT_WINDOWS_PATH: str = os.getenv("DEFAULT_WINDOWS_PATH") or ""
     CALANDAR_DF: str = os.getenv("CALANDAR_DF") or os.path.join(DATA_DIR, "const", "calandar_df.csv")
     CLUSTERING_DF: str = os.getenv("CLUSTERING_DF") or os.path.join(DATA_DIR, "const", "clustering_with_corr_valid_20260507.xlsx")
-    ETF_NAME_LIST_DF: str = os.getenv("ETF_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "etf_name_list.xlsx")
+    ETF_NAME_LIST_DF: str = os.getenv("ETF_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "etf_name_list.csv")
     INDEX_NAME_LIST_DF: str = os.getenv("INDEX_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "index_name_list.csv")
     ETF_INDEX_MAP_CSV: str = os.getenv("ETF_INDEX_MAP_CSV") or os.path.join(DATA_DIR, "const", "etf_index_map.csv")

@@ -22,7 +22,7 @@ class FactorListQuery(BaseModel):
     search: str | None = None     # 因子名模糊匹配
     page: int = 1
     page_size: int = 50
-    sort_by: str = "icir"         # ic_mean | icir | sharpe | coverage
+    sort_by: str = "icir"         # ic_mean | icir | sharpe | top_icir | coverage
     sort_order: str = "desc"      # asc | desc
 
 
@@ -45,6 +45,7 @@ class FactorSummary(BaseModel):
     end_date: str
     coverage_mean: float
     ic: dict[str, ICStats]          # "5"/"10"/"20"/"60" → ICStats
+    top_ic: dict[str, ICStats] | None = None
     longshort_sharpe_5d: float | None
     analysis_date: str
 

@@ -94,6 +94,10 @@ def build_index(force: bool = False) -> dict:
         ic_rank = {p: _extract_ic_stats(rank_ic, p) for p in ("5", "10", "20", "60")}
         ic_pearson = {p: _extract_ic_stats(pearson_ic, p) for p in ("5", "10", "20", "60")}
 
+        # 提取 top 10% IC
+        top_ic_data = predictive.get("top_ic", {})
+        top_ic_rank = {p: _extract_ic_stats(top_ic_data, p) for p in ("5", "10", "20", "60")}
+
         factor_entry = {
             "name": meta.get("factor_name", entry),
             "factor_type": meta.get("factor_type", ""),
@@ -104,6 +108,7 @@ def build_index(force: bool = False) -> dict:
             "coverage_mean": panel.get("coverage_mean", 0),
             "ic_rank": ic_rank,
             "ic_pearson": ic_pearson,
+            "top_ic": top_ic_rank,
             "longshort_sharpe_5d": _extract_longshort_sharpe(grouping, "5"),
             "analysis_date": meta.get("analysis_date", ""),
         }
@@ -185,6 +190,8 @@ def query_factors(
             return _safe_float(f.get(ic_key, {}).get(period, {}).get("mean"))
         elif sort_by == "sharpe":
             return _safe_float(f.get("longshort_sharpe_5d"))
+        elif sort_by == "top_icir":
+            return _safe_float(f.get("top_ic", {}).get(period, {}).get("ir"))
         elif sort_by == "coverage":
             return _safe_float(f.get("coverage_mean"))
         return 0.0

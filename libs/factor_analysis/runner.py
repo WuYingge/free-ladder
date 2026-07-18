@@ -31,18 +31,6 @@ from factor_analysis.forward_returns import compute_forward_returns
 from factor_analysis.quality import run_quality_analysis
 from factor_analysis.predictive import run_predictive_analysis
 from factor_analysis.grouping import run_grouping_analysis
-from factor_analysis.plotting import (
-    plot_coverage,
-    plot_distribution_bands,
-    plot_autocorr_decay,
-    plot_ic_decay,
-    plot_rolling_ic,
-    plot_ic_heatmap,
-    plot_quantile_returns_bar,
-    plot_quantile_cumret,
-    plot_longshort_cumret,
-    save_figure,
-)
 from factor_analysis.reporter import generate_and_save_reports, copy_to_windows
 
 
@@ -113,27 +101,13 @@ def run_factor_analysis(config: FactorAnalysisConfig) -> dict[str, Any]:
     predictive_results = None
     grouping_results = None
 
-    chart_paths: dict[str, str] = {}
 
     # ── 3. Layer 1: 因子质量 ─────────────────────────────────────────────
     if 1 in config.layers:
         print("\n[3/5] Layer 1: 因子质量分析...")
         quality_results = run_quality_analysis(panel)
 
-        # 覆盖率
-        cov = quality_results["coverage"]
-        fig, _ = plot_coverage(cov, panel.factor_name)
-        chart_paths["coverage.png"] = save_figure(fig, str(output_root / "coverage.png"))
-
-        # 分位数带
-        dp = quality_results["daily_percentiles"]
-        fig, _ = plot_distribution_bands(dp, panel.factor_name)
-        chart_paths["distribution_bands.png"] = save_figure(fig, str(output_root / "distribution_bands.png"))
-
-        # 自相关
         ac = quality_results["autocorr"]
-        fig, _ = plot_autocorr_decay(ac, panel.factor_name)
-        chart_paths["autocorr_decay.png"] = save_figure(fig, str(output_root / "autocorr_decay.png"))
 
         print(f"  → 分布: mean={quality_results['distribution_stats'].get('mean', float('nan')):.4f}")
         if not ac.empty:
@@ -159,25 +133,17 @@ def run_factor_analysis(config: FactorAnalysisConfig) -> dict[str, Any]:
             s = rank_ic_map[period]["summary"]
             print(f"  → Rank IC ({period}d): mean={s['mean']:.6f}, std={s['std']:.6f}, IR={s['ir']:.4f}")
 
-        # IC 衰减
-        decay = predictive_results["ic_decay"]
-        fig, _ = plot_ic_decay(decay, panel.factor_name)
-        chart_paths["ic_decay.png"] = save_figure(fig, str(output_root / "ic_decay.png"))
+        # Top 10% IC
+        top_ic_map = predictive_results.get("top_ic", {})
+        if top_ic_map:
+            print("  → Top 10% IC:")
+            for period in sorted(top_ic_map.keys()):
+                s = top_ic_map[period]["summary"]
+                print(f"    ({period}d): mean={s['mean']:.6f}, IR={s['ir']:.4f}")
 
-        # 滚动 IC — 每个持仓期各生成一张
-        for period in sorted(predictive_results["rolling_ic"].keys()):
-            ric = predictive_results["rolling_ic"][period]
-            title = f"{panel.factor_name} ({period}d)"
-            fig, _ = plot_rolling_ic(ric, title)
-            key = f"rolling_ic_{period}d.png"
-            chart_paths[key] = save_figure(fig, str(output_root / key))
-
-        # 参数网格热力图
+        # 参数网格热力图 CSV
         pg = predictive_results.get("param_grid")
         if pg and not pg.get("matrix", pd.DataFrame()).empty:
-            fig, _ = plot_ic_heatmap(pg["matrix"], panel.factor_name)
-            chart_paths["ic_matrix.png"] = save_figure(fig, str(output_root / "ic_matrix.png"))
-            # 同时保存 CSV
             pg["matrix"].to_csv(output_root / "ic_matrix.csv")
 
     # ── 5. Layer 3: 分组检验 ─────────────────────────────────────────────
@@ -220,33 +186,12 @@ def run_factor_analysis(config: FactorAnalysisConfig) -> dict[str, Any]:
             if mono:
                 print(f"  → 严格单调 ({period}d): {mono.get('strict_monotonic_ratio', float('nan')):.2%}")
 
-        # 图表和 CSV：每个持仓期各生成一套
+        # 保存 CSV
         for period in _gr_periods:
             gr_period = grouping_results[period]
-            q_summary = gr_period["quantile_summary"]
-            q_cumret = gr_period["quantile_cumret"]
             ls = gr_period.get("longshort", {})
-
             suffix = f"_{period}d"
-            title = f"{panel.factor_name} ({period}d)"
 
-            # 柱状图
-            fig, _ = plot_quantile_returns_bar(q_summary, title)
-            key = f"quantile_returns_bar{suffix}.png"
-            chart_paths[key] = save_figure(fig, str(output_root / key))
-
-            # 累计收益
-            fig, _ = plot_quantile_cumret(q_cumret, title)
-            key = f"quantile_cumret{suffix}.png"
-            chart_paths[key] = save_figure(fig, str(output_root / key))
-
-            # Long-Short 曲线
-            if ls:
-                fig, _ = plot_longshort_cumret(ls, title)
-                key = f"longshort_cumret{suffix}.png"
-                chart_paths[key] = save_figure(fig, str(output_root / key))
-
-            # 保存 CSV
             gr_period["quantile_returns"].to_csv(output_root / f"quantile_returns{suffix}.csv")
             if ls:
                 ls_series = ls.get("ls_series")
@@ -255,17 +200,14 @@ def run_factor_analysis(config: FactorAnalysisConfig) -> dict[str, Any]:
 
     # ── 6. 生成报告 ──────────────────────────────────────────────────────
     print("\n生成报告...")
-    json_path, md_path, html_path = generate_and_save_reports(
+    json_path = generate_and_save_reports(
         panel=panel,
         quality_results=quality_results,
         predictive_results=predictive_results,
         grouping_results=grouping_results,
         config=config,
-        chart_paths=chart_paths,
     )
     print(f"  → JSON: {json_path}")
-    print(f"  → MD:   {md_path}")
-    print(f"  → HTML: {html_path}")
 
     # ── 7. Windows 端同步 ────────────────────────────────────────────────
     windows_root = config.resolve_windows_output_root()

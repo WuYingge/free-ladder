@@ -25,7 +25,7 @@ def list_factors(
     search: str | None = Query(None, description="因子名模糊搜索"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    sort_by: str = Query("icir", pattern="^(icir|ic_mean|sharpe|coverage)$"),
+    sort_by: str = Query("icir", pattern="^(icir|ic_mean|sharpe|top_icir|coverage)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
 ):
     """因子列表（带筛选、排序、分页）。"""

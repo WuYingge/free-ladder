@@ -18,6 +18,14 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
+# ---------- 激活虚拟环境 ----------
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+elif ! command -v uvicorn &>/dev/null; then
+    echo "❌ 未找到 .venv 且 uvicorn 不可用，请先执行: uv sync"
+    exit 1
+fi
+
 # ---------- 清理函数 ----------
 cleanup() {
     echo ""
@@ -33,10 +41,6 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # ---------- 前置检查 ----------
-if ! command -v uvicorn &>/dev/null; then
-    echo "❌ uvicorn 未安装，请先执行: pip install uvicorn"
-    exit 1
-fi
 
 if ! command -v npm &>/dev/null; then
     echo "❌ npm 未安装"

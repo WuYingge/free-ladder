@@ -25,6 +25,7 @@ class _ETFIndexMapProvider(BaseProvider):
         self._name_map: dict[str, str] = {}
         self._candidates_map: dict[str, list[str]] = {}
         self._tracked_indices: list[str] = []
+        self._symbol_name_map: dict[str, str] = {}  # symbol → name 反向映射
         self._initialize()
 
     @override
@@ -59,7 +60,9 @@ class _ETFIndexMapProvider(BaseProvider):
             self._symbol_map[ti] = symbol
 
             if "selected_name" in df.columns:
-                self._name_map[ti] = str(row["selected_name"])
+                name = str(row["selected_name"])
+                self._name_map[ti] = name
+                self._symbol_name_map[symbol] = name  # 反向映射
 
             if "candidates" in df.columns:
                 raw = str(row["candidates"])
@@ -74,6 +77,13 @@ class _ETFIndexMapProvider(BaseProvider):
     def get_name(self, tracked_index: str) -> str:
         """获取跟踪指数对应的最优 ETF 名称。"""
         return self._name_map.get(tracked_index, "")
+
+    def get_info(self, symbol: str) -> dict[str, str] | None:
+        """根据 ETF symbol 获取名称信息。"""
+        name = self._symbol_name_map.get(symbol)
+        if name is None:
+            return None
+        return {"symbol": symbol, "name": name}
 
     def get_candidates(self, tracked_index: str) -> list[str]:
         """获取跟踪指数对应的所有候选 ETF symbol 列表。"""

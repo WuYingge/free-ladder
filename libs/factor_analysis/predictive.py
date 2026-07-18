@@ -10,6 +10,7 @@ Layer 2：回答"这个因子能否预测未来收益"。
     2.3 IC 衰减曲线 — 不同持仓期 (5/10/20/60日) 的 IC 变化
     2.4 滚动 IC 稳定性 — 固定窗口滚动 IC 均值时序
     2.5 参数敏感度网格 — 遍历参数 × 持仓期，生成 IC 热力图
+#     2.6 Top N% IC — 因子值前 10% 标的内的截面 IC（精排能力评估）
 
 IC 尺度感参考（设计文档 2.1 节）:
     > 0.10  → 顶级
@@ -153,6 +154,149 @@ def compute_pearson_ic(panel: FactorPanel, fwd_returns: pd.DataFrame) -> dict[st
     """
     ic_series = _daily_ic(panel.factor_values, fwd_returns, method="pearson")
     summary = _ic_summary(ic_series)
+
+# ── 2.2b Top N% IC ────────────────────────────────────────────────────────────
+
+
+def _daily_top_ic(
+    factor_values: pd.DataFrame,
+    fwd_returns: pd.DataFrame,
+    top_pct: float = 0.1,
+    method: str = "spearman",
+) -> pd.Series:
+    """每日截面：取因子值前 top_pct 的标的，在子集中计算 IC。
+
+    与 _daily_ic 的区别：
+    - _daily_ic 在全部标的上计算截面 IC
+    - _daily_top_ic 先选出因子值最高的 top_pct（如 10%）标的，
+      再在这些标的内部计算因子排名 × 未来收益排名的秩相关系数。
+
+    这回答了一个关键的选股问题：
+    「因子值最高的那批标的，其内部的相对排序是否还能进一步区分优劣？」
+
+    如果 top 组内的 IC 也显著 > 0，说明因子不仅能区分"好 vs 差"，还能在
+    "最好"的标的内继续精排——这对集中持仓的超额收益策略非常重要。
+
+    Parameters
+    ----------
+    factor_values: date × symbol 因子值矩阵。
+    fwd_returns: date × symbol 未来收益率矩阵。
+    top_pct: 取前百分之多少的标的。默认 0.1（前 10%）。
+    method: "spearman" → Rank IC, "pearson" → Pearson IC。
+
+    Returns
+    -------
+    pd.Series
+        index=日期, values=当日 top 子集内的 IC 值。
+        当日子集有效样本 < 5 时返回 NaN。
+    """
+    common_dates = factor_values.index.intersection(fwd_returns.index)
+    common_symbols = factor_values.columns.intersection(fwd_returns.columns)
+
+    if len(common_dates) == 0 or len(common_symbols) == 0:
+        return pd.Series(dtype=float)
+
+    fv = factor_values.loc[common_dates, common_symbols]
+    fwd = fwd_returns.loc[common_dates, common_symbols]
+
+    ic_values: list[float] = []
+    for date in common_dates:
+        fv_row = fv.loc[date].astype(float)
+        fwd_row = fwd.loc[date].astype(float)
+
+        # 取两行均非 NaN 的标的
+        mask = fv_row.notna() & fwd_row.notna()
+        valid_fv = fv_row[mask]
+        valid_fwd = fwd_row[mask]
+        n_valid = len(valid_fv)
+
+        if n_valid < 5:
+            ic_values.append(float("nan"))
+            continue
+
+        # 按因子值降序，取 top_pct 的标的
+        n_top = max(int(np.ceil(n_valid * top_pct)), 5)
+        if n_top > n_valid:
+            n_top = n_valid
+
+        top_fv = valid_fv.sort_values(ascending=False).head(n_top)
+        top_mask = top_fv.index
+        top_fwd = valid_fwd.loc[top_mask]
+
+        if len(top_fv) < 5:
+            ic_values.append(float("nan"))
+            continue
+
+        try:
+            if method == "spearman":
+                r, _ = spearmanr(top_fv, top_fwd)
+            else:
+                r, _ = pearsonr(top_fv, top_fwd)
+            ic_values.append(float(r) if not np.isnan(r) else float("nan"))
+        except Exception:
+            ic_values.append(float("nan"))
+
+    return pd.Series(ic_values, index=common_dates,
+                     name=f"IC_{method}_top{int(top_pct*100)}pct")
+
+
+def compute_top_ic(
+    panel: FactorPanel,
+    fwd_returns: pd.DataFrame,
+    top_pct: float = 0.1,
+) -> dict[str, Any]:
+    """计算 Top N% 标的的截面 Rank IC。
+
+    每日截面取因子值排名前 top_pct（如 10%）的标的，在该子集内
+    计算因子值与未来收益的 Spearman rank correlation。
+
+    这个指标帮助回答：
+    - 全截面 IC 不错，但 top 组内是否还有区分力？
+    - 如果 top 组内 IC 很低（甚至为负），说明因子只能大致分出好坏，
+      但对最优标的缺乏精排能力——集中持仓面临"挑不出最好"的风险。
+    - 如果 top 组内 IC 稳定为正，说明因子在最优标的内部也能有效排序。
+
+    Returns
+    -------
+    dict
+        {"ic_series": pd.Series, "summary": dict}
+    """
+    ic_series = _daily_top_ic(
+        panel.factor_values, fwd_returns, top_pct=top_pct, method="spearman",
+    )
+    summary = _ic_summary(ic_series)
+    return {"ic_series": ic_series, "summary": summary}
+
+
+def compute_top_rolling_ic(
+    panel: FactorPanel,
+    fwd_returns: pd.DataFrame,
+    top_pct: float = 0.1,
+    window: int = 120,
+) -> pd.DataFrame:
+    """计算 Top N% 标的的滚动 IC 均值时序。
+
+    与 compute_rolling_ic 逻辑相同，只是将 _daily_ic 替换为 _daily_top_ic。
+    观察 top 组内的 IC 在不同时间段是否稳定。
+
+    Returns
+    -------
+    pd.DataFrame
+        index=日期, columns=[ic_raw, ic_rolling_mean]。
+    """
+    ic_series = _daily_top_ic(
+        panel.factor_values, fwd_returns, top_pct=top_pct, method="spearman",
+    )
+    rolling_mean = ic_series.rolling(
+        window=window, min_periods=max(20, window // 2),
+    ).mean()
+
+    result = pd.DataFrame({
+        "ic_raw": ic_series,
+        "ic_rolling_mean": rolling_mean,
+    }, index=ic_series.index)
+    return result
+
     return {"ic_series": ic_series, "summary": summary}
 
 
@@ -413,6 +557,29 @@ def run_predictive_analysis(
         fwd = fwd_returns_map[period]
         rolling_ic[period] = compute_rolling_ic(panel, fwd, window=rolling_ic_window)
 
+
+    # ── Top N% IC：取因子值前 10% 标的，在子集内计算 Rank IC ─────────────
+    top_ic: dict[int, dict[str, Any]] = {}
+    top_rolling_ic: dict[int, pd.DataFrame] = {}
+    for period in sorted(fwd_returns_map.keys()):
+        fwd = fwd_returns_map[period]
+        top_ic[period] = compute_top_ic(panel, fwd, top_pct=0.1)
+        top_rolling_ic[period] = compute_top_rolling_ic(
+            panel, fwd, top_pct=0.1, window=rolling_ic_window,
+        )
+
+    # ── Top N% IC 衰减曲线（从 top_ic 提取） ──────────────────────────────
+    top_decay_records: list[dict[str, float]] = []
+    for period in sorted(top_ic.keys()):
+        s = top_ic[period]["summary"]
+        top_decay_records.append({
+            "period": period,
+            "ic_mean": s["mean"],
+            "ic_std": s["std"],
+            "ic_ir": s["ir"],
+        })
+    top_ic_decay = pd.DataFrame(top_decay_records)
+
     # ── 参数网格（可选） ─────────────────────────────────────────────────
     pg_result: dict | None = None
     if param_grid is not None and factor_cls is not None and symbols is not None:
@@ -431,4 +598,7 @@ def run_predictive_analysis(
         "ic_decay": ic_decay,
         "rolling_ic": rolling_ic,
         "param_grid": pg_result,
+        "top_ic": top_ic,
+        "top_rolling_ic": top_rolling_ic,
+        "top_ic_decay": top_ic_decay,
     }

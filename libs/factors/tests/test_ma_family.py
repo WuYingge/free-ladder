@@ -13,6 +13,7 @@ import pytest
 from factors.ma import (
     BIAS,
     BollingerBandPosition,
+    LogBIAS,
     MAAlignment,
     MADispersion,
     MADistance,
@@ -82,6 +83,72 @@ class TestBIAS:
         f2 = BIAS(window=60)
         assert f1.window == 20
         assert f2.window == 60
+
+# ===================================================================
+# LogBIAS
+# ===================================================================
+
+class TestLogBIAS:
+    def test_output_name(self):
+        f = LogBIAS(window=20)
+        assert f.get_output_name() == "LogBIAS_close_20"
+
+    def test_warmup_period(self):
+        f = LogBIAS(window=20)
+        assert f.warmup_period == 20
+
+    def test_rejects_window_lt_1(self):
+        with pytest.raises(ValueError, match="window must be at least 1"):
+            LogBIAS(window=0)(_make_df())
+
+    def test_above_ema_positive(self):
+        """对数价格持续上涨时 LogBIAS > 0"""
+        close = [100.0 + i * 0.5 for i in range(50)]
+        f = LogBIAS(window=10)
+        result = f(_make_df(close=close))
+        valid = result.dropna()
+        assert (valid >= 0).all()
+
+    def test_below_ema_negative(self):
+        """对数价格持续下跌时 LogBIAS < 0"""
+        close = [100.0 - i * 0.5 for i in range(50)]
+        f = LogBIAS(window=10)
+        result = f(_make_df(close=close))
+        valid = result.dropna()
+        assert (valid <= 0).all()
+
+    def test_flat_prices_near_zero(self):
+        """价格不变时乖离 ≈ 0"""
+        close = [100.0] * 50
+        f = LogBIAS(window=10)
+        result = f(_make_df(close=close))
+        valid = result.dropna()
+        assert (valid.abs() < 0.001).all()
+
+    def test_zero_price_returns_nan(self):
+        """价格为 0 或负数时返回 NaN"""
+        close = [100.0] * 20 + [0.0] + [100.0] * 20
+        f = LogBIAS(window=5)
+        result = f(_make_df(close=close))
+        assert result.isna().any()
+
+    def test_params_immutable(self):
+        f1 = LogBIAS(window=20)
+        f2 = LogBIAS(window=60)
+        assert f1.window == 20
+        assert f2.window == 60
+
+    def test_different_from_bias(self):
+        """LogBIAS (对数+EMA) 与 BIAS (原始+SMA) 值应不同"""
+        close = [100.0 + i * 0.3 + (i % 5) * 0.5 for i in range(60)]
+        df = _make_df(close=close)
+        f_log = LogBIAS(window=10)
+        f_bias = BIAS(window=10)
+        log_res = f_log(df)
+        bias_res = f_bias(df)
+        valid = log_res.dropna().index.intersection(bias_res.dropna().index)
+        assert not np.allclose(log_res.loc[valid], bias_res.loc[valid])
+
 
 
 # ===================================================================

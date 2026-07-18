@@ -93,6 +93,7 @@ class AnalysisTask:
     """单个因子分析任务的定义。"""
     factor_name: str          # FACTOR_REGISTRY 键名 或 衍生因子输出名
     factor_cls: type | None = None  # 基础因子类（meta_spec 存在时为 None）
+    factor_inst: "BaseFactor | None" = None  # 直接因子实例（FACTORS 模式）
     default_params: dict = field(default_factory=dict)
     layers: tuple[int, ...] = (1, 2)  # 分析层
     param_grid: dict | None = None   # 参数网格（None 表示不扫）
@@ -132,19 +133,25 @@ class AnalysisTask:
     def output_dir(self) -> Path:
         """预期的输出目录路径。"""
         from config import DataPath
-        if self.meta_spec is not None:
+        if self.factor_inst is not None:
+            # 直接因子实例模式
+            try:
+                sanitized = self.factor_inst.get_output_name().replace("/", "_").replace("\\", "_").replace(":", "_")
+            except Exception:
+                sanitized = self.factor_name
+        elif self.meta_spec is not None:
             # 衍生因子: 用 build_meta_factor 实例化以获取 output_name
             try:
                 from factors.meta_factor import build_meta_factor
-                factor_inst = build_meta_factor(self.meta_spec)
-                sanitized = factor_inst.get_output_name().replace("/", "_").replace("\\", "_").replace(":", "_")
+                _fi = build_meta_factor(self.meta_spec)
+                sanitized = _fi.get_output_name().replace("/", "_").replace("\\", "_").replace(":", "_")
             except Exception:
                 sanitized = self.factor_name
         else:
             # 基础因子: 用 factor_cls + default_params 实例化
             try:
-                factor_inst = self.factor_cls(**self.default_params)
-                sanitized = factor_inst.get_output_name().replace("/", "_").replace("\\", "_").replace(":", "_")
+                _fi = self.factor_cls(**self.default_params)
+                sanitized = _fi.get_output_name().replace("/", "_").replace("\\", "_").replace(":", "_")
             except Exception:
                 sanitized = self.factor_name
         return Path(DataPath.DATA_DIR) / "factors" / sanitized
@@ -255,7 +262,13 @@ class AnalysisTask:
 
     @property
     def label(self) -> str:
-        dir_name = self.output_dir.name
+        try:
+            if self.factor_inst is not None:
+                dir_name = self.factor_inst.get_output_name().replace("/", "_").replace("\\", "_").replace(":", "_")
+            else:
+                dir_name = self.output_dir.name
+        except Exception:
+            dir_name = self.factor_name
         end_str = self.report_end_date
         return f"{dir_name}" + (f" (已有报告, 数据至 {end_str})" if end_str else "")
 
@@ -868,7 +881,7 @@ def build_meta_tasks(
 
 
 def run_task(task: AnalysisTask) -> dict[str, Any]:
-    """在子进程中运行单个分析任务。
+    """运行单个分析任务（factor_inst 模式走进程内，其他走子进程）。
 
     Returns
     -------
@@ -883,6 +896,22 @@ def run_task(task: AnalysisTask) -> dict[str, Any]:
         "error": None,
     }
 
+    # ── factor_inst 模式：直接调用 run_factor_analysis ──
+    if task.factor_inst is not None:
+        try:
+            from factor_analysis.config import FactorAnalysisConfig
+            from factor_analysis.runner import run_factor_analysis
+
+            config = FactorAnalysisConfig(factor=task.factor_inst, layers=task.layers)
+            run_factor_analysis(config)
+            result["success"] = True
+        except Exception as e:
+            import traceback
+            result["error"] = f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=4)}"
+        result["runtime_sec"] = time.monotonic() - start
+        return result
+
+    # ── 子进程模式 ──
     try:
         proc = subprocess.run(
             task.cli_args,
@@ -1067,14 +1096,16 @@ def main() -> int:
     config_args, remaining_argv = pre_parser.parse_known_args()
 
     cfg = importlib.import_module(config_args.config)
-    FACTOR_FAMILIES        = cfg.FACTOR_FAMILIES
-    FULL_MODE_PARAM_GRIDS  = cfg.FULL_MODE_PARAM_GRIDS
-    CUSTOM_THRESHOLDS      = cfg.CUSTOM_THRESHOLDS
-    TRANSFORM_CONFIGS      = cfg.TRANSFORM_CONFIGS
-    EXCLUSIONS             = cfg.EXCLUSIONS
-    COMBO_WHITELIST        = cfg.COMBO_WHITELIST
-    CONDITIONAL_WHITELIST  = cfg.CONDITIONAL_WHITELIST
+    FACTOR_FAMILIES        = getattr(cfg, 'FACTOR_FAMILIES', {})
+    FULL_MODE_PARAM_GRIDS  = getattr(cfg, 'FULL_MODE_PARAM_GRIDS', {})
+    CUSTOM_THRESHOLDS      = getattr(cfg, 'CUSTOM_THRESHOLDS', {})
+    TRANSFORM_CONFIGS      = getattr(cfg, 'TRANSFORM_CONFIGS', {})
+    EXCLUSIONS             = getattr(cfg, 'EXCLUSIONS', {})
+    COMBO_WHITELIST        = getattr(cfg, 'COMBO_WHITELIST', [])
+    CONDITIONAL_WHITELIST  = getattr(cfg, 'CONDITIONAL_WHITELIST', [])
     META_SPECS             = getattr(cfg, 'META_SPECS', None)
+    FACTORS                = getattr(cfg, 'FACTORS', None)
+    CUSTOM_FACTORS         = getattr(cfg, 'FACTORS', None)
 
     args = parse_args(remaining_argv)
 
@@ -1094,10 +1125,13 @@ def main() -> int:
     else:
         factor_names = list(FACTOR_REGISTRY.keys())
 
-    # META_SPECS 模式：未显式指定 --factors/--families 时，跳过全量基础因子
-    if META_SPECS and not has_explicit_factors:
+    # 自定义配置模式：有 META_SPECS 或 FACTORS 且未显式指定 --factors/--families 时，跳过全量基础因子
+    if (META_SPECS or CUSTOM_FACTORS) and not has_explicit_factors:
         factor_names = []
-        print(f"META_SPECS 模式: {len(META_SPECS)} 个精确因子定义")
+        if META_SPECS:
+            print(f"META_SPECS 模式: {len(META_SPECS)} 个精确因子定义")
+        if CUSTOM_FACTORS:
+            print(f"FACTORS 模式: {len(CUSTOM_FACTORS)} 个自定义因子实例")
 
     print(f"模式: {args.mode} | 基础因子数: {len(factor_names)} | 并行度: {args.parallel}")
     print()
@@ -1165,6 +1199,22 @@ def main() -> int:
             else:
                 print(f"警告: META_SPECS 未知 type '{etype}'，跳过 {name}")
         print(f"META_SPECS 任务: {len(tasks)} 个总任务")
+
+    # ── 2.4 FACTORS 直接实例任务（从配置文件的 FACTORS 列表读取） ──
+    if CUSTOM_FACTORS:
+        layers = (1, 2) if args.mode == "quick" else (1, 2, 3)
+        for factor_inst in CUSTOM_FACTORS:
+            try:
+                fname = factor_inst.get_output_name()
+            except Exception:
+                fname = str(type(factor_inst).__name__)
+            tasks.append(AnalysisTask(
+                factor_name=fname,
+                factor_inst=factor_inst,
+                layers=layers,
+                extra_args=list(extra_cli_args),
+            ))
+        print(f"FACTORS 任务: {len(CUSTOM_FACTORS)} 个")
 
     # ── 2.5 衍生因子任务 ───────────────────────────────────────────────────
     if args.generate_meta is not None:

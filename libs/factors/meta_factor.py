@@ -166,6 +166,13 @@ def build_meta_factor(spec: MetaFactorSpec) -> BaseFactor:
             signal=base, conditions=conditions, **meta
         )
 
+    elif spec.meta_type == "negate":
+        if "_dependency_raw" in meta:
+            dep_raw = meta.pop("_dependency_raw")
+            dep = _resolve_factor(dep_raw)
+            return NegateFactor(dep)
+        return NegateFactor(base)
+
     else:
         raise ValueError(f"未知 meta_type: {spec.meta_type!r}")
 

@@ -34,12 +34,13 @@ from factors.trend_r2 import TrendR2Factor
 from factors.trend_quality import ADX as ADXFactor
 from factors.rolling_ols import RollingOLS
 from factors.volume_family import (
-    VolumeRatio, OBV, VPT,
+    VolumeRatio, VolumePriceCorrelation, OBV, VPT,
 )
 from factors.daily_rebound import DailyRebound
 from factors.change_since_new_high import ChangeSinceNewHigh
 from factors.average_amount import AverageAmount
 from factors.rsrs import RsrsFactor
+from factors.meta_factor import NegateFactor
 
 
 # ── 基本因子类型映射：factor_type → (class, param_mapping) ─────────────────
@@ -122,6 +123,7 @@ BASIC_FACTOR_MAP: dict[str, FactorTypeMapping] = {
     "AverageAmount": FactorTypeMapping(AverageAmount),
     "RSRS": FactorTypeMapping(RsrsFactor),
     "VolumeRatio": FactorTypeMapping(VolumeRatio),
+    "VolumePriceCorrelation": FactorTypeMapping(VolumePriceCorrelation, {"window": "window"}),
 }
 
 
@@ -202,7 +204,12 @@ def get_factor_instance(factor_name: str) -> BaseFactor | None:
         return _build_meta_factor(factor_name, factor_type, params)
 
     # 没有 report.json，尝试从因子名直接构造基本因子
-    return _build_from_name_only(factor_name)
+    base = _build_from_name_only(factor_name)
+    if base is not None:
+        return base
+
+    # 尝试解析无 report.json 的衍生因子名（TransformFactor / NegateFactor 等）
+    return _build_derived_from_name_only(factor_name)
 
 
 # ── Meta 因子反向解析 ──────────────────────────────────────────────────────────
@@ -214,6 +221,75 @@ def _find_meta_split(factor_name: str) -> int:
     """
     idx = factor_name.find("__")
     return idx if idx > 0 else -1
+
+
+def _build_derived_from_name_only(factor_name: str) -> BaseFactor | None:
+    """从因子名解析衍生因子（无 report.json 时的后备路径）。
+
+    支持：
+    - NegateFactor: {dep}__neg
+    - TransformFactor: {dep}__{transform}_{window}[_{threshold}]
+    """
+    from factors.meta_factor import TransformFactor
+
+    # NegateFactor: {dep}__neg
+    if factor_name.endswith("__neg"):
+        dep_name = factor_name[:-5]
+        dep = get_factor_instance(dep_name)
+        if dep is not None:
+            try:
+                return NegateFactor(dep)
+            except Exception:
+                pass
+        return None
+
+    # TransformFactor: 需要至少一个 __
+    split = _find_meta_split(factor_name)
+    if split < 0:
+        return None
+
+    dep_name = factor_name[:split]
+    dep = get_factor_instance(dep_name)
+    if dep is None:
+        return None
+
+    rest = factor_name[split + 2:]  # __ 后面的部分
+
+    # 已知 transform 列表
+    known_transforms = [
+        "zscore", "delta", "pct_change", "rolling_mean", "rolling_std",
+        "binarize_winrate",
+    ]
+    for transform in known_transforms:
+        prefix = f"{transform}_"
+        if rest.startswith(prefix):
+            param_str = rest[len(prefix):]
+            parts = param_str.split("_")
+            if not parts:
+                continue
+            try:
+                window = int(parts[0])
+            except ValueError:
+                continue
+
+            threshold = 0.0
+            if len(parts) > 1:
+                try:
+                    threshold = float(parts[1])
+                except ValueError:
+                    pass
+
+            try:
+                return TransformFactor(
+                    dependency=dep,
+                    transform=transform,
+                    window=window,
+                    threshold=threshold,
+                )
+            except Exception:
+                continue
+
+    return None
 
 
 def _build_meta_factor(factor_name: str, factor_type: str, params: dict[str, Any]) -> BaseFactor | None:
@@ -243,6 +319,10 @@ def _build_meta_factor(factor_name: str, factor_type: str, params: dict[str, Any
     # TransformFactor: {dep}__{transform}_{window}[_{threshold}]
     if factor_type == "TransformFactor":
         return _build_transform_factor(factor_name, params)
+
+    # NegateFactor: {dep}__neg
+    if factor_type == "NegateFactor":
+        return _build_negate_factor(factor_name)
 
     return None
 
@@ -282,6 +362,29 @@ def _build_transform_factor(factor_name: str, params: dict[str, Any]) -> BaseFac
             dependency=dep, transform=transform,
             window=window if window > 0 else None, threshold=threshold,
         )
+    except Exception:
+        return None
+
+
+# ── NegateFactor ────────────────────────────────────────────────────────────────
+
+def _build_negate_factor(factor_name: str) -> BaseFactor | None:
+    """解析 NegateFactor：{dep}__neg"""
+    # 格式: {dep}__neg
+    suffix = "__neg"
+    if not factor_name.endswith(suffix):
+        return None
+
+    dep_name = factor_name[:-len(suffix)]
+    if not dep_name:
+        return None
+
+    dep = get_factor_instance(dep_name)
+    if dep is None:
+        return None
+
+    try:
+        return NegateFactor(dep)
     except Exception:
         return None
 
@@ -507,6 +610,7 @@ _NAME_PATTERNS: list[tuple[str, type[BaseFactor], list[str]]] = [
     ("TrendR2", TrendR2Factor, ["window", "value_column", "output"]),
     # 成交量
     ("VolumeRatio", VolumeRatio, ["window"]),
+    ("VolumePriceCorrelation", VolumePriceCorrelation, ["window"]),
     # 其他
     ("AverageTrueRange", AverageTrueRange, ["window"]),
     ("AverageAmount", AverageAmount, ["window"]),

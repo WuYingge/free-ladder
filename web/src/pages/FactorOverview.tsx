@@ -68,6 +68,12 @@ export default function FactorOverview() {
     return stats[field] ?? null;
   };
 
+  const getTopVal = (f: FactorSummary, field: string) => {
+    const stats = f.top_ic?.[periodKey] as Record<string, number | null> | undefined;
+    if (!stats) return null;
+    return stats[field] ?? null;
+  };
+
   return (
     <div>
       <h2 style={{ marginBottom: 16 }}>因子概览</h2>
@@ -90,6 +96,7 @@ export default function FactorOverview() {
         <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={selectStyle}>
           <option value="icir">按 ICIR</option><option value="ic_mean">按 IC</option>
           <option value="sharpe">按 Sharpe</option>
+          <option value="top_icir">按 Top10% ICIR</option>
         </select>
         <button onClick={() => setSortOrder(o => o === "desc" ? "asc" : "desc")}
           style={btnStyle}>{sortOrder === "desc" ? "↓降序" : "↑升序"}</button>
@@ -100,7 +107,8 @@ export default function FactorOverview() {
         <table style={tableStyle}>
           <thead>
             <tr>
-              <th>因子名</th><th>类型</th><th>IC Mean</th><th>IC Std</th><th>ICIR</th><th>T-stat</th><th>Sharpe(5d)</th>
+              <th>因子名</th><th>类型</th><th>IC Mean</th><th>IC Std</th><th>ICIR</th><th>T-stat</th>
+              <th>Top10% IC</th><th>Top10% ICIR</th><th>Sharpe(5d)</th>
             </tr>
           </thead>
           <tbody>
@@ -115,6 +123,9 @@ export default function FactorOverview() {
                 <td style={{ color: (getVal(f, "ir") ?? 0) > 0 ? "#3fb950" : "#f85149" }}>
                   {getVal(f, "ir")?.toFixed(4)}</td>
                 <td>{getVal(f, "t_stat")?.toFixed(2)}</td>
+                <td>{getTopVal(f, "mean")?.toFixed(4)}</td>
+                <td style={{ color: (getTopVal(f, "ir") ?? 0) > 0 ? "#3fb950" : "#f85149" }}>
+                  {getTopVal(f, "ir")?.toFixed(4)}</td>
                 <td>{f.longshort_sharpe_5d?.toFixed(2)}</td>
               </tr>
             ))}
@@ -142,6 +153,9 @@ export default function FactorOverview() {
 
           {/* IC 衰减图 */}
           <IcDecayChart detail={detail} />
+
+          {/* Top 10% IC 衰减图 */}
+          <TopIcDecayChart detail={detail} />
 
           {/* 分组收益柱状图 */}
           <QuantileBarChart detail={detail} />
@@ -186,13 +200,23 @@ function DetailSection({ title, detail }: { title: string; detail: Record<string
   if (title.includes("Layer 2")) {
     const pred = detail.layer2_predictive as Record<string, unknown> | undefined;
     if (pred) {
-      const icDecay = pred.ic_decay as Array<{ period: number; ic_mean: number; ic_ir: number }> | undefined;
       const rankIc = pred.rank_ic as Record<string, { summary: Record<string, number> }> | undefined;
+      const topIc = pred.top_ic as Record<string, { summary: Record<string, number> }> | undefined;
       content = (
         <div>
           {rankIc && Object.entries(rankIc).map(([p, v]) => (
             <div key={p}>IC {p}d: mean={v.summary?.mean?.toFixed(4)}, IR={v.summary?.ir?.toFixed(4)}, t={v.summary?.t_stat?.toFixed(2)}</div>
           ))}
+          {topIc && (
+            <div style={{ marginTop: 8, borderTop: "1px solid #30363d", paddingTop: 8 }}>
+              <strong>Top 10% IC:</strong>
+              {Object.entries(topIc).map(([p, v]) => (
+                <div key={p} style={{ color: "#8b949e", fontSize: 13 }}>
+                  {p}d: mean={v.summary?.mean?.toFixed(4)}, IR={v.summary?.ir?.toFixed(4)}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
@@ -238,6 +262,22 @@ function IcDecayChart({ detail }: { detail: Record<string, unknown> }) {
     series: [
       { name: "IC Mean", type: "bar", data: decay.map(d => d.ic_mean), itemStyle: { color: "#58a6ff" } },
       { name: "ICIR", type: "line", yAxisIndex: 1, data: decay.map(d => d.ic_ir), itemStyle: { color: "#3fb950" } },
+    ],
+  };
+  return <ReactECharts option={option} style={{ height: 250, marginTop: 12 }} theme="dark" />;
+}
+
+function TopIcDecayChart({ detail }: { detail: Record<string, unknown> }) {
+  const pred = detail.layer2_predictive as Record<string, unknown> | undefined;
+  if (!pred?.top_ic_decay) return null;
+  const decay = pred.top_ic_decay as Array<{ period: number; ic_mean: number; ic_ir: number }>;
+  const option = {
+    tooltip: { trigger: "axis" },
+    xAxis: { type: "category", data: decay.map(d => `${d.period}d`) },
+    yAxis: [{ type: "value", name: "Top10% IC" }, { type: "value", name: "Top10% ICIR" }],
+    series: [
+      { name: "Top10% IC Mean", type: "bar", data: decay.map(d => d.ic_mean), itemStyle: { color: "#d29922" } },
+      { name: "Top10% ICIR", type: "line", yAxisIndex: 1, data: decay.map(d => d.ic_ir), itemStyle: { color: "#3fb950" } },
     ],
   };
   return <ReactECharts option={option} style={{ height: 250, marginTop: 12 }} theme="dark" />;

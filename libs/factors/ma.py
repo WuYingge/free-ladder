@@ -180,6 +180,58 @@ class BIAS(BaseFactor):
         return result
 
 
+class LogBIAS(BaseFactor):
+    """对数乖离度因子：(log(close) / EMA(log(close), window)) − 1。
+
+    LogBIAS 在对数空间中衡量收盘价相对其 EMA 的偏离程度。
+    正值 = 对数收盘价高于对数 EMA（强势），负值 = 低于（弱势）。
+
+    相比 BIAS 的两点改进：
+    1. 使用 **对数价格** 替代原始价格，对数空间具有良好的可加性
+       （对数收益可直接叠加），且对极端价格的敏感度更温和。
+    2. 使用 **EMA（指数移动平均）** 替代 SMA，对近期价格赋予更高权重，
+       反应更灵敏。
+
+    参数
+    ----------
+    window : int
+        EMA 的 span 参数，默认 20。
+    price_column : str
+        价格列名，默认 "close"。
+    """
+
+    name = "LogBIAS"
+    params = {
+        "window": 20,
+        "price_column": "close",
+    }
+
+    def __init__(self, window: int = 20, price_column: str = "close") -> None:
+        super().__init__()
+        self.window = int(window)
+        self.price_column = price_column
+        self.warmup_period = self.window
+        self._set_params(window=window, price_column=price_column)
+
+    def get_output_name(self) -> str:
+        return f"{self.name}_{self.price_column}_{self.window}"
+
+    def __call__(self, data: pd.DataFrame) -> pd.Series:
+        if self.window < 1:
+            raise ValueError("window must be at least 1")
+        if self.price_column not in data.columns:
+            raise ValueError(
+                f"LogBIAS requires column '{self.price_column}'"
+            )
+        price = data[self.price_column].astype(float)
+        # 非正值无法取对数，设为 NaN
+        log_price = np.where(price > 0, np.log(price), np.nan)
+        log_series = pd.Series(log_price, index=data.index)
+        ema = log_series.ewm(span=self.window, adjust=False).mean()
+        result = (log_series / ema) - 1.0
+        result.name = self.get_output_name()
+        return result
+
 class BollingerBandPosition(BaseFactor):
     """布林带位置因子：(close − MA) / (k × std)，波动率标准化后的偏离。
 

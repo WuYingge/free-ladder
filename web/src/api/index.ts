@@ -12,6 +12,7 @@ export interface FactorSummary {
   ic_rank: Record<string, ICStats>;
   ic_pearson: Record<string, ICStats>;
   longshort_sharpe_5d: number | null;
+  top_ic: Record<string, ICStats>;
   analysis_date: string;
 }
 

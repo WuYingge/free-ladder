@@ -2,7 +2,7 @@
 批量因子分析 — combo_54 配置
 基于 docs/factor-combo-build.md v2（2026-07-05 修订）
 
-覆盖 55 个因子（META_SPECS 35 基础变换 + COMBO_WHITELIST 9 复合 + CONDITIONAL_WHITELIST 11 条件）。
+覆盖 57 个因子（META_SPECS 37 基础变换/negate + COMBO_WHITELIST 9 复合 + CONDITIONAL_WHITELIST 11 条件）。
 跑什么完全由本配置决定 — META_SPECS 直读 + 白名单驱动，零笛卡尔积。
 
 用法:
@@ -12,7 +12,7 @@
         --generate-meta combos conditionals
 
 说明:
-    - META_SPECS: 35 条精确基础变换因子定义
+     - META_SPECS: 37 条精确基础变换/negate 因子定义
     - COMBO_WHITELIST: 9 条复合因子（含链式 C5 + C11）
     - CONDITIONAL_WHITELIST: 11 条条件因子（含 SwitchFactor + MultiConditional）
     - 无需 --families / --factors，本配置自包含
@@ -31,6 +31,9 @@ from __future__ import annotations
 #   type="transform": 基础因子 + 变换衍生
 #     {"type": "transform", "factor": "因子名", "params": {...},
 #      "transform": "变换类型", "transform_window": N, "threshold": X}
+#   type="negate": 对衍生因子取反（可内嵌 transform）
+#     {"type": "negate", "factor": "因子名", "params": {...},
+#      "transform": "变换类型", "transform_window": N}
 
 META_SPECS: list[dict] = [
     # ═══════════════════════════════════════════════════════════════════════
@@ -50,7 +53,7 @@ META_SPECS: list[dict] = [
      "transform": "binarize_winrate", "transform_window": 10, "threshold": -2.0},
 
     # ═══════════════════════════════════════════════════════════════════════
-    # 1.2 MAE 系列（7 个）
+    # 1.2 MAE 系列（8 个）
     # ═══════════════════════════════════════════════════════════════════════
     {"type": "transform", "factor": "MAE", "params": {"window": 20},
      "transform": "zscore", "transform_window": 120},
@@ -66,6 +69,8 @@ META_SPECS: list[dict] = [
      "transform": "delta", "transform_window": 10},
     {"type": "transform", "factor": "MAE", "params": {"window": 40},
      "transform": "binarize_winrate", "transform_window": 10, "threshold": -1.0},
+    {"type": "negate", "factor": "MAE", "params": {"window": 40},
+     "transform": "zscore", "transform_window": 120},
 
     # ═══════════════════════════════════════════════════════════════════════
     # 1.3 MADistance 系列（5 个）
@@ -147,6 +152,12 @@ META_SPECS: list[dict] = [
      "transform": "zscore", "transform_window": 120},
     {"type": "transform", "factor": "CCI", "params": {"window": 20},
      "transform": "rolling_mean", "transform_window": 5},
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # 1.8 NegateFactor 系列（1 个）
+    # ═══════════════════════════════════════════════════════════════════════
+    {"type": "negate", "factor": "TrendR2_slope", "params": {"window": 60},
+     "transform": "zscore", "transform_window": 120},
 ]
 
 # ═══════════════════════════════════════════════════════════════════════════════

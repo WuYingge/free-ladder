@@ -345,7 +345,7 @@ def fund_etf_name_em() -> pd.DataFrame:
     """
     url = "https://fund.eastmoney.com/js/fundcode_search.js"
     r = request_get_via_proxy(url, headers=headers)
-    text_data = r.text.strip("var r = ").strip(";")
+    text_data = r.content.decode("utf-8-sig").strip("var r = ").strip(";")
     data_json = json.loads(text_data)
     df = pd.DataFrame(data_json, columns=["symbol", "pinyin_abbr", "name", "type", "full_pinyin"])
     df = df[df["name"].str.contains("ETF") & ~df["name"].str.contains("联接") & df["type"].isin(["指数型-股票", "指数型-海外股票", "指数型-固收", "指数型-其他"])]

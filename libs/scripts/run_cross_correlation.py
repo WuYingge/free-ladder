@@ -331,6 +331,40 @@ def _collect_meta_factors(
                 )
                 specs.append(spec)
 
+            elif etype == "negate":
+                tf_name = entry.get("transform")
+                if tf_name:
+                    tf_window = entry.get("transform_window",
+                        _TF_DEFAULT_WINDOWS.get(tf_name, 10))
+                    tf_threshold = entry.get("threshold", 0.0)
+                    dep_spec = MetaFactorSpec(
+                        base_factor_name=name,
+                        base_factor_module=module_path,
+                        base_factor_class=class_name,
+                        base_params=merged,
+                        meta_type="transform",
+                        meta_params={
+                            "transform": tf_name,
+                            "window": tf_window,
+                            "threshold": tf_threshold,
+                        },
+                    )
+                else:
+                    dep_spec = None
+
+                negate_meta = {}
+                if dep_spec is not None:
+                    negate_meta["_dependency_raw"] = dep_spec
+                spec = MetaFactorSpec(
+                    base_factor_name=name,
+                    base_factor_module=module_path,
+                    base_factor_class=class_name,
+                    base_params=merged,
+                    meta_type="negate",
+                    meta_params=negate_meta,
+                )
+                specs.append(spec)
+
     print(f"衍生因子配方数: {len(specs)}")
 
     instances: dict[str, "BaseFactor"] = {}
