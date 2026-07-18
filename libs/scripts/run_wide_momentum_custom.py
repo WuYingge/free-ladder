@@ -22,6 +22,7 @@ sys.path.insert(0, str(PROJECT_ROOT))           # 让 libs 作为包可见（配
 sys.path.insert(0, str(PROJECT_ROOT / "libs"))  # 直接导入 backtesting 等
 
 from backtesting.wide_momentum_baseline import (
+    RankFilter,
     ThresholdFilter,
     WideMomentumBaselineConfig,
     prepare_wide_momentum_universe,
@@ -62,6 +63,12 @@ _output_root: Path | None = None
 _current_ranking: object = None
 _current_pipeline: tuple = ()
 _current_filters: tuple[ThresholdFilter, ...] = ()
+
+# 跨组并行（fork 继承用）
+_cross_group_parallel: bool = False
+_prepared_map: dict[str, object] = {}       # group_label → prepared universe
+_output_root_map: dict[str, Path] = {}       # group_label → output root dir
+_group_ts_map: dict[str, str] = {}           # group_label → timestamp
 
 
 def _build_output_basename(tag: str = "") -> str:
@@ -134,6 +141,7 @@ def main(config_module: str) -> None:
     """主流程：逐组 prepare → grid search → 落盘。"""
     global \
         prepared, _output_root, _current_ranking, _current_pipeline, _current_filters, \
+        _cross_group_parallel, _prepared_map, _output_root_map, _group_ts_map, \
         GROUPS, GRID_TOP_N, GRID_MIN_MOMENTUM, GRID_CLUSTER_MAX_PER_GROUP, \
         GRID_REBALANCE_INTERVAL, GRID_EXCLUDE_BONDS, GRID_HOLD_OVERLAP, \
         GRID_WEIGHT_ALLOCATOR, GRID_MAX_WORKERS, PERIOD_FREQ, CUSTOM_PERIODS, \
@@ -152,6 +160,7 @@ def main(config_module: str) -> None:
     GRID_HOLD_OVERLAP       = cfg.GRID_HOLD_OVERLAP
     GRID_WEIGHT_ALLOCATOR   = cfg.WEIGHT_ALLOCATORS
     GRID_MAX_WORKERS        = getattr(cfg, "MAX_WORKERS", None)
+    _cross_group_parallel   = getattr(cfg, "CROSS_GROUP_PARALLEL", False)
     PERIOD_FREQ             = getattr(cfg, "PERIOD_FREQ", None)
     CUSTOM_PERIODS          = getattr(cfg, "CUSTOM_PERIODS", None)
     SHARED_PIPELINE         = cfg.SHARED_PIPELINE
@@ -184,54 +193,81 @@ def main(config_module: str) -> None:
 
     all_summaries: list[dict] = []
 
-    for group_idx, (group_label, ranking_factor, builtin_filters) in enumerate(GROUPS, 1):
-        _current_ranking = ranking_factor
-        _current_pipeline = (ranking_factor,) + SHARED_PIPELINE
-        _current_filters = builtin_filters
-
-        _output_root = output_base / f"wide_momentum_{group_label}"
-        _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-
+    if _cross_group_parallel:
+        # ════════════════════════════════════════════════════════════════
+        # 跨组并行模式
+        # ════════════════════════════════════════════════════════════════
         print(f"\n{'=' * 60}")
-        print(f">>> [{group_idx}/{len(GROUPS)}] {group_label}")
-        print(f"    排名因子: {ranking_factor}")
-        print(f"    过滤器:   {[(b.field, b.operator, b.value) for b in builtin_filters]}")
-        print(f"    输出目录: {_output_root}")
+        print(f"跨组并行模式: {len(GROUPS)} 组 × grid 变体统一调度")
         print(f"{'=' * 60}")
 
-        # ── 阶段 1: 准备 universe ──
-        _bootstrap_config = WideMomentumBaselineConfig(
-            ranking_factor=ranking_factor,
-            factor_pipeline=SHARED_PIPELINE,
-            builtin_filters=builtin_filters,
-            start_date=_start_date,
-            end_date=_end_date,
-            ranking_factor_candidates=RANKING_FACTOR_CANDIDATES,
-            ic_window=IC_WINDOW,
-            ic_selection_mode=IC_SELECTION_MODE,
-        )
+        # ── 阶段 1: 串行准备所有组的 universe ──
+        _all_jobs: list[tuple[str, object, tuple, tuple, tuple, tuple]] = []
+        _grid_combos_count = 0
 
-        print(f"\n[阶段 1] 准备 shared universe ...", end=" ", flush=True)
-        prepared = prepare_wide_momentum_universe(config=_bootstrap_config, symbols=symbols)
-        print(
-            f"完成 ({len(prepared.symbol_data_map)} 标的, "
-            f"{prepared.start_date.date()} → {prepared.end_date.date()})"
-        )
-
-        # ── 阶段 2: Grid 变体并行 ──
-        _grid_combos = list(
-            itertools.product(
-                GRID_TOP_N,
-                GRID_MIN_MOMENTUM,
-                GRID_CLUSTER_MAX_PER_GROUP,
-                GRID_REBALANCE_INTERVAL,
-                GRID_EXCLUDE_BONDS,
-                GRID_HOLD_OVERLAP,
-                range(len(GRID_WEIGHT_ALLOCATOR)),
+        for group_idx, group_entry in enumerate(GROUPS, 1):
+            group_label = group_entry[0]
+            ranking_factor = group_entry[1]
+            builtin_filters = group_entry[2]
+            cross_sectional_filters = (
+                group_entry[3] if len(group_entry) >= 4 else ()
             )
-        )
 
-        print(f"\n[阶段 2] Grid 变体: {len(_grid_combos)} 组合")
+            _output_root = output_base / f"wide_momentum_{group_label}"
+            _output_root_map[group_label] = _output_root
+            _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            _group_ts_map[group_label] = _ts
+
+            print(f"\n{'=' * 60}")
+            print(f">>> [{group_idx}/{len(GROUPS)}] {group_label}")
+            print(f"    排名因子: {ranking_factor}")
+            print(f"    硬性过滤器: {[(b.field, b.operator, b.value) for b in builtin_filters]}")
+            if cross_sectional_filters:
+                print(f"    横截面过滤器: {[rf.name or rf.factor.get_output_name() for rf in cross_sectional_filters]}")
+            print(f"{'=' * 60}")
+
+            _bootstrap_config = WideMomentumBaselineConfig(
+                ranking_factor=ranking_factor,
+                factor_pipeline=SHARED_PIPELINE,
+                builtin_filters=builtin_filters,
+                cross_sectional_filters=cross_sectional_filters,
+                start_date=_start_date,
+                end_date=_end_date,
+                ranking_factor_candidates=RANKING_FACTOR_CANDIDATES,
+                ic_window=IC_WINDOW,
+                ic_selection_mode=IC_SELECTION_MODE,
+            )
+
+            print(f"[阶段 1] 准备 shared universe ...", end=" ", flush=True)
+            pg = prepare_wide_momentum_universe(config=_bootstrap_config, symbols=symbols)
+            _prepared_map[group_label] = pg
+            print(
+                f"完成 ({len(pg.symbol_data_map)} 标的, "
+                f"{pg.start_date.date()} → {pg.end_date.date()})"
+            )
+
+            # 收集该组的 grid 变体
+            grid_combos = list(
+                itertools.product(
+                    GRID_TOP_N,
+                    GRID_MIN_MOMENTUM,
+                    GRID_CLUSTER_MAX_PER_GROUP,
+                    GRID_REBALANCE_INTERVAL,
+                    GRID_EXCLUDE_BONDS,
+                    GRID_HOLD_OVERLAP,
+                    range(len(GRID_WEIGHT_ALLOCATOR)),
+                )
+            )
+            _grid_combos_count += len(grid_combos)
+            pipeline = (ranking_factor,) + SHARED_PIPELINE
+            for combo in grid_combos:
+                _all_jobs.append(
+                    (group_label, ranking_factor, pipeline, builtin_filters, cross_sectional_filters, combo)
+                )
+
+        # ── 阶段 2: 所有组的 grid 变体统一并行 ──
+        print(f"\n{'=' * 60}")
+        print(f"[阶段 2] 跨组并行: {len(GROUPS)} 组 × grid 变体 = {len(_all_jobs)} 个任务")
         print(f"    top_n:         {GRID_TOP_N}")
         print(f"    min_momentum:  {GRID_MIN_MOMENTUM}")
         print(f"    cluster_max:   {GRID_CLUSTER_MAX_PER_GROUP}")
@@ -242,48 +278,172 @@ def main(config_module: str) -> None:
             print(f"    custom_periods: {CUSTOM_PERIODS}")
         elif PERIOD_FREQ:
             print(f"    period_freq:   {PERIOD_FREQ}")
-        print("=" * 60)
+        print(f"{'=' * 60}")
 
-        # 打包轻量参数供 worker 使用
-        _shared_args = (ranking_factor, SHARED_PIPELINE, builtin_filters, False)
-
-        group_summaries: list[dict] = []
-        futures_map: dict = {}
+        group_summaries_map: dict[str, list[dict]] = {group_entry[0]: [] for group_entry in GROUPS}
+        completed_count = 0
 
         _mp_ctx = multiprocessing.get_context("fork")
         with ProcessPoolExecutor(max_workers=GRID_MAX_WORKERS, mp_context=_mp_ctx) as executor:
-            for combo in _grid_combos:
-                future = executor.submit(_run_single_combo, _shared_args + (combo,))
-                futures_map[future] = combo
+            futures_map = {}
+            for job in _all_jobs:
+                group_label, rf, pipeline, bf, csf, combo = job
+                # args: (group_label, rf, pipeline, bf, csf, cluster_enabled, combo)
+                future = executor.submit(
+                    _run_single_combo, (group_label, rf, pipeline, bf, csf, False, combo)
+                )
+                futures_map[future] = group_label
 
             for idx, future in enumerate(as_completed(futures_map), start=1):
-                combo = futures_map[future]
+                group_label = futures_map[future]
                 grid_label, summaries = future.result()
-                group_summaries.extend(summaries)
+                group_summaries_map[group_label].extend(summaries)
                 all_summaries.extend(summaries)
 
-                # 补上组标签，方便后续 HTML 报告识别
                 for s in summaries:
                     s["group_label"] = group_label
 
+                completed_count += 1
                 s0 = summaries[0] if summaries else {}
                 print(
-                    f"[{idx}/{len(_grid_combos)}] {grid_label}: "
+                    f"[{completed_count}/{len(_all_jobs)}] [{group_label}] {grid_label}: "
                     f"cum={s0.get('cumulative_return_pct', '?')}%, "
                     f"sharpe={s0.get('sharpe', '?')}, "
                     f"mdd={s0.get('max_drawdown_pct', '?')}%"
                 )
 
-        # ── 保存本组 grid_summary ──
-        if group_summaries:
-            import pandas as pd
-            summary_df = pd.DataFrame(group_summaries)
-            cols = ["grid_label"] + [c for c in summary_df.columns if c != "grid_label"]
-            summary_df = summary_df[cols]
-            csv_path = _output_root / f"grid_summary_{_ts}.csv"
-            summary_df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-            print(f"\n[{group_label}] Grid 汇总: {csv_path}")
-            print(f"  共 {len(_grid_combos)} 组合，{len(group_summaries)} 行")
+        # ── 按组保存 grid_summary ──
+        for group_entry in GROUPS:
+            group_label = group_entry[0]
+            summaries = group_summaries_map[group_label]
+            if summaries:
+                import pandas as pd
+                summary_df = pd.DataFrame(summaries)
+                cols = ["grid_label"] + [c for c in summary_df.columns if c != "grid_label"]
+                summary_df = summary_df[cols]
+                _root = _output_root_map[group_label]
+                _ts = _group_ts_map[group_label]
+                csv_path = _root / f"grid_summary_{_ts}.csv"
+                summary_df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+                print(f"\n[{group_label}] Grid 汇总: {csv_path}")
+                print(f"  共 {len(summaries)} 行")
+
+    else:
+        # ════════════════════════════════════════════════════════════════
+        # 逐组串行模式（原有行为）
+        # ════════════════════════════════════════════════════════════════
+        for group_idx, group_entry in enumerate(GROUPS, 1):
+            # 向后兼容: 3 元素 → (label, ranking, builtins)
+            #            4 元素 → (label, ranking, builtins, cross_sectional)
+            group_label = group_entry[0]
+            ranking_factor = group_entry[1]
+            builtin_filters = group_entry[2]
+            cross_sectional_filters: tuple[RankFilter, ...] = (
+                group_entry[3] if len(group_entry) >= 4 else ()
+            )
+
+            _current_ranking = ranking_factor
+            _current_pipeline = (ranking_factor,) + SHARED_PIPELINE
+            _current_filters = builtin_filters
+
+            _output_root = output_base / f"wide_momentum_{group_label}"
+            _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            print(f"\n{'=' * 60}")
+            print(f">>> [{group_idx}/{len(GROUPS)}] {group_label}")
+            print(f"    排名因子: {ranking_factor}")
+            print(f"    硬性过滤器: {[(b.field, b.operator, b.value) for b in builtin_filters]}")
+            if cross_sectional_filters:
+                print(f"    横截面过滤器: {[rf.name or rf.factor.get_output_name() for rf in cross_sectional_filters]}")
+            print(f"    输出目录: {_output_root}")
+            print(f"{'=' * 60}")
+
+            # ── 阶段 1: 准备 universe ──
+            _bootstrap_config = WideMomentumBaselineConfig(
+                ranking_factor=ranking_factor,
+                factor_pipeline=SHARED_PIPELINE,
+                builtin_filters=builtin_filters,
+                cross_sectional_filters=cross_sectional_filters,
+                start_date=_start_date,
+                end_date=_end_date,
+                ranking_factor_candidates=RANKING_FACTOR_CANDIDATES,
+                ic_window=IC_WINDOW,
+                ic_selection_mode=IC_SELECTION_MODE,
+            )
+
+            print(f"\n[阶段 1] 准备 shared universe ...", end=" ", flush=True)
+            prepared = prepare_wide_momentum_universe(config=_bootstrap_config, symbols=symbols)
+            print(
+                f"完成 ({len(prepared.symbol_data_map)} 标的, "
+                f"{prepared.start_date.date()} → {prepared.end_date.date()})"
+            )
+
+            # ── 阶段 2: Grid 变体并行 ──
+            _grid_combos = list(
+                itertools.product(
+                    GRID_TOP_N,
+                    GRID_MIN_MOMENTUM,
+                    GRID_CLUSTER_MAX_PER_GROUP,
+                    GRID_REBALANCE_INTERVAL,
+                    GRID_EXCLUDE_BONDS,
+                    GRID_HOLD_OVERLAP,
+                    range(len(GRID_WEIGHT_ALLOCATOR)),
+                )
+            )
+
+            print(f"\n[阶段 2] Grid 变体: {len(_grid_combos)} 组合")
+            print(f"    top_n:         {GRID_TOP_N}")
+            print(f"    min_momentum:  {GRID_MIN_MOMENTUM}")
+            print(f"    cluster_max:   {GRID_CLUSTER_MAX_PER_GROUP}")
+            print(f"    rebalance:     {GRID_REBALANCE_INTERVAL}")
+            print(f"    exclude_bonds: {GRID_EXCLUDE_BONDS}")
+            print(f"    hold_overlap:  {GRID_HOLD_OVERLAP}")
+            if CUSTOM_PERIODS:
+                print(f"    custom_periods: {CUSTOM_PERIODS}")
+            elif PERIOD_FREQ:
+                print(f"    period_freq:   {PERIOD_FREQ}")
+            print("=" * 60)
+
+            # 打包轻量参数供 worker 使用
+            _shared_args = (ranking_factor, SHARED_PIPELINE, builtin_filters, cross_sectional_filters, False)
+
+            group_summaries: list[dict] = []
+            futures_map: dict = {}
+
+            _mp_ctx = multiprocessing.get_context("fork")
+            with ProcessPoolExecutor(max_workers=GRID_MAX_WORKERS, mp_context=_mp_ctx) as executor:
+                for combo in _grid_combos:
+                    future = executor.submit(_run_single_combo, _shared_args + (combo,))
+                    futures_map[future] = combo
+
+                for idx, future in enumerate(as_completed(futures_map), start=1):
+                    combo = futures_map[future]
+                    grid_label, summaries = future.result()
+                    group_summaries.extend(summaries)
+                    all_summaries.extend(summaries)
+
+                    # 补上组标签，方便后续 HTML 报告识别
+                    for s in summaries:
+                        s["group_label"] = group_label
+
+                    s0 = summaries[0] if summaries else {}
+                    print(
+                        f"[{idx}/{len(_grid_combos)}] {grid_label}: "
+                        f"cum={s0.get('cumulative_return_pct', '?')}%, "
+                        f"sharpe={s0.get('sharpe', '?')}, "
+                        f"mdd={s0.get('max_drawdown_pct', '?')}%"
+                    )
+
+            # ── 保存本组 grid_summary ──
+            if group_summaries:
+                import pandas as pd
+                summary_df = pd.DataFrame(group_summaries)
+                cols = ["grid_label"] + [c for c in summary_df.columns if c != "grid_label"]
+                summary_df = summary_df[cols]
+                csv_path = _output_root / f"grid_summary_{_ts}.csv"
+                summary_df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+                print(f"\n[{group_label}] Grid 汇总: {csv_path}")
+                print(f"  共 {len(_grid_combos)} 组合，{len(group_summaries)} 行")
 
     # ── 全部完成 ──
     print(f"\n{'=' * 60}")
@@ -324,10 +484,26 @@ def _run_single_combo(args):
     """单个 grid 组合的完整回测（供进程池并行）。
 
     只接收轻量参数。prepared / _output_root 等大对象由 fork 继承，不通过 pickle 传输。
+
+    两种调用模式（通过 args 长度自动区分）：
+      逐组模式（6 元素）:
+        (ranking_factor, factor_pipeline, builtin_filters, cross_sectional_filters,
+         cluster_limit_enabled, combo)
+      跨组模式（7 元素）:
+        (group_label, ranking_factor, factor_pipeline, builtin_filters,
+         cross_sectional_filters, cluster_limit_enabled, combo)
     """
     import os as _os
 
-    ranking_factor, factor_pipeline, builtin_filters, cluster_limit_enabled, combo = args
+    if len(args) == 7:
+        group_label, ranking_factor, factor_pipeline, builtin_filters, cross_sectional_filters, cluster_limit_enabled, combo = args
+        _pg = _prepared_map[group_label]
+        _out_root = _output_root_map[group_label]
+    else:
+        group_label = None
+        ranking_factor, factor_pipeline, builtin_filters, cross_sectional_filters, cluster_limit_enabled, combo = args
+        _pg = prepared
+        _out_root = _output_root
     top_n, min_mom, cluster_max, rebal, exclude_bonds, hold_overlap, alloc_idx = combo
     weight_allocator = GRID_WEIGHT_ALLOCATOR[alloc_idx]
 
@@ -355,6 +531,7 @@ def _run_single_combo(args):
         ranking_factor=ranking_factor,
         factor_pipeline=factor_pipeline,
         builtin_filters=builtin_filters,
+        cross_sectional_filters=cross_sectional_filters,
         min_momentum_value=min_mom,
         rebalance_interval=rebal,
         cluster_limit_enabled=(cluster_limit_enabled and cluster_max > 0),
@@ -369,14 +546,15 @@ def _run_single_combo(args):
         ic_selection_mode=IC_SELECTION_MODE,
     )
 
-    output_dir = _output_root / grid_label
+    output_dir = _out_root / grid_label
 
+    label_prefix = f"[{group_label}] " if group_label else ""
     print(
-        f"  [pid={_os.getpid()}] {grid_label} 开始...",
+        f"  [pid={_os.getpid()}] {label_prefix}{grid_label} 开始...",
         flush=True,
     )
     result = run_wide_momentum_baseline_from_prepared(
-        prepared=prepared, config=config,
+        prepared=_pg, config=config,
     )
     save_wide_momentum_baseline_result(result=result, output_dir=output_dir)
 
@@ -385,7 +563,7 @@ def _run_single_combo(args):
         total_rebalances += int(vr.summary.get("rebalance_count", 0))
 
     print(
-        f"  [pid={_os.getpid()}] {grid_label} 完成 "
+        f"  [pid={_os.getpid()}] {label_prefix}{grid_label} 完成 "
         f"({len(result.variant_results)} 变体, 共 {total_rebalances} 次调仓)",
         flush=True,
     )

@@ -305,18 +305,28 @@ def _build_overview(grid_params: dict[str, Any]) -> str:
 </div>"""
 
 
-def _build_strategy_table(groups: list[tuple[str, object, tuple]]) -> str:
-    """构建各组策略定义表。"""
+def _build_strategy_table(groups: list[tuple]) -> str:
+    """构建各组策略定义表。支持 3 或 4 元素 GROUP entry。"""
     rows: list[str] = []
-    for group_label, ranking_factor, filters in groups:
+    for group_entry in groups:
+        group_label = group_entry[0]
+        ranking_factor = group_entry[1]
+        builtin_filters = group_entry[2]
+        cross_sectional_filters = group_entry[3] if len(group_entry) >= 4 else ()
+
         ranking_str = _factor_readable_label(ranking_factor)
-        if filters:
-            filter_str = ", ".join(
-                f'<span class="tag filter">{_filter_readable(f)}</span>'
-                for f in filters
-            )
-        else:
-            filter_str = '<span class="num-neutral">(无)</span>'
+        filter_parts: list[str] = []
+        if builtin_filters:
+            for f in builtin_filters:
+                filter_parts.append(
+                    f'<span class="tag filter">{_filter_readable(f)}</span>'
+                )
+        if cross_sectional_filters:
+            for rf in cross_sectional_filters:
+                filter_parts.append(
+                    f'<span class="tag rank-filter">{rf.name or rf.factor.get_output_name()}</span>'
+                )
+        filter_str = ", ".join(filter_parts) if filter_parts else '<span class="num-neutral">(无)</span>'
         rows.append(
             f"<tr>"
             f"<td><strong>{group_label}</strong></td>"
@@ -334,7 +344,7 @@ def _build_strategy_table(groups: list[tuple[str, object, tuple]]) -> str:
 
 
 def _build_performance_table(
-    df: pd.DataFrame, groups: list[tuple[str, object, tuple]]
+    df: pd.DataFrame, groups: list[tuple]
 ) -> str:
     """构建主绩效汇总表（可排序）。"""
     # 选择要展示的列，排好顺序
@@ -436,13 +446,17 @@ def _build_performance_table(
 def _build_group_details(
     df: pd.DataFrame,
     output_base: Path,
-    groups: list[tuple[str, object, tuple]],
+    groups: list[tuple],
     max_images_per_group: int = 4,
 ) -> str:
     """构建各组详情折叠区，嵌入净值曲线图。"""
     parts: list[str] = ['<div class="card"><h2>§4 各组详情</h2>']
 
-    for group_label, ranking_factor, filters in groups:
+    for group_entry in groups:
+        group_label = group_entry[0]
+        ranking_factor = group_entry[1]
+        builtin_filters = group_entry[2]
+
         group_df = df[df["group_label"] == group_label]
         if group_df.empty:
             parts.append(f"<p style=\"color:var(--muted);\">⚠️ {group_label}: 无数据</p>")
@@ -450,7 +464,7 @@ def _build_group_details(
 
         # 组基本参数
         ranking_str = _factor_readable_label(ranking_factor)
-        filter_str = ", ".join(_filter_readable(f) for f in filters) if filters else "无"
+        filter_str = ", ".join(_filter_readable(f) for f in builtin_filters) if builtin_filters else "无"
         top_ns = sorted(group_df["top_n"].dropna().unique())
 
         summary_text = (

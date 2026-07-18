@@ -178,6 +178,104 @@ class ThresholdFilter:
     name: Optional[str] = None
 
 
+@dataclass(slots=True, frozen=True)
+class RankFilter:
+    """横截面 rank 过滤器（软性过滤器）。
+
+    在每个调仓日，对所有候选标的的指定因子值计算横截面 rank 百分位，
+    排除 rank 落在底部/顶部阈值之外的标的。
+
+    Attributes
+    ----------
+    factor : BaseFactor
+        用于计算横截面 rank 的因子实例。因子列必须存在于 candidate 的
+        factor_values 中（即该因子必须已被 factor_pipeline 预计算）。
+    exclude_below_pct : float
+        排除 rank 百分位最低的 N%（0.0 ~ 0.5）。默认 0.0 表示不排除。
+    exclude_above_pct : float
+        排除 rank 百分位最高的 N%（0.0 ~ 0.5）。默认 0.0 表示不排除。
+    name : Optional[str]
+        可读标签，用于日志/元数据序列化。
+
+    Examples
+    --------
+    排除 rank 两端各 5%（保留中间 90%）:
+
+        >>> RankFilter(factor=pr_20, exclude_below_pct=0.05, exclude_above_pct=0.05)
+
+    仅排除底部 10%:
+
+        >>> RankFilter(factor=pr_20, exclude_below_pct=0.10)
+    """
+
+    factor: BaseFactor
+    exclude_below_pct: float = 0.0
+    exclude_above_pct: float = 0.0
+    name: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.exclude_below_pct <= 0.5):
+            raise ValueError(
+                f"exclude_below_pct must be in [0, 0.5], got {self.exclude_below_pct}"
+            )
+        if not (0.0 <= self.exclude_above_pct <= 0.5):
+            raise ValueError(
+                f"exclude_above_pct must be in [0, 0.5], got {self.exclude_above_pct}"
+            )
+        if self.exclude_below_pct + self.exclude_above_pct >= 1.0:
+            raise ValueError(
+                "sum of exclude_below_pct and exclude_above_pct must be < 1.0, "
+                f"got {self.exclude_below_pct + self.exclude_above_pct}"
+            )
+
+
+def make_rank_filters(
+    factor: BaseFactor,
+    trim_values: tuple[float, ...] = (0.1, 0.2, 0.3),
+) -> tuple[RankFilter, ...]:
+    """生成所有底部/顶部排除组合的 RankFilter 笛卡尔积。
+
+    Parameters
+    ----------
+    factor : BaseFactor
+        用于横截面 rank 计算的因子。
+    trim_values : tuple[float, ...]
+        exclude_below_pct 和 exclude_above_pct 的候选值集合。
+        两个维度独立遍历，产生 N² 个组合。
+
+    Returns
+    -------
+    tuple[RankFilter, ...]
+        所有 (below, above) 组合的 RankFilter 实例，按 below 优先排序。
+
+    Examples
+    --------
+    >>> make_rank_filters(vol60, (0.1, 0.2))
+    (
+        RankFilter(vol60, 0.1, 0.1),
+        RankFilter(vol60, 0.1, 0.2),
+        RankFilter(vol60, 0.2, 0.1),
+        RankFilter(vol60, 0.2, 0.2),
+    )
+    """
+    import itertools
+
+    sorted_values = sorted(trim_values)
+    factor_name = factor.get_output_name()
+    filters: list[RankFilter] = []
+    for below, above in itertools.product(sorted_values, sorted_values):
+        label = f"rank_{factor_name}_b{below}_a{above}"
+        filters.append(
+            RankFilter(
+                factor=factor,
+                exclude_below_pct=below,
+                exclude_above_pct=above,
+                name=label,
+            )
+        )
+    return tuple(filters)
+
+
 # 操作符标签映射，与 ThresholdFilter.VALID_OPERATORS 保持同步
 _OPERATOR_LABELS: dict[str, str] = {
     ">=": "ge",
@@ -198,6 +296,7 @@ class WideMomentumBaselineConfig:
     momentum_skip_recent: int = 1
     min_momentum_value: Optional[float] = None
     builtin_filters: tuple[ThresholdFilter, ...] = field(default_factory=tuple)
+    cross_sectional_filters: tuple[RankFilter, ...] = field(default_factory=tuple)
     ranking_factor: Optional[BaseFactor | CompositeRankFactor] = None
     factor_pipeline: tuple[BaseFactor, ...] = field(default_factory=tuple)
     candidate_filters: tuple[CandidateFilterCallable | CandidateFilterSpec, ...] = field(
@@ -251,6 +350,7 @@ class WideMomentumBaselineConfig:
         self.factor_pipeline = tuple(self.factor_pipeline or ())
         self.candidate_filters = tuple(self.candidate_filters or ())
         self.builtin_filters = tuple(self.builtin_filters or ())
+        self.cross_sectional_filters = tuple(self.cross_sectional_filters or ())
         if not self.top_n_values:
             raise ValueError("top_n_values cannot be empty")
         if any(int(top_n) <= 0 for top_n in self.top_n_values):
@@ -1572,6 +1672,49 @@ def _apply_candidate_filters(
     return filtered_candidates, active_filter_names
 
 
+def _apply_cross_sectional_filters(
+    candidates: list[BaselineCandidate],
+    cross_sectional_filters: tuple[RankFilter, ...],
+) -> tuple[list[BaselineCandidate], list[str]]:
+    """依次应用横截面 rank 过滤器（软性过滤器）。
+
+    在 point-in-time 硬性过滤之前执行，确保 rank 基于全量候选池计算。
+    """
+    if not cross_sectional_filters:
+        return list(candidates), []
+
+    result = list(candidates)
+    active_filter_names: list[str] = []
+
+    for rf in cross_sectional_filters:
+        field = rf.factor.get_output_name()
+        label = rf.name or f"rank_{field}_trim_b{rf.exclude_below_pct}_a{rf.exclude_above_pct}"
+        active_filter_names.append(label)
+
+        # 收集所有候选的因子值
+        values: dict[str, float | None] = {}
+        for c in result:
+            val = c.factor_values.get(field)
+            values[c.symbol] = float(val) if val is not None and not math.isnan(float(val)) else None
+
+        series = pd.Series(values, dtype=float)
+        if series.dropna().empty:
+            # 所有因子值均为 NaN，无法做 rank，保留全部候选
+            continue
+
+        # 横截面 rank 百分位（NaN 保持 NaN）
+        rank_pct = series.rank(pct=True, na_option="keep")
+
+        # 保留 rank 在 (exclude_below_pct, 1-exclude_above_pct] 区间内的候选
+        lo = rf.exclude_below_pct
+        hi = 1.0 - rf.exclude_above_pct
+        keep_mask = (rank_pct > lo) & (rank_pct <= hi)
+        keep_symbols = set(rank_pct[keep_mask].index)
+        result = [c for c in result if c.symbol in keep_symbols]
+
+    return result, active_filter_names
+
+
 def _select_target_weights(
     symbol_data_map: Mapping[str, SymbolBaselineData],
     signal_date: pd.Timestamp,
@@ -1612,12 +1755,21 @@ def _select_target_weights(
         exclude_clusters=config.exclude_clusters,
         ranking_col_override=dynamic_ranking_col,
     )
-    filtered_candidates, active_candidate_filters = _apply_candidate_filters(
+
+    # ── 横截面 rank 过滤（软性：先于硬性 builtin/candidate_filters）──
+    rank_filtered_candidates, rank_filter_names = _apply_cross_sectional_filters(
         candidates=candidates,
+        cross_sectional_filters=config.cross_sectional_filters,
+    )
+
+    filtered_candidates, active_candidate_filters = _apply_candidate_filters(
+        candidates=rank_filtered_candidates,
         config=config,
         symbol_data_map=symbol_data_map,
         signal_date=signal_date,
     )
+    # 合并过滤器标签
+    active_candidate_filters = rank_filter_names + active_candidate_filters
 
     # 先做可选过滤，再排序，这样日志里才能同时保留原始数量和过滤后数量。
     filtered_candidates.sort(key=lambda item: (-item.score, item.symbol))
