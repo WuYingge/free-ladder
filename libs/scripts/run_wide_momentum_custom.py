@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib
 import itertools
 import multiprocessing
@@ -137,6 +138,32 @@ def _build_output_basename(tag: str = "") -> str:
     return "_".join(parts)
 
 
+def _make_prepare_key(
+    ranking_factor: object,
+    factor_pipeline: tuple,
+    ranking_factor_candidates: tuple,
+    ic_window: int,
+    ic_selection_mode: str,
+    start_date: str,
+    end_date: str,
+) -> str:
+    """为 prepare 阶段生成去重 key，相同 key 的组可共享 universe。
+
+    仅包含实际影响 prepare_universe 结果的字段，builtin_filters 和
+    cross_sectional_filters 不在其中（它们只在信号生成阶段被消费）。
+    """
+    parts = [
+        "rf:" + str(id(ranking_factor)),
+        "fp:" + ",".join(str(id(f)) for f in factor_pipeline),
+        "rc:" + ",".join(str(id(f)) for f in ranking_factor_candidates),
+        f"icw:{ic_window}",
+        f"icsm:{ic_selection_mode}",
+        f"sd:{start_date}",
+        f"ed:{end_date}",
+    ]
+    return hashlib.md5("|".join(parts).encode()).hexdigest()[:16]
+
+
 def main(config_module: str) -> None:
     """主流程：逐组 prepare → grid search → 落盘。"""
     global \
@@ -201,9 +228,12 @@ def main(config_module: str) -> None:
         print(f"跨组并行模式: {len(GROUPS)} 组 × grid 变体统一调度")
         print(f"{'=' * 60}")
 
-        # ── 阶段 1: 串行准备所有组的 universe ──
+        # ── 阶段 1: 串行准备所有组的 universe（按 prepare-key 去重）──
         _all_jobs: list[tuple[str, object, tuple, tuple, tuple, tuple]] = []
         _grid_combos_count = 0
+        _prepare_cache: dict[str, object] = {}          # prepare_key → prepared universe
+        _prepare_source: dict[str, str] = {}             # prepare_key → 首次计算的 group_label
+        _prepare_count = 0                                # 实际 prepare 次数统计
 
         for group_idx, group_entry in enumerate(GROUPS, 1):
             group_label = group_entry[0]
@@ -226,25 +256,45 @@ def main(config_module: str) -> None:
                 print(f"    横截面过滤器: {[rf.name or rf.factor.get_output_name() for rf in cross_sectional_filters]}")
             print(f"{'=' * 60}")
 
-            _bootstrap_config = WideMomentumBaselineConfig(
+            # ── 去重：相同 prepare-key 的组共享 universe ──
+            prepare_key = _make_prepare_key(
                 ranking_factor=ranking_factor,
                 factor_pipeline=SHARED_PIPELINE,
-                builtin_filters=builtin_filters,
-                cross_sectional_filters=cross_sectional_filters,
-                start_date=_start_date,
-                end_date=_end_date,
                 ranking_factor_candidates=RANKING_FACTOR_CANDIDATES,
                 ic_window=IC_WINDOW,
                 ic_selection_mode=IC_SELECTION_MODE,
+                start_date=_start_date,
+                end_date=_end_date,
             )
 
-            print(f"[阶段 1] 准备 shared universe ...", end=" ", flush=True)
-            pg = prepare_wide_momentum_universe(config=_bootstrap_config, symbols=symbols)
-            _prepared_map[group_label] = pg
-            print(
-                f"完成 ({len(pg.symbol_data_map)} 标的, "
-                f"{pg.start_date.date()} → {pg.end_date.date()})"
-            )
+            if prepare_key in _prepare_cache:
+                _prepared_map[group_label] = _prepare_cache[prepare_key]
+                print(
+                    f"[阶段 1] 复用 universe（与 {_prepare_source[prepare_key]} 相同），跳过 prepare"
+                )
+            else:
+                _bootstrap_config = WideMomentumBaselineConfig(
+                    ranking_factor=ranking_factor,
+                    factor_pipeline=SHARED_PIPELINE,
+                    builtin_filters=builtin_filters,
+                    cross_sectional_filters=cross_sectional_filters,
+                    start_date=_start_date,
+                    end_date=_end_date,
+                    ranking_factor_candidates=RANKING_FACTOR_CANDIDATES,
+                    ic_window=IC_WINDOW,
+                    ic_selection_mode=IC_SELECTION_MODE,
+                )
+
+                print(f"[阶段 1] 准备 shared universe ...", end=" ", flush=True)
+                pg = prepare_wide_momentum_universe(config=_bootstrap_config, symbols=symbols)
+                _prepare_cache[prepare_key] = pg
+                _prepare_source[prepare_key] = group_label
+                _prepared_map[group_label] = pg
+                _prepare_count += 1
+                print(
+                    f"完成 ({len(pg.symbol_data_map)} 标的, "
+                    f"{pg.start_date.date()} → {pg.end_date.date()})"
+                )
 
             # 收集该组的 grid 变体
             grid_combos = list(
@@ -267,6 +317,10 @@ def main(config_module: str) -> None:
 
         # ── 阶段 2: 所有组的 grid 变体统一并行 ──
         print(f"\n{'=' * 60}")
+        print(
+            f"[阶段 1 完成] 实际 prepare {_prepare_count} 次，"
+            f"复用 {len(GROUPS) - _prepare_count} 次（共 {len(GROUPS)} 组）"
+        )
         print(f"[阶段 2] 跨组并行: {len(GROUPS)} 组 × grid 变体 = {len(_all_jobs)} 个任务")
         print(f"    top_n:         {GRID_TOP_N}")
         print(f"    min_momentum:  {GRID_MIN_MOMENTUM}")
@@ -330,8 +384,11 @@ def main(config_module: str) -> None:
 
     else:
         # ════════════════════════════════════════════════════════════════
-        # 逐组串行模式（原有行为）
+        # 逐组串行模式（原有行为，增加 prepare 去重）
         # ════════════════════════════════════════════════════════════════
+        _serial_prepare_cache: dict[str, object] = {}   # prepare_key → prepared universe
+        _serial_source: dict[str, str] = {}             # prepare_key → 首次计算的 group_label
+
         for group_idx, group_entry in enumerate(GROUPS, 1):
             # 向后兼容: 3 元素 → (label, ranking, builtins)
             #            4 元素 → (label, ranking, builtins, cross_sectional)
@@ -358,25 +415,43 @@ def main(config_module: str) -> None:
             print(f"    输出目录: {_output_root}")
             print(f"{'=' * 60}")
 
-            # ── 阶段 1: 准备 universe ──
-            _bootstrap_config = WideMomentumBaselineConfig(
+            # ── 阶段 1: 准备 universe（去重）──
+            prepare_key = _make_prepare_key(
                 ranking_factor=ranking_factor,
                 factor_pipeline=SHARED_PIPELINE,
-                builtin_filters=builtin_filters,
-                cross_sectional_filters=cross_sectional_filters,
-                start_date=_start_date,
-                end_date=_end_date,
                 ranking_factor_candidates=RANKING_FACTOR_CANDIDATES,
                 ic_window=IC_WINDOW,
                 ic_selection_mode=IC_SELECTION_MODE,
+                start_date=_start_date,
+                end_date=_end_date,
             )
 
-            print(f"\n[阶段 1] 准备 shared universe ...", end=" ", flush=True)
-            prepared = prepare_wide_momentum_universe(config=_bootstrap_config, symbols=symbols)
-            print(
-                f"完成 ({len(prepared.symbol_data_map)} 标的, "
-                f"{prepared.start_date.date()} → {prepared.end_date.date()})"
-            )
+            if prepare_key in _serial_prepare_cache:
+                prepared = _serial_prepare_cache[prepare_key]
+                print(
+                    f"\n[阶段 1] 复用 universe（与 {_serial_source[prepare_key]} 相同），跳过 prepare"
+                )
+            else:
+                _bootstrap_config = WideMomentumBaselineConfig(
+                    ranking_factor=ranking_factor,
+                    factor_pipeline=SHARED_PIPELINE,
+                    builtin_filters=builtin_filters,
+                    cross_sectional_filters=cross_sectional_filters,
+                    start_date=_start_date,
+                    end_date=_end_date,
+                    ranking_factor_candidates=RANKING_FACTOR_CANDIDATES,
+                    ic_window=IC_WINDOW,
+                    ic_selection_mode=IC_SELECTION_MODE,
+                )
+
+                print(f"\n[阶段 1] 准备 shared universe ...", end=" ", flush=True)
+                prepared = prepare_wide_momentum_universe(config=_bootstrap_config, symbols=symbols)
+                _serial_prepare_cache[prepare_key] = prepared
+                _serial_source[prepare_key] = group_label
+                print(
+                    f"完成 ({len(prepared.symbol_data_map)} 标的, "
+                    f"{prepared.start_date.date()} → {prepared.end_date.date()})"
+                )
 
             # ── 阶段 2: Grid 变体并行 ──
             _grid_combos = list(

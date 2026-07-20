@@ -119,9 +119,9 @@ vol20 = Volatility(window=20)
 # ── RankFilters ──
 vol60 = Volatility(window=60, annualize=False)
 vol120 = Volatility(window=120, annualize=False)
-RANK_FILTERS: tuple[RankFilter, ...] = make_rank_filters(vol252, (0.0, 0.1, 0.2, 0.3))
-RANK_FILTERS_60: tuple[RankFilter, ...] = make_rank_filters(vol60, (0.0, 0.1, 0.2, 0.3))
-RANK_FILTERS_120: tuple[RankFilter, ...] = make_rank_filters(vol120, (0.0, 0.1, 0.2, 0.3))
+RANK_FILTERS: tuple[RankFilter, ...] = make_rank_filters(vol252, (0.0, 0.1, 0.2, 0.3, 0.4))
+RANK_FILTERS_60: tuple[RankFilter, ...] = make_rank_filters(vol60, (0.0, 0.1, 0.2, 0.3, 0.4))
+RANK_FILTERS_120: tuple[RankFilter, ...] = make_rank_filters(vol120, (0.0, 0.1, 0.2, 0.3, 0.4))
 RANK_FILTERS_60_120 = RANK_FILTERS_60 + RANK_FILTERS_120
 
 RANK_FILTERS_120_high = (
@@ -136,17 +136,10 @@ RANK_FILTERS_120_high = (
 # ====================================================================
 # 共享管道（所有因子必须在此，才能被预计算）
 # ====================================================================
-vol90 = Volatility(window=90)
-vol105 = Volatility(window=105)
-vol135 = Volatility(window=135)
-vol150 = Volatility(window=150)
 SHARED_PIPELINE: tuple = (
-    vol90,
-    vol105,
-    vol120,
-    vol135,
-    vol150,
-    vol252
+    vol20,
+    vol60,
+    vol120
 )
 
 
@@ -155,29 +148,15 @@ SHARED_PIPELINE: tuple = (
 # 组定义
 # ====================================================================
 GROUPS: list[tuple] = [
-    # test b
-    # (f"c2_rank_filter_120_b02_a01", c2_factor, (), (RankFilter(vol120, 0.2, 0.1),),),
-    # (f"c2_rank_filter_120_b025_a01", c2_factor, (), (RankFilter(vol120, 0.25, 0.1),),),
-    (f"c2_rank_filter_120_b03_a01", c2_factor, (), (RankFilter(vol120, 0.3, 0.1),),),
-    # (f"c2_rank_filter_120_b035_a01", c2_factor, (), (RankFilter(vol120, 0.35, 0.1),),),
-    # (f"c2_rank_filter_120_b04_a01", c2_factor, (), (RankFilter(vol120, 0.4, 0.1),),),
-    # # test vol window
-    # (f"c2_rank_filter_90_b03_a01", c2_factor, (), (RankFilter(vol90, 0.3, 0.1),),),
-    # (f"c2_rank_filter_105_b03_a01", c2_factor, (), (RankFilter(vol105, 0.3, 0.1),),),
-    # (f"c2_rank_filter_135_b03_a01", c2_factor, (), (RankFilter(vol135, 0.3, 0.1),),),
-    # (f"c2_rank_filter_150_b03_a01", c2_factor, (), (RankFilter(vol150, 0.3, 0.1),),),
-    # # test a
-    # (f"c2_rank_filter_120_b03_a005", c2_factor, (), (RankFilter(vol120, 0.3, 0.05),),),
-    # (f"c2_rank_filter_120_b03_a0075", c2_factor, (), (RankFilter(vol120, 0.3, 0.075),),),
-    # (f"c2_rank_filter_120_b03_a0125", c2_factor, (), (RankFilter(vol120, 0.3, 0.125),),),
-    # (f"c2_rank_filter_120_b03_a015", c2_factor, (), (RankFilter(vol120, 0.3, 0.15),),),
-] + [("c2", c2_factor, (FILT_VOL_LOW_A,), (), )]
+    (f"pr_20_3filter_{filter}", pr_20_3_filter, (), (filter,), )
+    for i, filter in enumerate(RANK_FILTERS_60_120 + RANK_FILTERS)
+] + [("pr_20_3filter", pr_20_3_filter, (FILT_VOL_LOW_A,), (), )]
 
 
 # ====================================================================
 # Grid Search 参数
 # ====================================================================
-GRID_TOP_N: tuple[int, ...] = (1, 2, 3)
+GRID_TOP_N: tuple[int, ...] = (1, 5, 10)
 GRID_MIN_MOMENTUM: tuple = (None,)
 GRID_CLUSTER_MAX_PER_GROUP: tuple[int, ...] = (0,)
 GRID_REBALANCE_INTERVAL: tuple[int, ...] = (5, 10, 20)
@@ -206,11 +185,11 @@ WEIGHT_ALLOCATORS: tuple = (
 # ====================================================================
 # 执行参数
 # ====================================================================
-OUTPUT_BASE_DIR: str = "/mnt/c/Users/wyg/Documents/invest/backtest/c2_vol_rank_filter_deepdive"
-BASENAME_TAG: str = "c2_vol_rank_filter"
-TITLE: str = "宽动量基线回测 — c2_vol_rank_filter 分组变换"
+OUTPUT_BASE_DIR: str = "/mnt/c/Users/wyg/Documents/invest/backtest/pr20_rank_filter"
+BASENAME_TAG: str = "pr20_rank_filter"
+TITLE: str = "宽动量基线回测 — pr20_rank_filter 分组变换"
 START_DATE: str = "2020-01-01"
-END_DATE: str = "2026-07-17"
+END_DATE: str = "2026-07-07"
 MAX_WORKERS: int | None = None
 PERIOD_FREQ: str | None = None
 CUSTOM_PERIODS: tuple[tuple[str, str], ...] | None = None

@@ -191,9 +191,11 @@ class RankFilter:
         用于计算横截面 rank 的因子实例。因子列必须存在于 candidate 的
         factor_values 中（即该因子必须已被 factor_pipeline 预计算）。
     exclude_below_pct : float
-        排除 rank 百分位最低的 N%（0.0 ~ 0.5）。默认 0.0 表示不排除。
+        排除 rank 百分位最低的 N%（≥ 0.0，且与 exclude_above_pct 之和须 < 1.0）。
+        默认 0.0 表示不排除。
     exclude_above_pct : float
-        排除 rank 百分位最高的 N%（0.0 ~ 0.5）。默认 0.0 表示不排除。
+        排除 rank 百分位最高的 N%（≥ 0.0，且与 exclude_below_pct 之和须 < 1.0）。
+        默认 0.0 表示不排除。
     name : Optional[str]
         可读标签，用于日志/元数据序列化。
 
@@ -214,13 +216,13 @@ class RankFilter:
     name: Optional[str] = None
 
     def __post_init__(self) -> None:
-        if not (0.0 <= self.exclude_below_pct <= 0.5):
+        if self.exclude_below_pct < 0.0:
             raise ValueError(
-                f"exclude_below_pct must be in [0, 0.5], got {self.exclude_below_pct}"
+                f"exclude_below_pct must be >= 0, got {self.exclude_below_pct}"
             )
-        if not (0.0 <= self.exclude_above_pct <= 0.5):
+        if self.exclude_above_pct < 0.0:
             raise ValueError(
-                f"exclude_above_pct must be in [0, 0.5], got {self.exclude_above_pct}"
+                f"exclude_above_pct must be >= 0, got {self.exclude_above_pct}"
             )
         if self.exclude_below_pct + self.exclude_above_pct >= 1.0:
             raise ValueError(

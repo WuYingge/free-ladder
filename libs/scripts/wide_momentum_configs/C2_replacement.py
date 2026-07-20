@@ -1,11 +1,14 @@
-"""TrendR2_120_r2_rm5 × C2_MAE40_z120_neg 乘积因子回测。
+"""四组复合排名因子回测（C2 replacement candidates）。
 
-排名因子: TrendR2_120_r2__rolling_mean_5__product_MAE_40__zscore_120__neg
-         = F3 (TrendR2 r2 rolling_mean 5) × C2 (MAE zscore 120 neg)
+因子列表:
+    1. MFI×TSM252     Product       IC=0.218
+    2. HPP×MADist     Weighted sum  IC=0.200
+    3. MASlope×MAE    Weighted sum  IC=0.182
+    4. HPP×TSM252     Product       IC=0.181
 
 用法:
     uv run python libs/scripts/run_wide_momentum_custom.py \
-        --config libs.scripts.wide_momentum_configs.trendr2_rm5_prod_c2_mae40_z120_neg
+        --config libs.scripts.wide_momentum_configs.C2_replacement
 """
 from __future__ import annotations
 
@@ -38,6 +41,7 @@ from factors.ma import MAPosition, MADispersion, MADistance, MASlope, BIAS
 from factors.reversal import ShortTermReversal, ExtremeReversal, VolumeReversal
 from factors.daily_rebound import DailyRebound
 from factors.average_amount import AverageAmount
+from factors.oscillator import MFI
 
 
 # ====================================================================
@@ -92,36 +96,15 @@ FILT_PR_20 = ThresholdFilter(
 
 
 
-pr_20_3_filter = MultiConditionalFactor(
-    signal=pr_20,
-    conditions=[
-        ConditionSpec(
-            condition=RsrsFactor(regression_window=14, zscore_window=600, output="zscore"),
-            op="gt", threshold=0.0,
-        ),
-        ConditionSpec(
-            condition=MAPosition(window=200, price_column="close"),
-            op="gt", threshold=0.0,
-        ),
-        ConditionSpec(
-            condition=TrendR2Factor(window=120, output="r2"),
-            op="gt", threshold=0.5,
-        ),
-    ],
-)
-
-
-
-
 # ── 反波动率加权所用的波动率因子 ──
 vol20 = Volatility(window=20)
 
 # ── RankFilters ──
 vol60 = Volatility(window=60, annualize=False)
 vol120 = Volatility(window=120, annualize=False)
-RANK_FILTERS: tuple[RankFilter, ...] = make_rank_filters(vol252, (0.0, 0.1, 0.2, 0.3))
-RANK_FILTERS_60: tuple[RankFilter, ...] = make_rank_filters(vol60, (0.0, 0.1, 0.2, 0.3))
-RANK_FILTERS_120: tuple[RankFilter, ...] = make_rank_filters(vol120, (0.0, 0.1, 0.2, 0.3))
+RANK_FILTERS: tuple[RankFilter, ...] = make_rank_filters(vol252, (0.0, 0.1, 0.2, 0.3, 0.4))
+RANK_FILTERS_60: tuple[RankFilter, ...] = make_rank_filters(vol60, (0.0, 0.1, 0.2, 0.3, 0.4))
+RANK_FILTERS_120: tuple[RankFilter, ...] = make_rank_filters(vol120, (0.0, 0.1, 0.2, 0.3, 0.4))
 RANK_FILTERS_60_120 = RANK_FILTERS_60 + RANK_FILTERS_120
 
 RANK_FILTERS_120_high = (
@@ -134,19 +117,46 @@ RANK_FILTERS_120_high = (
 )
 
 # ====================================================================
+# 新增: 四组复合排名因子
+# ====================================================================
+
+# ── 子因子定义 ──
+_mfi_14       = MFI(window=14)
+_tsm_252      = TimeSeriesMomentum(window=252)
+_hpp_20       = HighPointPosition(window=20)
+_madist_5_60  = MADistance(short_window=5, long_window=60)
+_maslope_20_5 = MASlope(ma_window=20, slope_window=5)
+
+# ── 复合因子 ──
+# 1. MFI×TSM252: Product, IC=0.218
+mfi_tsm252 = CombineFactor(factor_a=_mfi_14, factor_b=_tsm_252, method="product")
+
+# 2. HPP×MADist: Weighted sum, IC=0.200
+hpp_madist = CombineFactor(factor_a=_hpp_20, factor_b=_madist_5_60, method="weighted_sum")
+
+# 3. MASlope×MAE: Weighted sum, IC=0.182
+#    复用已有的 mae_20 (MaxAdverseExcursion window=20)
+maslope_mae = CombineFactor(factor_a=_maslope_20_5, factor_b=mae_20, method="weighted_sum")
+
+# 4. HPP×TSM252: Product, IC=0.181
+hpp_tsm252 = CombineFactor(factor_a=_hpp_20, factor_b=_tsm_252, method="product")
+
+
+# ====================================================================
 # 共享管道（所有因子必须在此，才能被预计算）
 # ====================================================================
-vol90 = Volatility(window=90)
-vol105 = Volatility(window=105)
-vol135 = Volatility(window=135)
-vol150 = Volatility(window=150)
 SHARED_PIPELINE: tuple = (
-    vol90,
-    vol105,
+    # 四个复合因子的子因子
+    _mfi_14,
+    _tsm_252,
+    _hpp_20,
+    _madist_5_60,
+    _maslope_20_5,
+    mae_20,                 # MASlope×MAE 共用
+    # 波动率 / RankFilter 依赖
+    vol20,
+    vol60,
     vol120,
-    vol135,
-    vol150,
-    vol252
 )
 
 
@@ -155,33 +165,22 @@ SHARED_PIPELINE: tuple = (
 # 组定义
 # ====================================================================
 GROUPS: list[tuple] = [
-    # test b
-    # (f"c2_rank_filter_120_b02_a01", c2_factor, (), (RankFilter(vol120, 0.2, 0.1),),),
-    # (f"c2_rank_filter_120_b025_a01", c2_factor, (), (RankFilter(vol120, 0.25, 0.1),),),
-    (f"c2_rank_filter_120_b03_a01", c2_factor, (), (RankFilter(vol120, 0.3, 0.1),),),
-    # (f"c2_rank_filter_120_b035_a01", c2_factor, (), (RankFilter(vol120, 0.35, 0.1),),),
-    # (f"c2_rank_filter_120_b04_a01", c2_factor, (), (RankFilter(vol120, 0.4, 0.1),),),
-    # # test vol window
-    # (f"c2_rank_filter_90_b03_a01", c2_factor, (), (RankFilter(vol90, 0.3, 0.1),),),
-    # (f"c2_rank_filter_105_b03_a01", c2_factor, (), (RankFilter(vol105, 0.3, 0.1),),),
-    # (f"c2_rank_filter_135_b03_a01", c2_factor, (), (RankFilter(vol135, 0.3, 0.1),),),
-    # (f"c2_rank_filter_150_b03_a01", c2_factor, (), (RankFilter(vol150, 0.3, 0.1),),),
-    # # test a
-    # (f"c2_rank_filter_120_b03_a005", c2_factor, (), (RankFilter(vol120, 0.3, 0.05),),),
-    # (f"c2_rank_filter_120_b03_a0075", c2_factor, (), (RankFilter(vol120, 0.3, 0.075),),),
-    # (f"c2_rank_filter_120_b03_a0125", c2_factor, (), (RankFilter(vol120, 0.3, 0.125),),),
-    # (f"c2_rank_filter_120_b03_a015", c2_factor, (), (RankFilter(vol120, 0.3, 0.15),),),
-] + [("c2", c2_factor, (FILT_VOL_LOW_A,), (), )]
+    ("MFI×TSM252",  mfi_tsm252,  (), (),),
+    ("HPP×MADist",  hpp_madist,  (), (),),
+    ("MASlope×MAE", maslope_mae, (), (),),
+    ("HPP×TSM252",  hpp_tsm252,  (), (),),
+    ("C2",         c2_factor,    (), (),),
+]
 
 
 # ====================================================================
 # Grid Search 参数
 # ====================================================================
-GRID_TOP_N: tuple[int, ...] = (1, 2, 3)
+GRID_TOP_N: tuple[int, ...] = (1, 5, 10)
 GRID_MIN_MOMENTUM: tuple = (None,)
 GRID_CLUSTER_MAX_PER_GROUP: tuple[int, ...] = (0,)
 GRID_REBALANCE_INTERVAL: tuple[int, ...] = (5, 10, 20)
-GRID_EXCLUDE_BONDS: tuple[bool, ...] = (False,)
+GRID_EXCLUDE_BONDS: tuple[bool, ...] = (False, True)
 GRID_HOLD_OVERLAP: tuple[bool, ...] = (False,)
 
 
@@ -206,11 +205,11 @@ WEIGHT_ALLOCATORS: tuple = (
 # ====================================================================
 # 执行参数
 # ====================================================================
-OUTPUT_BASE_DIR: str = "/mnt/c/Users/wyg/Documents/invest/backtest/c2_vol_rank_filter_deepdive"
-BASENAME_TAG: str = "c2_vol_rank_filter"
-TITLE: str = "宽动量基线回测 — c2_vol_rank_filter 分组变换"
+OUTPUT_BASE_DIR: str = "/mnt/c/Users/wyg/Documents/invest/backtest/c2_replacement"
+BASENAME_TAG: str = "c2_replacement"
+TITLE: str = "宽动量基线回测 — C2 replacement 四因子对比"
 START_DATE: str = "2020-01-01"
-END_DATE: str = "2026-07-17"
+END_DATE: str = "2026-07-07"
 MAX_WORKERS: int | None = None
 PERIOD_FREQ: str | None = None
 CUSTOM_PERIODS: tuple[tuple[str, str], ...] | None = None
