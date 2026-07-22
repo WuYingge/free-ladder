@@ -110,6 +110,20 @@ pr_20_3_filter = MultiConditionalFactor(
     ],
 )
 
+pr_20_2_filter = MultiConditionalFactor(
+    signal=pr_20,
+    conditions=[
+        ConditionSpec(
+            condition=RsrsFactor(regression_window=14, zscore_window=600, output="zscore"),
+            op="gt", threshold=0.0,
+        ),
+        ConditionSpec(
+            condition=TrendR2Factor(window=120, output="r2"),
+            op="gt", threshold=0.5,
+        ),
+    ],
+)
+
 
 
 
@@ -138,8 +152,7 @@ RANK_FILTERS_120_high = (
 # ====================================================================
 SHARED_PIPELINE: tuple = (
     vol20,
-    vol60,
-    vol120
+    vol252
 )
 
 
@@ -148,9 +161,11 @@ SHARED_PIPELINE: tuple = (
 # 组定义
 # ====================================================================
 GROUPS: list[tuple] = [
-    (f"pr_20_3filter_{filter}", pr_20_3_filter, (), (filter,), )
-    for i, filter in enumerate(RANK_FILTERS_60_120 + RANK_FILTERS)
-] + [("pr_20_3filter", pr_20_3_filter, (FILT_VOL_LOW_A,), (), )]
+    # (f"pr_20_3filter_{filter}", pr_20_3_filter, (), (filter,), )
+    # for i, filter in enumerate(RANK_FILTERS_60_120 + RANK_FILTERS)
+] + [("pr_20_3filter", pr_20_3_filter, (FILT_VOL_LOW_A,), (), ),
+     ("pr_20_2filter", pr_20_2_filter, (FILT_VOL_LOW_A,), (), ),
+     ]
 
 
 # ====================================================================

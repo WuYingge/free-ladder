@@ -349,6 +349,8 @@ def _build_performance_table(
     """构建主绩效汇总表（可排序）。"""
     # 选择要展示的列，排好顺序
     desired_cols = [
+        "start_date",
+        "end_date",
         "group_label",
         "grid_label",
         "top_n",
@@ -370,6 +372,8 @@ def _build_performance_table(
 
     # 表头中英文映射
     col_labels: dict[str, str] = {
+        "start_date": "起始日期",
+        "end_date": "结束日期",
         "group_label": "组",
         "grid_label": "Grid 标签",
         "top_n": "持仓数",

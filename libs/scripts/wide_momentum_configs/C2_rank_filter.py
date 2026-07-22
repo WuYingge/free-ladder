@@ -177,7 +177,7 @@ GROUPS: list[tuple] = [
 # ====================================================================
 # Grid Search 参数
 # ====================================================================
-GRID_TOP_N: tuple[int, ...] = (1, 2, 3)
+GRID_TOP_N: tuple[int, ...] = (1, 2, 3, 5)
 GRID_MIN_MOMENTUM: tuple = (None,)
 GRID_CLUSTER_MAX_PER_GROUP: tuple[int, ...] = (0,)
 GRID_REBALANCE_INTERVAL: tuple[int, ...] = (5, 10, 20)
@@ -206,11 +206,13 @@ WEIGHT_ALLOCATORS: tuple = (
 # ====================================================================
 # 执行参数
 # ====================================================================
-OUTPUT_BASE_DIR: str = "/mnt/c/Users/wyg/Documents/invest/backtest/c2_vol_rank_filter_deepdive"
-BASENAME_TAG: str = "c2_vol_rank_filter"
-TITLE: str = "宽动量基线回测 — c2_vol_rank_filter 分组变换"
+OUTPUT_BASE_DIR: str = "/mnt/c/Users/wyg/Documents/invest/backtest/c2_vol_rank_filter_date_sensitive"
+BASENAME_TAG: str = "c2_vol_rank_filter_date_sensitive"
+TITLE: str = "宽动量基线回测 — c2_vol_rank_filter_date_sensitive 分组变换"
 START_DATE: str = "2020-01-01"
 END_DATE: str = "2026-07-17"
+START_DATES = ("2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05", "2020-01-06", "2020-01-07", "2020-01-08")
+END_DATES = ("2026-07-10", "2026-07-11", "2026-07-12", "2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17")
 MAX_WORKERS: int | None = None
 PERIOD_FREQ: str | None = None
 CUSTOM_PERIODS: tuple[tuple[str, str], ...] | None = None
