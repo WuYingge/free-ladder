@@ -25,7 +25,7 @@ from factors.meta_factor import (
 )
 from factors.distribution_family import MaxAdverseExcursion, MaxFavorableExcursion
 from factors.price_return import PriceReturn
-from factors.price_momentum import LowPointPosition
+from factors.price_momentum import LowPointPosition, TimeSeriesMomentum
 from factors.trend_r2 import TrendR2Factor
 from factors.ma import MAPosition, MADispersion, MAAlignment, MASlope, MADistance, MADispersion as _MAD, LogBIAS
 from factors.volatility import Volatility
@@ -106,22 +106,44 @@ trendR2_condition_logBias2 = MultiConditionalFactor(
     ]
 )
 
+trendR2_condition_tsm120 = ConditionalFactor(
+    signal=TrendR2Factor(window=120, output="r2"),
+    condition=TimeSeriesMomentum(window=120),
+    op="gt",
+    threshold=0.0
+)
+trendR2_condition_tsm252 = ConditionalFactor(
+    signal=TrendR2Factor(window=120, output="r2"),
+    condition=TimeSeriesMomentum(window=252),
+    op="gt",
+    threshold=0.0
+)
+trendR2_condition_tsm20 = ConditionalFactor(
+    signal=TrendR2Factor(window=120, output="r2"),
+    condition=TimeSeriesMomentum(window=20),
+    op="gt",
+    threshold=0.0
+)
+
 # ── 汇总列表 ──
 FACTORS = [
 
     # C2 系列
-    c2,
+    # c2,
 
-    # 变换衍生
-    c2_cond_lpp_bin_05,
-    # Pr20 + 三过滤器
-    pr_20_3_filter,
-    # LogBIAS 相关因子
-    logBias,
-    logBias_zscore,
-    condition_c2_logBias,
-    condition_logBias_07,
-    pr20_condition_logBias,
-    pr20_condition_logBias2,
-    trendR2_condition_logBias2,
+    # # 变换衍生
+    # c2_cond_lpp_bin_05,
+    # # Pr20 + 三过滤器
+    # pr_20_3_filter,
+    # # LogBIAS 相关因子
+    # logBias,
+    # logBias_zscore,
+    # condition_c2_logBias,
+    # condition_logBias_07,
+    # pr20_condition_logBias,
+    # pr20_condition_logBias2,
+    # trendR2_condition_logBias2,
+    trendR2_condition_tsm120,
+    trendR2_condition_tsm252,
+    trendR2_condition_tsm20,
 ]
