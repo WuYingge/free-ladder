@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from core.models.etf_daily_data import EtfData
+from core.models.daily_quote_data import DailyQuoteData as EtfData  # legacy alias
 from core.portfolios import portfolio as portfolio_module
 from factors.base_factor import BaseFactor
 from factors.rsrs import RsrsDerivedFactor, RsrsFactor

@@ -15,7 +15,7 @@ from backtesting.wide_momentum_baseline import (
     run_wide_momentum_baseline_from_prepared,
     save_wide_momentum_baseline_result,
 )
-from core.models.etf_daily_data import EtfData
+from core.models.daily_quote_data import DailyQuoteData as EtfData  # legacy alias
 from factors.base_factor import BaseFactor
 
 

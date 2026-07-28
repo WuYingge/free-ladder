@@ -38,8 +38,10 @@ class DailyQuoteData(FinancialData):
         self.name = name
 
         if not self.validate_data():
-            warnings.warn(
-                "Data validation failed. Some operations may not work correctly."
+            missing = [col for col in self.REQUIRED_COLUMNS if col not in self._data.columns]
+            raise ValueError(
+                f"Data validation failed for {self.__class__.__name__}(symbol={self.symbol!r}). "
+                f"Missing required columns: {missing}"
             )
 
     def validate_data(self) -> bool:

@@ -28,7 +28,7 @@ Typical notebook usage
 
     results_df, errors, equity_curves = run_timing_backtest_batch(
         filtered_symbols=["159915", "159001"],
-        etf_data_map=etf_data_map,         # dict[symbol, EtfData]
+        data_map=data_map,         # dict[symbol, DailyQuoteData]
         config=batch_cfg,
     )
 """
@@ -62,8 +62,8 @@ from backtesting.performance import (
 )
 from backtesting.strategies import ExampleCustomTimingStrategy
 from backtesting.strategies.base import WeightSignalFunction
-from backtesting.data import build_bt_feed_dataframe_from_etf_data, load_etf_dataframe
-from core.models.etf_daily_data import EtfData
+from backtesting.data import build_bt_feed_dataframe_from_daily, load_daily_dataframe
+from core.models.daily_quote_data import DailyQuoteData
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +244,7 @@ def _analysis_start_date_from_warmup_bars(
 
 def run_timing_backtest_batch(
     filtered_symbols: list[str],
-    etf_data_map: dict[str, EtfData],
+    data_map: dict[str, DailyQuoteData],
     config: TimingBatchConfig,
     *,
     progress_callback: Optional[Callable[[int, int, str], None]] = None,
@@ -254,10 +254,10 @@ def run_timing_backtest_batch(
     Parameters
     ----------
     filtered_symbols:
-        Pre-filtered list of ETF symbols to backtest.  Filtering must happen
+        Pre-filtered list of symbols to backtest.  Filtering must happen
         in the calling (notebook) process before invoking this function.
-    etf_data_map:
-        Mapping from symbol → EtfData, used to compute benchmark returns and
+    data_map:
+        Mapping from symbol → DailyQuoteData, used to compute benchmark returns and
         equity curves.  Must contain entries for every symbol in
         *filtered_symbols*.
     config:
@@ -290,12 +290,12 @@ def run_timing_backtest_batch(
 
     feed_df_by_symbol: dict[str, Optional[pd.DataFrame]] = {}
     for sym in filtered_symbols:
-        etf = etf_data_map.get(sym)
-        if etf is None:
+        data_obj = data_map.get(sym)
+        if data_obj is None:
             feed_df_by_symbol[sym] = None
             continue
         try:
-            feed_df_by_symbol[sym] = build_bt_feed_dataframe_from_etf_data(etf)
+            feed_df_by_symbol[sym] = build_bt_feed_dataframe_from_daily(data_obj)
         except Exception:
             # Fall back to worker-side disk loading for malformed in-memory payload.
             feed_df_by_symbol[sym] = None
@@ -334,32 +334,32 @@ def run_timing_backtest_batch(
     equity_curves: dict[str, pd.DataFrame] = {}
 
     for sym in filtered_symbols:
-        etf = etf_data_map.get(sym)
+        data_obj = data_map.get(sym)
         engine_res = raw_results.get(sym)
-        etf_name = etf.name if etf is not None else ""
+        asset_name = data_obj.name if data_obj is not None else ""
 
         if engine_res is None:
             # Engine failed for this symbol; emit a null-metrics row.
             err_msg = next(
                 (e["error"] for e in error_list if e["symbol"] == sym), "unknown error"
             )
-            rows.append({"symbol": sym, "name": etf_name, "error": err_msg[:200]})
+            rows.append({"symbol": sym, "name": asset_name, "error": err_msg[:200]})
             equity_curves[sym] = pd.DataFrame(columns=["strategy", "benchmark"])
             continue
 
         # Get normalised OHLCV DataFrame for benchmark computation.
-        # Prefer in-memory etf_data_map; fall back to disk via data.load_etf_dataframe.
+        # Prefer in-memory data_map; fall back to disk via data.load_daily_dataframe.
         try:
-            if etf is not None and etf.data is not None and len(etf.data) > 0:
-                price_df = etf.data.copy()
+            if data_obj is not None and data_obj.data is not None and len(data_obj.data) > 0:
+                price_df = data_obj.data.copy()
                 if "date" in price_df.columns:
                     price_df["date"] = pd.to_datetime(price_df["date"])
                     price_df = price_df.set_index("date").sort_index()
             else:
-                price_df = load_etf_dataframe(sym, data_dir=config.data_dir)
+                price_df = load_daily_dataframe(sym, data_dir=config.data_dir)
         except Exception as exc:
             error_list.append({"symbol": sym, "error": f"price_df load failed: {exc}"})
-            rows.append({"symbol": sym, "name": etf_name, "error": str(exc)[:200]})
+            rows.append({"symbol": sym, "name": asset_name, "error": str(exc)[:200]})
             equity_curves[sym] = pd.DataFrame(columns=["strategy", "benchmark"])
             continue
 
@@ -372,7 +372,7 @@ def run_timing_backtest_batch(
             strategy_time_return=engine_res.analyzer_raw.get("time_return", {}),
             price_df=price_df,
             symbol=sym,
-            name=etf_name,
+            name=asset_name,
             trades_total=engine_res.trades_total,
             trades_won=engine_res.trades_won,
             trades_lost=engine_res.trades_lost,

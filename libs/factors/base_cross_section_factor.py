@@ -1,7 +1,7 @@
 from abc import abstractmethod, ABC
 from typing import Any
 import pandas as pd
-from core.models.etf_daily_data import EtfData
+from core.models.daily_quote_data import DailyQuoteData
 
 class BaseCrossSectionFactor(ABC):
     
@@ -9,7 +9,7 @@ class BaseCrossSectionFactor(ABC):
     warmup_period: int = 0
     
     @abstractmethod
-    def __call__(self, *data: EtfData) -> pd.DataFrame:
+    def __call__(self, *data: DailyQuoteData) -> pd.DataFrame:
         pass
     
     def __repr__(self) -> str:

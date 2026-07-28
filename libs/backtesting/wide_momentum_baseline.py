@@ -21,7 +21,7 @@ from typing import Any, Callable, ClassVar, Mapping, Optional
 import pandas as pd
 
 from config import DataPath
-from core.models.etf_daily_data import EtfData
+from core.models.daily_quote_data import DailyQuoteData as EtfData  # legacy alias
 from data_manager.etf_data_manager import get_etf_data_by_symbol
 from data_manager.providers.cluster_provider import ClusterInfo
 from data_manager.providers.etf_list_provider import ETF_LIST

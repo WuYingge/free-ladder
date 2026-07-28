@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from backtesting.preprocessing import parallel_calc_factors_for_map
-from core.models.etf_daily_data import EtfData
+from core.models.daily_quote_data import DailyQuoteData as EtfData  # legacy alias
 from data_manager.etf_data_manager import get_etf_data_by_symbol
 from factors.base_factor import BaseFactor
 from factors.price_return import PriceReturn
@@ -112,7 +112,7 @@ def test_parallel_calc_factors_preserves_parameterized_output_names():
     symbol = "159007"
     factors = [PriceReturn(window=20), PriceReturn(window=60), PriceReturn(window=120)]
     result = parallel_calc_factors_for_map(
-        etf_data_map={symbol: get_etf_data_by_symbol(symbol)},
+        data_map={symbol: get_etf_data_by_symbol(symbol)},
         factor_pipeline=factors,
         symbols=[symbol],
         max_workers=1,
@@ -121,6 +121,6 @@ def test_parallel_calc_factors_preserves_parameterized_output_names():
 
     assert result.errors == []
 
-    output = result.etf_data_map[symbol].output_with_factors()
+    output = result.data_map[symbol].output_with_factors()
     for column in _price_return_columns():
         assert column in output.columns
