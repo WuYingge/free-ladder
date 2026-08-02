@@ -84,6 +84,12 @@ export async function fetchSymbols(): Promise<{ symbols: { symbol: string; name:
   return res.json();
 }
 
+export async function rebuildIndex(): Promise<{ n_factors: number; generated_at: string }> {
+  const res = await fetch(`${BASE}/factors/_/rebuild-index`, { method: "POST" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 export async function fetchTrendableFactors(): Promise<{ factors: string[] }> {
   const res = await fetch(`${BASE}/trend/_/trendable-factors`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

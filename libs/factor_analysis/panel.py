@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import multiprocessing
 import os
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -202,7 +203,10 @@ def build_factor_panel(
     series_by_symbol: dict[str, dict[str, pd.Series]] = {}
 
     # ── 1. 多进程并行计算 ──────────────────────────────────────────────
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    with ProcessPoolExecutor(
+        max_workers=max_workers,
+        mp_context=multiprocessing.get_context("spawn"),
+    ) as executor:
         futures = {
             executor.submit(_calc_factor_worker, symbol, factor): symbol
             for symbol in symbols

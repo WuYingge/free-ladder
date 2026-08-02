@@ -186,13 +186,15 @@ class TransformFactor(DerivedFactor):
 
     接收一个依赖因子实例，对其输出的 Series 施加指定的变换。
 
-    六种变换:
+    八种变换:
         rolling_mean     — N 日简单移动平均，降噪
         rolling_std      — N 日滚动标准差，度量因子稳定性
         delta            — N 日差值，因子的"加速度"
         pct_change       — N 日变化率，delta 的百分比版本
         binarize_winrate — 二值化 + 滚动胜率，信号一致性
         zscore           — 时序标准化（rolling z-score）
+        rolling_slope    — N 日滚动线性回归斜率，因子趋势强度
+        rolling_r2       — N 日滚动线性回归 R²，因子趋势一致性
 
     Parameters
     ----------
@@ -200,7 +202,7 @@ class TransformFactor(DerivedFactor):
         被变换的基础因子实例。
     transform : str
         变换类型。可选: rolling_mean, rolling_std, delta, pct_change,
-        binarize_winrate, zscore。
+        binarize_winrate, zscore, rolling_slope, rolling_r2。
     window : int
         变换窗口（交易日）。默认值因变换类型而异。
     threshold : float
@@ -224,6 +226,8 @@ class TransformFactor(DerivedFactor):
         "pct_change": 5,
         "binarize_winrate": 20,
         "zscore": 252,
+        "rolling_slope": 20,
+        "rolling_r2": 20,
     }
 
     _VALID_TRANSFORMS = frozenset(_DEFAULT_WINDOWS.keys())
@@ -299,12 +303,14 @@ class TransformFactor(DerivedFactor):
             "pct_change": self._pct_change,
             "binarize_winrate": self._binarize_winrate,
             "zscore": self._zscore,
+            "rolling_slope": self._rolling_slope,
+            "rolling_r2": self._rolling_r2,
         }
         result = dispatch[self.transform](factor_value)
         result.name = self.get_output_name()
         return result
 
-    # ── 6 种变换实现 ────────────────────────────────────────────────────────
+    # ── 8 种变换实现 ────────────────────────────────────────────────────────
 
     def _rolling_mean(self, series: pd.Series) -> pd.Series:
         """因子值的 N 日简单移动平均。"""
@@ -346,6 +352,42 @@ class TransformFactor(DerivedFactor):
         # 避免除以 0
         rs_safe = rs.replace(0.0, np.nan)
         return (series - rm) / rs_safe
+
+    def _rolling_slope(self, series: pd.Series) -> pd.Series:
+        """滚动窗口内时序线性回归的斜率（趋势强度）。
+
+        对窗口内的因子值做 y ~ x（x = [0, 1, ..., window-1]）最小二乘拟合，
+        提取斜率。斜率 > 0 表示因子在窗口内上升趋势，< 0 表示下降趋势。
+        """
+        x = np.arange(self.window, dtype=float)
+
+        def _slope(y: np.ndarray) -> float:
+            return np.polyfit(x, y, 1)[0]
+
+        return series.rolling(
+            window=self.window, min_periods=self.window
+        ).apply(_slope, raw=True)
+
+    def _rolling_r2(self, series: pd.Series) -> pd.Series:
+        """滚动窗口内时序线性回归的 R²（趋势一致性/拟合优度）。
+
+        R² 接近 1 表示因子在窗口内呈现清晰线性趋势，
+        接近 0 表示随机游走；常数序列时 R² 为 NaN。
+        """
+        x = np.arange(self.window, dtype=float)
+
+        def _r2(y: np.ndarray) -> float:
+            slope, intercept = np.polyfit(x, y, 1)
+            y_pred = slope * x + intercept
+            ss_res = np.sum((y - y_pred) ** 2)
+            ss_tot = np.sum((y - np.mean(y)) ** 2)
+            if ss_tot == 0:
+                return np.nan
+            return 1.0 - ss_res / ss_tot
+
+        return series.rolling(
+            window=self.window, min_periods=self.window
+        ).apply(_r2, raw=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

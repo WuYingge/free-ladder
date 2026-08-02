@@ -334,6 +334,11 @@ class WideMomentumBaselineConfig:
     # None 时等价于 equal_weight_allocator（等权）。
     weight_allocator: Optional[WeightAllocatorCallable] = None
 
+    # ── 止损/止盈规则 ──────────────────────────────────────────────────────
+    # 在持仓期内逐日调用的 stop rules，每条规则接收 StopContext 返回
+    # {symbol → 清仓比例}。空元组 = 不启用（向后兼容）。
+    stop_rules: tuple[StopRuleSpec, ...] = field(default_factory=tuple)
+
     # ── ICIR 动态因子选择 ────────────────────────────────────────────────
     ranking_factor_candidates: tuple[BaseFactor, ...] = field(default_factory=tuple)
     ic_window: int = 120
@@ -439,6 +444,18 @@ class WideMomentumBaselineConfig:
                     f"ic_selection_mode must be 'icir' or 'ic', got {self.ic_selection_mode!r}"
                 )
 
+        # ── 校验止损/止盈规则 ───────────────────────────────────────────────
+        if self.stop_rules:
+            for idx, spec in enumerate(self.stop_rules):
+                if not callable(spec.rule):
+                    raise TypeError(
+                        f"stop_rules[{idx}].rule must be callable, got {type(spec.rule)}"
+                    )
+                if not isinstance(spec, StopRuleSpec):
+                    raise TypeError(
+                        f"stop_rules[{idx}] must be StopRuleSpec, got {type(spec)}"
+                    )
+
         # 将 min_momentum_value 转换为 ThresholdFilter，保持向后兼容
         if self.min_momentum_value is not None:
             momentum_filter = ThresholdFilter(
@@ -516,6 +533,57 @@ class BaselineCandidate:
     score: float
     etf_data: Optional[EtfData] = None
     factor_values: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class StopContext:
+    """止损/止盈规则在每个 bar 收盘后收到的上下文。
+
+    引擎在每日收盘估值后为每条 StopRule 构造一份 StopContext，
+    规则内部可以访问持仓状态、入场信息、以及全部标的的预计算因子列。
+
+    Attributes
+    ----------
+    date : pd.Timestamp
+        当前交易日（收盘日期）。
+    positions : dict[str, float]
+        当前持仓 symbol → 股数（已考虑当日 stop 执行和调仓）。
+    entry_info : dict[str, dict]
+        symbol → {entry_date, entry_price, high_since_entry, low_since_entry}。
+    symbol_data_map : Mapping[str, SymbolBaselineData]
+        全部标的的预计算数据，包含 frame（含所有因子列）。
+    cash : float
+        当前现金。
+    commission : float
+        手续费率（小数，如 0.00025）。
+    """
+
+    date: pd.Timestamp
+    positions: dict[str, float]
+    entry_info: dict[str, dict[str, Any]]
+    symbol_data_map: Mapping[str, SymbolBaselineData]
+    cash: float
+    commission: float
+
+
+# StopRule 协议：接收 StopContext，返回 {symbol: 清仓比例}，比例 ∈ [0, 1]。
+StopRuleCallable = Callable[[StopContext], dict[str, float]]
+
+
+@dataclass(slots=True, frozen=True)
+class StopRuleSpec:
+    """止损/止盈规则规格。
+
+    Attributes
+    ----------
+    rule : StopRuleCallable
+        规则 callable，接收 StopContext，返回 {symbol → 清仓比例}。
+    name : str
+        可读标签，用于日志和 basename 标记。
+    """
+
+    rule: StopRuleCallable
+    name: str = ""
 
 
 def _resolve_ranking_factor(
@@ -2050,6 +2118,207 @@ def _compute_weight_turnover(
     )
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 止损/止盈预置工厂函数
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def fixed_stop_loss(pct: float) -> StopRuleCallable:
+    """固定百分比止损。
+
+    收盘价 ≤ entry_price × (1 - pct) → 全清该标的。
+
+    Parameters
+    ----------
+    pct : float
+        最大可承受亏损比例（如 0.08 = 8%）。
+    """
+    pct_f = float(pct)
+    if pct_f <= 0 or pct_f >= 1:
+        raise ValueError(f"stop_loss pct must be in (0, 1), got {pct_f}")
+
+    def rule(ctx: StopContext) -> dict[str, float]:
+        result: dict[str, float] = {}
+        for symbol, info in ctx.entry_info.items():
+            if symbol not in ctx.positions or ctx.positions[symbol] <= 1e-12:
+                continue
+            close = float(
+                ctx.symbol_data_map[symbol].frame["close"].asof(ctx.date)
+            )
+            if pd.isna(close):
+                continue
+            entry_price = float(info["entry_price"])
+            if close <= entry_price * (1.0 - pct_f):
+                result[symbol] = 1.0
+        return result
+
+    rule.__name__ = f"fixed_stop_loss_{pct_f}"
+    return rule
+
+
+def fixed_take_profit(pct: float) -> StopRuleCallable:
+    """固定百分比止盈。
+
+    收盘价 ≥ entry_price × (1 + pct) → 全清该标的。
+
+    Parameters
+    ----------
+    pct : float
+        目标盈利比例（如 0.30 = 30%）。
+    """
+    pct_f = float(pct)
+    if pct_f <= 0:
+        raise ValueError(f"take_profit pct must be > 0, got {pct_f}")
+
+    def rule(ctx: StopContext) -> dict[str, float]:
+        result: dict[str, float] = {}
+        for symbol, info in ctx.entry_info.items():
+            if symbol not in ctx.positions or ctx.positions[symbol] <= 1e-12:
+                continue
+            close = float(
+                ctx.symbol_data_map[symbol].frame["close"].asof(ctx.date)
+            )
+            if pd.isna(close):
+                continue
+            entry_price = float(info["entry_price"])
+            if close >= entry_price * (1.0 + pct_f):
+                result[symbol] = 1.0
+        return result
+
+    rule.__name__ = f"fixed_take_profit_{pct_f}"
+    return rule
+
+
+def trailing_stop_atr(
+    atr_factor_col: str = "atr_14",
+    multiplier: float = 2.0,
+) -> StopRuleCallable:
+    """ATR 追踪止损。
+
+    high_since_entry - multiplier × ATR > close → 全清该标的。
+
+    ATR 因子必须在 factor_pipeline 中预计算（列名如 ``atr_14``）。
+
+    Parameters
+    ----------
+    atr_factor_col : str
+        frame 中 ATR 因子的列名。
+    multiplier : float
+        ATR 倍数，默认 2.0。
+    """
+    mult = float(multiplier)
+    if mult <= 0:
+        raise ValueError(f"trailing_stop_atr multiplier must be > 0, got {mult}")
+
+    def rule(ctx: StopContext) -> dict[str, float]:
+        result: dict[str, float] = {}
+        for symbol, info in ctx.entry_info.items():
+            if symbol not in ctx.positions or ctx.positions[symbol] <= 1e-12:
+                continue
+            frame = ctx.symbol_data_map[symbol].frame
+            close = float(frame["close"].asof(ctx.date))
+            atr_val = frame[atr_factor_col].asof(ctx.date)
+            if pd.isna(close) or pd.isna(atr_val):
+                continue
+            high_since = float(info["high_since_entry"])
+            if high_since - mult * float(atr_val) > close:
+                result[symbol] = 1.0
+        return result
+
+    rule.__name__ = f"trailing_stop_atr_{atr_factor_col}_{mult}"
+    return rule
+
+
+def trailing_stop_pct(drawdown_pct: float = 0.10) -> StopRuleCallable:
+    """回撤百分比追踪止损。
+
+    close ≤ high_since_entry × (1 - drawdown_pct) → 全清该标的。
+
+    Parameters
+    ----------
+    drawdown_pct : float
+        建仓以来最高价的最大回撤比例（如 0.10 = 10%）。
+    """
+    dd = float(drawdown_pct)
+    if dd <= 0 or dd >= 1:
+        raise ValueError(f"drawdown_pct must be in (0, 1), got {dd}")
+
+    def rule(ctx: StopContext) -> dict[str, float]:
+        result: dict[str, float] = {}
+        for symbol, info in ctx.entry_info.items():
+            if symbol not in ctx.positions or ctx.positions[symbol] <= 1e-12:
+                continue
+            close = float(
+                ctx.symbol_data_map[symbol].frame["close"].asof(ctx.date)
+            )
+            if pd.isna(close):
+                continue
+            high_since = float(info["high_since_entry"])
+            if close <= high_since * (1.0 - dd):
+                result[symbol] = 1.0
+        return result
+
+    rule.__name__ = f"trailing_stop_pct_{dd}"
+    return rule
+
+
+def factor_threshold_stop(
+    factor_col: str,
+    operator: str,
+    threshold: float,
+    ratio: float = 1.0,
+) -> StopRuleCallable:
+    """基于预计算因子列的阈值止损/止盈。
+
+    逐日检查 frame[factor_col].asof(date) 的值，满足 operator threshold 时触发。
+
+    Parameters
+    ----------
+    factor_col : str
+        frame 中的因子列名（必须在 factor_pipeline 中预计算）。
+    operator : str
+        比较操作符: ">=", "<=", ">", "<", "=="。
+    threshold : float
+        阈值。
+    ratio : float
+        触发时清仓比例（默认 1.0 = 全清）。
+    """
+    if operator not in (">=", "<=", ">", "<", "=="):
+        raise ValueError(
+            f"operator must be one of >=, <=, >, <, ==, got {operator!r}"
+        )
+    ratio_f = float(ratio)
+    if ratio_f <= 0 or ratio_f > 1:
+        raise ValueError(f"ratio must be in (0, 1], got {ratio_f}")
+    thr = float(threshold)
+
+    def rule(ctx: StopContext) -> dict[str, float]:
+        result: dict[str, float] = {}
+        for symbol, info in ctx.entry_info.items():
+            if symbol not in ctx.positions or ctx.positions[symbol] <= 1e-12:
+                continue
+            val = ctx.symbol_data_map[symbol].frame[factor_col].asof(ctx.date)
+            if pd.isna(val):
+                continue
+            triggered = False
+            if operator == ">=":
+                triggered = float(val) >= thr
+            elif operator == "<=":
+                triggered = float(val) <= thr
+            elif operator == ">":
+                triggered = float(val) > thr
+            elif operator == "<":
+                triggered = float(val) < thr
+            elif operator == "==":
+                triggered = float(val) == thr
+            if triggered:
+                result[symbol] = ratio_f
+        return result
+
+    rule.__name__ = f"factor_threshold_{factor_col}_{operator}_{thr}_{ratio_f}"
+    return rule
+
+
 def _finalize_rebalance_log(
     rebalance_entries: list[dict[str, Any]],
 ) -> pd.DataFrame:
@@ -2135,6 +2404,7 @@ def _build_variant_summary(
     rebalance_df: pd.DataFrame,
     config: WideMomentumBaselineConfig,
     prepared: PreparedWideMomentumUniverse,
+    stop_df: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     """将单个 top-N 变体汇总为可落盘的绩效指标。"""
 
@@ -2162,6 +2432,16 @@ def _build_variant_summary(
         else pd.Series(dtype=float)
     )
     stable_start = prepared.stable_start_month
+
+    # ── 止损统计 ───────────────────────────────────────────────────────────
+    stop_count: Optional[int] = None
+    stop_avg_pnl_pct: Optional[float] = None
+    stop_total_commission: Optional[float] = None
+    if stop_df is not None and not stop_df.empty and "pnl_pct" in stop_df.columns:
+        stop_count = int(len(stop_df))
+        stop_avg_pnl_pct = round(float(stop_df["pnl_pct"].mean()), 4)
+        if "commission_paid" in stop_df.columns:
+            stop_total_commission = round(float(stop_df["commission_paid"].sum()), 4)
 
     # 分段统计（可选）
     periodic_metrics: Optional[list[dict[str, Any]]] = None
@@ -2216,8 +2496,201 @@ def _build_variant_summary(
         ),
         "rebalance_count": int(len(rebalance_df)),
         "completed_period_count": int(len(period_returns)),
+        "stop_count": stop_count,
+        "stop_avg_pnl_pct": stop_avg_pnl_pct,
+        "stop_total_commission": stop_total_commission,
         "periodic_metrics": periodic_metrics,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 止损/止盈引擎辅助函数
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _init_entry_info_for_symbol(
+    entry_info: dict[str, dict[str, Any]],
+    symbol: str,
+    execution_date: pd.Timestamp,
+    entry_price: float,
+) -> None:
+    """初始化（或重置）单个标的的入场信息。"""
+    entry_info[symbol] = {
+        "entry_date": execution_date,
+        "entry_price": float(entry_price),
+        "high_since_entry": float(entry_price),
+        "low_since_entry": float(entry_price),
+    }
+
+
+def _update_entry_info_on_buy(
+    entry_info: dict[str, dict[str, Any]],
+    symbol: str,
+    buy_price: float,
+    new_shares: float,
+    old_shares: float,
+    execution_date: pd.Timestamp,
+) -> None:
+    """加仓时用加权平均更新入场价，保留 high/low 历史极值。"""
+    if new_shares <= 1e-12:
+        return
+    if symbol not in entry_info or old_shares <= 1e-12:
+        _init_entry_info_for_symbol(entry_info, symbol, execution_date, float(buy_price))
+        return
+    info = entry_info[symbol]
+    old_price = float(info["entry_price"])
+    total_shares = old_shares + new_shares
+    weighted_price = (old_shares * old_price + new_shares * float(buy_price)) / total_shares
+    info["entry_price"] = weighted_price
+    info["entry_date"] = execution_date
+
+
+def _update_entry_info_daily(
+    entry_info: dict[str, dict[str, Any]],
+    positions: dict[str, float],
+    date: pd.Timestamp,
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+) -> None:
+    """更新每个持仓标的的 high_since_entry 和 low_since_entry。"""
+    for symbol, info in list(entry_info.items()):
+        if symbol not in positions or positions[symbol] <= 1e-12:
+            del entry_info[symbol]
+            continue
+        close = symbol_data_map[symbol].frame["close"].asof(date)
+        if pd.isna(close):
+            continue
+        close_f = float(close)
+        if close_f > float(info["high_since_entry"]):
+            info["high_since_entry"] = close_f
+        if close_f < float(info["low_since_entry"]):
+            info["low_since_entry"] = close_f
+
+
+def _check_stop_triggers(
+    *,
+    positions: dict[str, float],
+    entry_info: dict[str, dict[str, Any]],
+    date: pd.Timestamp,
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+    cash: float,
+    commission: float,
+    stop_rules: tuple[StopRuleSpec, ...],
+) -> dict[str, float]:
+    """逐条调用 stop rules，合并返回 {symbol → 清仓比例}。
+
+    多条规则对同一 symbol 返回的比例取 max，上限 1.0。
+    规则抛异常时直接传播（暴露 bug），不吞异常。
+    """
+    if not stop_rules or not positions:
+        return {}
+
+    ctx = StopContext(
+        date=date,
+        positions=dict(positions),
+        entry_info=entry_info,
+        symbol_data_map=symbol_data_map,
+        cash=float(cash),
+        commission=float(commission),
+    )
+
+    merged: dict[str, float] = {}
+    for spec in stop_rules:
+        triggered = spec.rule(ctx)
+        for symbol, ratio in triggered.items():
+            ratio_f = float(ratio)
+            if pd.isna(ratio_f):
+                continue
+            ratio_f = max(0.0, min(ratio_f, 1.0))
+            if ratio_f <= 0:
+                continue
+            merged[symbol] = max(merged.get(symbol, 0.0), ratio_f)
+    return merged
+
+
+def _execute_pending_stops(
+    *,
+    positions: dict[str, float],
+    cash: float,
+    entry_info: dict[str, dict[str, Any]],
+    pending_stops: dict[str, float],
+    execution_date: pd.Timestamp,
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+    commission: float,
+    stop_entries: list[dict[str, Any]],
+) -> tuple[dict[str, float], float, dict[str, dict[str, Any]]]:
+    """在开盘价执行止损/止盈卖出。
+
+    Parameters
+    ----------
+    pending_stops : dict[str, float]
+        symbol → 清仓比例（0~1）。
+
+    Returns
+    -------
+    (new_positions, new_cash, new_entry_info)
+    """
+    if not pending_stops:
+        return positions, cash, entry_info
+
+    new_positions = dict(positions)
+    new_cash = float(cash)
+    new_entry_info = dict(entry_info)
+
+    for symbol, ratio in pending_stops.items():
+        if symbol not in new_positions or new_positions[symbol] <= 1e-12:
+            continue
+        ratio_f = max(0.0, min(float(ratio), 1.0))
+        if ratio_f <= 0:
+            continue
+
+        open_price = float(
+            symbol_data_map[symbol].frame["open"].asof(execution_date)
+        )
+        if pd.isna(open_price) or open_price <= 0:
+            continue
+
+        current_shares = float(new_positions[symbol])
+        current_market_value = current_shares * open_price
+        sell_value = current_market_value * ratio_f
+        shares_to_sell = sell_value / open_price
+        actual_shares_sold = min(shares_to_sell, current_shares)
+
+        sell_commission = sell_value * commission
+        new_cash += sell_value - sell_commission
+        remaining_shares = current_shares - actual_shares_sold
+
+        entry_price = (
+            float(new_entry_info[symbol]["entry_price"])
+            if symbol in new_entry_info
+            else open_price
+        )
+        pnl_pct = (open_price / entry_price - 1.0) * 100.0
+
+        stop_entries.append(
+            {
+                "signal_date": execution_date,
+                "execution_date": execution_date,
+                "entry_type": "stop",
+                "stop_symbol": symbol,
+                "stop_rule_name": "",  # 由上层在合并前填充
+                "stop_ratio": ratio_f,
+                "entry_price": round(entry_price, 4),
+                "exit_price": round(open_price, 4),
+                "pnl_pct": round(pnl_pct, 4),
+                "shares_sold": round(actual_shares_sold, 2),
+                "market_value_sold": round(sell_value, 2),
+                "commission_paid": round(sell_commission, 4),
+            }
+        )
+
+        if remaining_shares <= 1e-12:
+            del new_positions[symbol]
+            new_entry_info.pop(symbol, None)
+        else:
+            new_positions[symbol] = remaining_shares
+            # 部分减仓：entry_info 保持不变
+
+    return new_positions, new_cash, new_entry_info
 
 
 def _maybe_execute_pending_rebalance(
@@ -2324,6 +2797,72 @@ def _create_rebalance_plan(
     return rebalance_entry, pending_rebalance
 
 
+def _sync_entry_info_from_rebalance(
+    *,
+    entry_info: dict[str, dict[str, Any]],
+    old_positions: dict[str, float],
+    new_positions: dict[str, float],
+    execution_date: pd.Timestamp,
+    symbol_data_map: Mapping[str, SymbolBaselineData],
+) -> None:
+    """调仓执行后同步 entry_info：新增/加仓→更新，清仓→删除。"""
+    for symbol in set(old_positions) | set(new_positions):
+        old_shares = float(old_positions.get(symbol, 0.0))
+        new_shares = float(new_positions.get(symbol, 0.0))
+
+        if new_shares <= 1e-12:
+            # 完全清仓
+            entry_info.pop(symbol, None)
+        elif old_shares <= 1e-12:
+            # 新建仓
+            open_price = float(
+                symbol_data_map[symbol].frame["open"].asof(execution_date)
+            )
+            if pd.notna(open_price) and open_price > 0:
+                _init_entry_info_for_symbol(
+                    entry_info, symbol, execution_date, open_price
+                )
+        elif new_shares > old_shares:
+            # 加仓：加权平均更新入场价
+            open_price = float(
+                symbol_data_map[symbol].frame["open"].asof(execution_date)
+            )
+            if pd.notna(open_price) and open_price > 0:
+                _update_entry_info_on_buy(
+                    entry_info=entry_info,
+                    symbol=symbol,
+                    buy_price=open_price,
+                    new_shares=new_shares - old_shares,
+                    old_shares=old_shares,
+                    execution_date=execution_date,
+                )
+        # 减仓（new_shares < old_shares 但 >0）：保持 entry_info 不变
+
+
+def _merge_rebalance_and_stop_logs(
+    rebalance_df: pd.DataFrame,
+    stop_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """将调仓日志和止损日志合并为一个 DataFrame。
+
+    rebalance 行标记 entry_type="rebalance"，stop 行标记 entry_type="stop"。
+    """
+    if rebalance_df.empty and stop_df.empty:
+        return pd.DataFrame()
+    if stop_df.empty:
+        rebalance_df["entry_type"] = "rebalance"
+        return rebalance_df
+    if rebalance_df.empty:
+        stop_df["entry_type"] = "stop"
+        return stop_df
+
+    rebalance_df = rebalance_df.copy()
+    stop_df = stop_df.copy()
+    rebalance_df["entry_type"] = "rebalance"
+    stop_df["entry_type"] = "stop"
+    return pd.concat([rebalance_df, stop_df], ignore_index=True, sort=False)
+
+
 def _build_equity_curve_frame(
     equity_rows: list[dict[str, Any]],
     initial_cash: float,
@@ -2353,15 +2892,33 @@ def _run_top_n_variant(
 
     positions: dict[str, float] = {}
     cash = float(config.cash)
+    entry_info: dict[str, dict[str, Any]] = {}
     rebalance_entries: list[dict[str, Any]] = []
+    stop_entries: list[dict[str, Any]] = []
     pending_rebalance: Optional[dict[str, Any]] = None
+    pending_stops: dict[str, float] = {}
     equity_rows: list[dict[str, Any]] = []
     hold_overlap = bool(config.hold_overlap)
+    stop_rules = config.stop_rules
 
     for bar_index, current_date in enumerate(prepared.calendar):
         current_date = pd.Timestamp(current_date)
 
-        # 调仓信号在信号 bar 生成，并在下一根 bar 的开盘执行。
+        # 1. 执行 pending stops（止损/止盈先于调仓，回收现金参与后续调仓）
+        positions, cash, entry_info = _execute_pending_stops(
+            positions=positions,
+            cash=cash,
+            entry_info=entry_info,
+            pending_stops=pending_stops,
+            execution_date=current_date,
+            symbol_data_map=prepared.symbol_data_map,
+            commission=float(config.commission),
+            stop_entries=stop_entries,
+        )
+        pending_stops = {}
+
+        # 2. 调仓信号在信号 bar 生成，并在下一根 bar 的开盘执行。
+        old_positions = dict(positions)
         positions, cash, pending_rebalance = _maybe_execute_pending_rebalance(
             current_date=current_date,
             pending_rebalance=pending_rebalance,
@@ -2372,8 +2929,15 @@ def _run_top_n_variant(
             rebalance_entries=rebalance_entries,
             hold_overlap=hold_overlap,
         )
+        _sync_entry_info_from_rebalance(
+            entry_info=entry_info,
+            old_positions=old_positions,
+            new_positions=positions,
+            execution_date=current_date,
+            symbol_data_map=prepared.symbol_data_map,
+        )
 
-        # 先按收盘价做日终估值，再判断今天是否产生新信号。
+        # 3. 先按收盘价做日终估值，再判断今天是否产生新信号。
         close_value = _portfolio_value(
             positions=positions,
             cash=cash,
@@ -2388,6 +2952,26 @@ def _run_top_n_variant(
             cash=float(cash),
         )
 
+        # 4. 更新 entry_info 的每日最高/最低价。
+        _update_entry_info_daily(
+            entry_info=entry_info,
+            positions=positions,
+            date=current_date,
+            symbol_data_map=prepared.symbol_data_map,
+        )
+
+        # 5. 检查止损/止盈触发条件。
+        pending_stops = _check_stop_triggers(
+            positions=positions,
+            entry_info=entry_info,
+            date=current_date,
+            symbol_data_map=prepared.symbol_data_map,
+            cash=cash,
+            commission=float(config.commission),
+            stop_rules=stop_rules,
+        )
+
+        # 6. 信号日 → 生成下一 bar 调仓计划。
         if not _is_signal_bar(
             bar_index=bar_index,
             rebalance_interval=int(config.rebalance_interval),
@@ -2411,11 +2995,14 @@ def _run_top_n_variant(
     equity_curve_df = _build_equity_curve_frame(equity_rows=equity_rows, initial_cash=float(config.cash))
 
     rebalance_df = _finalize_rebalance_log(rebalance_entries)
+    stop_df = pd.DataFrame(stop_entries) if stop_entries else pd.DataFrame()
+    combined_log = _merge_rebalance_and_stop_logs(rebalance_df, stop_df)
     annual_returns = _build_annual_returns(equity_curve_df)
     summary = _build_variant_summary(
         top_n=top_n,
         equity_curve_df=equity_curve_df,
         rebalance_df=rebalance_df,
+        stop_df=stop_df,
         config=config,
         prepared=prepared,
     )
@@ -2424,7 +3011,7 @@ def _run_top_n_variant(
         summary=summary,
         equity_curve=equity_curve_df,
         annual_returns=annual_returns,
-        rebalance_log=rebalance_df,
+        rebalance_log=combined_log,
     )
 
 
@@ -2656,6 +3243,10 @@ __all__ = [
     "BaselineCandidate",
     "CandidateFilterSpec",
     "PreparedWideMomentumUniverse",
+    "RankFilter",
+    "StopContext",
+    "StopRuleCallable",
+    "StopRuleSpec",
     "SymbolBaselineData",
     "ThresholdFilter",
     "WeightAllocatorCallable",
@@ -2663,7 +3254,11 @@ __all__ = [
     "WideMomentumBaselineResult",
     "WideMomentumVariantResult",
     "equal_weight_allocator",
+    "factor_threshold_stop",
+    "fixed_stop_loss",
+    "fixed_take_profit",
     "make_factor_weighted_allocator",
+    "make_rank_filters",
     "make_tiered_weight_allocator",
     "prepare_wide_momentum_universe",
     "prepare_wide_momentum_universe_from_etf_data_map",
@@ -2672,4 +3267,6 @@ __all__ = [
     "run_wide_momentum_baseline_from_prepared",
     "save_wide_momentum_baseline_result",
     "score_proportional_allocator",
+    "trailing_stop_atr",
+    "trailing_stop_pct",
 ]

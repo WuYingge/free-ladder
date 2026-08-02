@@ -16,6 +16,17 @@ from factors.meta_factor import (
 )
 
 
+def _r2_helper(y: np.ndarray, x: np.ndarray) -> float:
+    """模块级辅助：计算窗口内线性回归的 R²。"""
+    slope, intercept = np.polyfit(x, y, 1)
+    y_pred = slope * x + intercept
+    ss_res = np.sum((y - y_pred) ** 2)
+    ss_tot = np.sum((y - np.mean(y)) ** 2)
+    if ss_tot == 0:
+        return np.nan
+    return 1.0 - ss_res / ss_tot
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 测试夹具
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -99,6 +110,14 @@ class TestOutputName:
             window=252,
         )
         assert tf.get_output_name() == "PriceReturn_20__zscore_252"
+
+    def test_rolling_slope(self):
+        tf = self._make("rolling_slope", 20)
+        assert tf.get_output_name() == "PriceReturn_20__rolling_slope_20"
+
+    def test_rolling_r2(self):
+        tf = self._make("rolling_r2", 20)
+        assert tf.get_output_name() == "PriceReturn_20__rolling_r2_20"
 
     def test_default_window(self):
         """不传 window 时使用该变换的默认窗口。"""
@@ -188,6 +207,65 @@ class TestTransformCorrectness:
         rs_safe = rs.replace(0.0, np.nan)
         expected = (pr - rm) / rs_safe
         pd.testing.assert_series_equal(result, expected, check_names=False)
+
+    def test_rolling_slope_known(self, ohlcv_data: pd.DataFrame):
+        """对完美线性序列验证 slope 精确性。"""
+        tf = TransformFactor(
+            dependency=PriceReturn(window=20),
+            transform="rolling_slope",
+            window=5,
+        )
+        # 构造一个已知的因子序列：前 4 个 window 为 NaN，然后手动验算
+        result = tf(ohlcv_data)
+        pr = PriceReturn(window=20)(ohlcv_data)
+        # 手工验算最后 5 个值的 slope
+        x = np.arange(5, dtype=float)
+        for i in range(5 - 1, len(pr)):
+            y = pr.iloc[i - 4 : i + 1].values
+            expected_slope = np.polyfit(x, y, 1)[0]
+            if not np.isnan(result.iloc[i]):
+                assert result.iloc[i] == pytest.approx(expected_slope)
+
+    def test_rolling_r2_perfect(self):
+        """完美线性关系 → r² = 1.0。"""
+        # 构造完美线性序列
+        series = pd.Series(2.0 * np.arange(10, dtype=float) + 3.0)
+
+        window = 5
+        x5 = np.arange(window, dtype=float)
+        manual = (
+            series.rolling(window=window, min_periods=window)
+            .apply(lambda y: _r2_helper(y, x5), raw=True)
+        )
+        valid = manual.dropna()
+        assert len(valid) > 0
+        assert (valid > 0.999).all()
+
+    def test_rolling_r2_noisy(self):
+        """随机噪声 → r² 接近 0。"""
+        rng = np.random.default_rng(123)
+        noise = rng.normal(0, 1, size=100)
+        series = pd.Series(noise)
+
+        window = 20
+        x20 = np.arange(window, dtype=float)
+        result = series.rolling(window=window, min_periods=window).apply(
+            lambda y: _r2_helper(y, x20), raw=True
+        )
+        # 随机序列的 r² 中位数应 < 0.3（非常弱的相关）
+        median_r2 = result.median()
+        assert median_r2 < 0.3, f"随机噪声 r² 中位数过高: {median_r2:.3f}"
+
+    def test_rolling_r2_constant(self):
+        """常数序列 → r² 为 NaN（SS_tot = 0）。"""
+        series = pd.Series(np.ones(50))
+        window = 10
+        x10 = np.arange(window, dtype=float)
+        result = series.rolling(window=window, min_periods=window).apply(
+            lambda y: _r2_helper(y, x10), raw=True
+        )
+        valid = result.iloc[window - 1 :]
+        assert valid.isna().all()
 
     def test_result_name_matches_output_name(self, ohlcv_data: pd.DataFrame):
         tf = TransformFactor(

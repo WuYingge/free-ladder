@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from services.factor_index import query_factors, load_index
+from services.factor_index import query_factors, load_index, build_index
 from services.factor_detail import load_factor_detail
 from services.correlation_svc import query_correlation
 
@@ -43,6 +43,13 @@ def list_factors(
         page_size=page_size,
     )
     return result
+
+
+@router.post("/_/rebuild-index")
+def rebuild_index():
+    """强制重建因子索引（扫描 data/factors/ 下所有报告）。"""
+    idx = build_index(force=True)
+    return {"n_factors": idx.get("n_factors", 0), "generated_at": idx.get("generated_at", "")}
 
 
 @router.get("/_/index-status")

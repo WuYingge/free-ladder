@@ -8,7 +8,6 @@
     uv run python libs/scripts/run_batch_factor_analysis.py \
         --config libs.scripts.factor_analysis_configs.custom \
         --mode standard \
-        --force \
         --parallel 4
 """
 
@@ -43,6 +42,42 @@ pr_20 = PriceReturn(window=20)
 lpp_20 = LowPointPosition(window=20)
 trend_r2_120 = TrendR2Factor(window=120, output="r2")
 ma_dispersion = MADispersion()
+
+vol_20 = Volatility(20)
+
+# ---- 波动率放大 -----
+vol_slope_long = TransformFactor(
+    dependency=vol_20,
+    transform="rolling_slope",
+    window=20
+)
+vol_20_zscore_120 = TransformFactor(
+    dependency=vol_20,
+    transform="zscore",
+    window=120
+)
+
+vol_20_zscore_120_cond_gt_vol_slope = ConditionalFactor(
+    signal=vol_20_zscore_120,
+    condition=vol_slope_long,
+    op="gt",
+    threshold=0
+)
+
+vol_20_zscore_120_cond_lt_vol_slope = ConditionalFactor(
+    signal=vol_20_zscore_120,
+    condition=vol_slope_long,
+    op="lt",
+    threshold=0
+)
+pr20_cond_vol_20_zscore_120_cond_gt_vol_slope = MultiConditionalFactor(
+    signal=pr_20,
+    conditions = [
+        ConditionSpec(vol_20_zscore_120, "lt", 0),
+        ConditionSpec(vol_slope_long, "gt", 0.0)
+    ]
+)
+
 
 # ---- 三过滤器 ------
 pr_20_3_filter = MultiConditionalFactor(
@@ -143,7 +178,12 @@ FACTORS = [
     # pr20_condition_logBias,
     # pr20_condition_logBias2,
     # trendR2_condition_logBias2,
-    trendR2_condition_tsm120,
-    trendR2_condition_tsm252,
-    trendR2_condition_tsm20,
+    # trendR2_condition_tsm120,
+    # trendR2_condition_tsm252,
+    # trendR2_condition_tsm20,
+    vol_20_zscore_120,
+    vol_slope_long,
+    vol_20_zscore_120_cond_gt_vol_slope,
+    vol_20_zscore_120_cond_lt_vol_slope,
+    pr20_cond_vol_20_zscore_120_cond_gt_vol_slope
 ]

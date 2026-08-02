@@ -24,6 +24,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "libs"))  # 直接导入 backtesting 等
 
 from backtesting.wide_momentum_baseline import (
     RankFilter,
+    StopRuleSpec,
     ThresholdFilter,
     WideMomentumBaselineConfig,
     prepare_wide_momentum_universe,
@@ -49,6 +50,7 @@ GRID_MAX_WORKERS: int | None = None
 PERIOD_FREQ: str | None = None
 CUSTOM_PERIODS: tuple | None = None
 SHARED_PIPELINE: tuple = ()
+SHARED_STOP_RULES: tuple[StopRuleSpec, ...] = ()
 RANKING_FACTOR_CANDIDATES: tuple = ()
 IC_WINDOW: int = 120
 IC_SELECTION_MODE: str = "icir"
@@ -132,6 +134,12 @@ def _build_output_basename(tag: str = "") -> str:
     if cl_vals != {0}:
         parts.append("cl" + "_".join(str(c) for c in sorted(cl_vals)))
 
+    # stop_rules
+    if SHARED_STOP_RULES:
+        sl_names = [s.name for s in SHARED_STOP_RULES if s.name]
+        if sl_names:
+            parts.append("sl_" + "_".join(sl_names))
+
     # 日期
     parts.append(datetime.now().strftime("%Y%m%d"))
 
@@ -199,7 +207,7 @@ def main(config_module: str, cli_start_dates: list[str] | None = None, cli_end_d
         GROUPS, GRID_TOP_N, GRID_MIN_MOMENTUM, GRID_CLUSTER_MAX_PER_GROUP, \
         GRID_REBALANCE_INTERVAL, GRID_EXCLUDE_BONDS, GRID_HOLD_OVERLAP, \
         GRID_WEIGHT_ALLOCATOR, GRID_MAX_WORKERS, PERIOD_FREQ, CUSTOM_PERIODS, \
-        SHARED_PIPELINE, RANKING_FACTOR_CANDIDATES, IC_WINDOW, IC_SELECTION_MODE, \
+        SHARED_PIPELINE, SHARED_STOP_RULES, RANKING_FACTOR_CANDIDATES, IC_WINDOW, IC_SELECTION_MODE, \
         _output_base_dir, _title, _basename_tag, _start_date, _end_date
 
     # ── 加载配置 ──
@@ -218,6 +226,7 @@ def main(config_module: str, cli_start_dates: list[str] | None = None, cli_end_d
     PERIOD_FREQ             = getattr(cfg, "PERIOD_FREQ", None)
     CUSTOM_PERIODS          = getattr(cfg, "CUSTOM_PERIODS", None)
     SHARED_PIPELINE         = cfg.SHARED_PIPELINE
+    SHARED_STOP_RULES       = getattr(cfg, "SHARED_STOP_RULES", ())
     RANKING_FACTOR_CANDIDATES = getattr(cfg, "RANKING_FACTOR_CANDIDATES", ())
     IC_WINDOW               = getattr(cfg, "IC_WINDOW", 120)
     IC_SELECTION_MODE       = getattr(cfg, "IC_SELECTION_MODE", "icir")
@@ -684,6 +693,7 @@ def _run_single_combo(args):
         ranking_factor_candidates=RANKING_FACTOR_CANDIDATES,
         ic_window=IC_WINDOW,
         ic_selection_mode=IC_SELECTION_MODE,
+        stop_rules=SHARED_STOP_RULES,
     )
 
     output_dir = _out_root / grid_label

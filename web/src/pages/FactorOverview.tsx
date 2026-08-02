@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
-import { fetchFactors, fetchFactorDetail, fetchCorrelation } from "../api";
+import { fetchFactors, fetchFactorDetail, fetchCorrelation, rebuildIndex } from "../api";
 import type { FactorSummary } from "../api";
 
 export default function FactorOverview() {
@@ -8,6 +8,7 @@ export default function FactorOverview() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
 
   // 筛选状态
   const [icPeriod, setIcPeriod] = useState(10);
@@ -47,6 +48,18 @@ export default function FactorOverview() {
 
   useEffect(() => { loadFactors(); }, [loadFactors]);
 
+  const handleRebuild = async () => {
+    setRebuilding(true);
+    try {
+      const r = await rebuildIndex();
+      alert(`索引已刷新: ${r.n_factors} 个因子, 生成时间 ${r.generated_at}`);
+      loadFactors();
+    } catch (e) {
+      alert(`刷新失败: ${e}`);
+    }
+    setRebuilding(false);
+  };
+
   const loadDetail = async (name: string) => {
     setSelected(name);
     try {
@@ -76,7 +89,12 @@ export default function FactorOverview() {
 
   return (
     <div>
-      <h2 style={{ marginBottom: 16 }}>因子概览</h2>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <h2 style={{ margin: 0 }}>因子概览</h2>
+        <button onClick={handleRebuild} disabled={rebuilding} style={btnStyle}>
+          {rebuilding ? "刷新中..." : "🔄 刷新索引"}
+        </button>
+      </div>
 
       {/* 筛选栏 */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12, alignItems: "center" }}>
