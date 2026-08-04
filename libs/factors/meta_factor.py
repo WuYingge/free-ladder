@@ -186,9 +186,10 @@ class TransformFactor(DerivedFactor):
 
     接收一个依赖因子实例，对其输出的 Series 施加指定的变换。
 
-    八种变换:
+    九种变换:
         rolling_mean     — N 日简单移动平均，降噪
         rolling_std      — N 日滚动标准差，度量因子稳定性
+        rolling_skew     — N 日滚动偏度，因子分布形态（三阶矩）
         delta            — N 日差值，因子的"加速度"
         pct_change       — N 日变化率，delta 的百分比版本
         binarize_winrate — 二值化 + 滚动胜率，信号一致性
@@ -222,6 +223,7 @@ class TransformFactor(DerivedFactor):
     _DEFAULT_WINDOWS: dict[str, int] = {
         "rolling_mean": 10,
         "rolling_std": 20,
+        "rolling_skew": 20,
         "delta": 5,
         "pct_change": 5,
         "binarize_winrate": 20,
@@ -299,6 +301,7 @@ class TransformFactor(DerivedFactor):
         dispatch = {
             "rolling_mean": self._rolling_mean,
             "rolling_std": self._rolling_std,
+            "rolling_skew": self._rolling_skew,
             "delta": self._delta,
             "pct_change": self._pct_change,
             "binarize_winrate": self._binarize_winrate,
@@ -319,6 +322,14 @@ class TransformFactor(DerivedFactor):
     def _rolling_std(self, series: pd.Series) -> pd.Series:
         """因子值的 N 日滚动标准差。"""
         return series.rolling(window=self.window, min_periods=self.window).std()
+
+    def _rolling_skew(self, series: pd.Series) -> pd.Series:
+        """因子值的 N 日滚动偏度（三阶矩）。
+
+        正值 → 窗口内因子值右偏（偶发高位），负值 → 左偏（偶发低位），
+        0 → 分布对称。窗口 < 3 时 pandas 返回 NaN。
+        """
+        return series.rolling(window=self.window, min_periods=self.window).skew()
 
     def _delta(self, series: pd.Series) -> pd.Series:
         """因子值在过去 N 日的差值（因子加速度）。"""

@@ -17,7 +17,11 @@ if str(LIBS_DIR) not in sys.path:
     sys.path.insert(0, str(LIBS_DIR))
 
 from config import DataPath
-from data_manager.utils import extract_tracked_index_name, normalize_tracked_index_name
+from data_manager.utils import (
+    dedupe_etf_name_list,
+    extract_tracked_index_name,
+    normalize_tracked_index_name,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -96,6 +100,9 @@ def load_etf_name_list(path: Path) -> pd.DataFrame:
     if "name" not in df.columns:
         raise ValueError(f"ETF 名称列表缺少 name 列")
     df["name"] = df["name"].astype(str).str.strip()
+    # 同一 symbol 可能同时存在全称与简称两行（东财接口混排），
+    # 去重只保留含 ETF 的规范全称，避免同一基金被拆成多个跟踪指数。
+    df = dedupe_etf_name_list(df)
     return df
 
 

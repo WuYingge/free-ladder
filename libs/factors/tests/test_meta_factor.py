@@ -86,6 +86,10 @@ class TestOutputName:
         tf = self._make("rolling_std", 20)
         assert tf.get_output_name() == "PriceReturn_20__rolling_std_20"
 
+    def test_rolling_skew(self):
+        tf = self._make("rolling_skew", 20)
+        assert tf.get_output_name() == "PriceReturn_20__rolling_skew_20"
+
     def test_delta(self):
         tf = self._make("delta", 5)
         assert tf.get_output_name() == "PriceReturn_20__delta_5"
@@ -155,6 +159,17 @@ class TestTransformCorrectness:
         result = tf(ohlcv_data)
         pr = PriceReturn(window=20)(ohlcv_data)
         expected = pr.rolling(window=10, min_periods=10).std()
+        pd.testing.assert_series_equal(result, expected, check_names=False)
+
+    def test_rolling_skew(self, ohlcv_data: pd.DataFrame):
+        tf = TransformFactor(
+            dependency=PriceReturn(window=20),
+            transform="rolling_skew",
+            window=10,
+        )
+        result = tf(ohlcv_data)
+        pr = PriceReturn(window=20)(ohlcv_data)
+        expected = pr.rolling(window=10, min_periods=10).skew()
         pd.testing.assert_series_equal(result, expected, check_names=False)
 
     def test_delta(self, ohlcv_data: pd.DataFrame):

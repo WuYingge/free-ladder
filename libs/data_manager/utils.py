@@ -3,6 +3,8 @@ from collections.abc import Iterable
 import re
 from difflib import SequenceMatcher
 
+import pandas as pd
+
 
 # Common fund company names used as prefixes/suffixes in ETF names.
 COMMON_FUND_COMPANIES: tuple[str, ...] = (
@@ -106,6 +108,29 @@ def normalize_tracked_index_name(index_name: str) -> str:
     normalized = index_name.strip().replace("（", "(").replace("）", ")")
     normalized = re.sub(r"[()\-_/·\s]+", "", normalized)
     return normalized
+
+
+def dedupe_etf_name_list(df: pd.DataFrame) -> pd.DataFrame:
+    """同一 symbol 存在多行名称时（全称/简称混合），保留最规范的一行。
+
+    东财 ETF 名称列表常把同一基金的全称（如 "科创增强ETF银华"）与简称
+    （如 "科综指增"、"科半导体"、"鹏华恒生中国央企(QDII)"）各记一行。
+    若不去重，按名称提取跟踪指数时会把同一基金拆成多个指数键，导致
+    etf_index_map.csv 中同一 symbol 被多个 tracked_index 选中。
+
+    选择规则：优先保留含 "ETF" 的行（可被 extract_tracked_index_name
+    正确处理），其次名称更长，平局保留首行。
+    """
+    if df.empty or "symbol" not in df.columns or "name" not in df.columns:
+        return df
+    df = df.copy()
+    df["_has_etf"] = df["name"].astype(str).str.contains("ETF", na=False)
+    df["_name_len"] = df["name"].astype(str).str.len()
+    df = df.sort_values(
+        ["symbol", "_has_etf", "_name_len"],
+        ascending=[True, False, False],
+    ).drop_duplicates(subset="symbol", keep="first")
+    return df.drop(columns=["_has_etf", "_name_len"]).reset_index(drop=True)
 
 
 def extract_index_tokens(index_name: str) -> set[str]:

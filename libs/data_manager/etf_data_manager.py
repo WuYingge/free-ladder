@@ -1,6 +1,7 @@
 import os
 import shutil
 import datetime
+import json
 import tqdm
 import traceback
 import pandas as pd
@@ -18,6 +19,7 @@ from proxy.proxy import initialize_proxy_pool
 
 
 PROXY_INIT_STAGGER_SECONDS = max(float(os.getenv("PROXY_INIT_STAGGER_SECONDS") or "2.0"), 0.0)
+ETF_UPDATE_POOL_SIZE = int(os.getenv("ETF_UPDATE_POOL_SIZE", "10"))
 
 
 def transer_em_etf_to_model(df: pd.DataFrame) -> pd.DataFrame:
@@ -194,7 +196,7 @@ def update(code) -> bool:
         df = get_with_retry(code, 4000)
         if df is not None:
             save_etf_data(code, df)
-            return True
+            return not _has_pending_slices(code)
         print(f"Failed update {code}: fetch failed, will retry")
         return False
     except Exception as err:
@@ -232,7 +234,7 @@ def update_etf_data(symbols: list[str] | None = None):
     if not all_etf:
         print("No ETF symbols to update")
         return
-    with Pool(15, initializer=_initialize_etf_update_worker) as p:
+    with Pool(ETF_UPDATE_POOL_SIZE, initializer=_initialize_etf_update_worker) as p:
         res = p.map(update_single_etf_data, all_etf)
     for code, result in res:
         if result:
@@ -244,12 +246,15 @@ def update_etf_data(symbols: list[str] | None = None):
 def update_single_etf_data(code: str) -> tuple[str, bool]:
     fp = get_symbol_fp(code)
     if os.path.exists(fp):
+        if _has_pending_slices(code):
+            # 上次全量拉取有未完成分片，先补齐缺口再走增量更新
+            return code, _complete_pending_slices(code)
         return code, update(code)
     else:
         df = get_with_retry(code, 4000)
         if df is not None:
             save_etf_data(code, df)
-            return code, True
+            return code, not _has_pending_slices(code)
     return code, False
 
 
@@ -276,18 +281,48 @@ def save_etf_data_to_path(code: str, last_n_days: int, save_path: str, check_exi
     
         
 def get_with_retry(code, last_n_days: int) -> pd.DataFrame | None:
+    """拉取最近 last_n_days 的行情；失败分片写入 pending 以便断点续传。"""
     print("Acquiring data for", code, "for last", last_n_days, "days")
     if _is_not_listed_yet(code):
         print(f"Skip {code}: symbol not listed yet, stop retry")
         return None
 
+    pending = _load_pending_slices(code)
+    if pending:
+        print(f"Resuming {code}: {len(pending)} pending slice(s) from last run")
+        slices = pending
+    else:
+        slices = generate_time_slices_alternative(last_n_days)
+
+    df, failed = _fetch_slices_with_retry(code, slices)
+    if failed:
+        _save_pending_slices(code, failed)
+    else:
+        _clear_pending_slices(code)
+    return df if not df.empty else None
+
+
+def _fetch_slices_with_retry(
+    code: str,
+    slices: list[tuple[str, str]],
+) -> tuple[pd.DataFrame, list[tuple[str, str]]]:
+    """拉取给定时间分片，返回 (成功数据, 失败分片列表)。
+
+    每个分片最多重试 max_retries_per_slice 次，重试间隔指数退避；
+    某个分片失败不会中断整体流程，由调用方决定续传策略。
+    """
     max_retries_per_slice = 5
-    dfs = []
-    for s, e in generate_time_slices_alternative(last_n_days):
+    dfs: list[pd.DataFrame] = []
+    failed: list[tuple[str, str]] = []
+    for s, e in slices:
         success = False
         for retry_idx in range(max_retries_per_slice):
             try:
-                df = get_etf_certain_date_data(code, datetime.datetime.strptime(s, "%Y%m%d"), datetime.datetime.strptime(e, "%Y%m%d"))
+                df = get_etf_certain_date_data(
+                    code,
+                    datetime.datetime.strptime(s, "%Y%m%d"),
+                    datetime.datetime.strptime(e, "%Y%m%d"),
+                )
                 dfs.append(df)
                 success = True
                 break
@@ -295,11 +330,71 @@ def get_with_retry(code, last_n_days: int) -> pd.DataFrame | None:
                 retries_left = max_retries_per_slice - retry_idx - 1
                 print(f"Retrying {code} {s}-{e} due to {err}, {retries_left} retries left")
                 if retries_left > 0:
-                    intervals(0.3)
+                    intervals(min(0.5 * (2 ** retry_idx), 8.0))
         if not success:
-            print(f"Failed to get {code} for slice {s}-{e}, skip this symbol")
-            return None
-
+            failed.append((s, e))
     if not dfs:
+        return pd.DataFrame(), failed
+    return pd.concat(dfs).drop_duplicates(), failed
+
+
+def _pending_slices_dir() -> str:
+    """未完成分片的 checkpoint 目录（随 DEFAULT_PATH 动态计算，便于测试替换）。"""
+    return os.path.join(DataPath.DEFAULT_PATH, ".pending")
+
+
+def _pending_slices_fp(code: str) -> str:
+    return os.path.join(_pending_slices_dir(), f"{code}.json")
+
+
+def _load_pending_slices(code: str) -> list[tuple[str, str]] | None:
+    fp = _pending_slices_fp(code)
+    if not os.path.exists(fp):
         return None
-    return pd.concat(dfs).drop_duplicates()
+    try:
+        with open(fp, encoding="utf-8") as f:
+            return [tuple(item) for item in json.load(f)]
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def _has_pending_slices(code: str) -> bool:
+    return bool(_load_pending_slices(code))
+
+
+def _save_pending_slices(code: str, slices: list[tuple[str, str]]) -> None:
+    os.makedirs(_pending_slices_dir(), exist_ok=True)
+    with open(_pending_slices_fp(code), "w", encoding="utf-8") as f:
+        json.dump([list(s) for s in slices], f)
+
+
+def _clear_pending_slices(code: str) -> None:
+    fp = _pending_slices_fp(code)
+    if os.path.exists(fp):
+        os.remove(fp)
+
+
+def _complete_pending_slices(code: str) -> bool:
+    """补齐上次全量拉取遗留的失败分片（断点续传）。
+
+    成功分片的数据合并进已有 CSV；仍有失败分片时更新 pending 并返回 False。
+    """
+    fp = get_symbol_fp(code)
+    if not os.path.exists(fp):
+        return False
+
+    pending = _load_pending_slices(code)
+    if not pending:
+        return True
+
+    df, failed = _fetch_slices_with_retry(code, pending)
+    if not df.empty:
+        # 与 update() 的增量合并保持同一模式：新数据优先
+        existing = pd.read_csv(fp, parse_dates=True, index_col=0)
+        merged = transer_em_etf_to_model(df).combine_first(existing)
+        merged.drop_duplicates().to_csv(fp, index=True, encoding="utf-8-sig")
+    if failed:
+        _save_pending_slices(code, failed)
+        return False
+    _clear_pending_slices(code)
+    return True
