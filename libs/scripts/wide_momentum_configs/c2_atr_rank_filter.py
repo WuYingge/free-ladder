@@ -1,55 +1,55 @@
-"""C2 因子 × Volatility RankFilter 回测（无止损）。
+"""C2 因子 × ATR RankFilter 回测。
 
 排名因子: C2 (MAE_40__zscore_120__neg = MaxAdverseExcursion(40) zscore(120) 取负)
-RankFilter 排序因子: Volatility (vol60 / vol120 / vol252)，横截面 rank 过滤。
+RankFilter 排序因子: TR/close 逐日归一化后滚动 (ATR_{w}_tr_pct = mean(TR_t/close_t))，
+替代 C2_rank_filter.py 中的 Volatility 版。
 
 用法:
     uv run python libs/scripts/run_wide_momentum_custom.py \
-        --config libs.scripts.wide_momentum_configs.C2_rank_filter
+        --config libs.scripts.wide_momentum_configs.c2_atr_rank_filter
 """
 from __future__ import annotations
 
 from backtesting.wide_momentum_baseline import (
+    RankFilter,
     StopRuleSpec,
     ThresholdFilter,
-    factor_threshold_stop,
     equal_weight_allocator,
+    factor_threshold_stop,
     make_factor_weighted_allocator,
-    score_proportional_allocator,
-    RankFilter,
     make_rank_filters,
+    score_proportional_allocator,
 )
-from factors.rsrs import RsrsFactor
-from factors.trend_r2 import TrendR2Factor
+from factors.average_amount import AverageAmount
+from factors.average_true_range import AverageTrueRange
+from factors.daily_rebound import DailyRebound
 from factors.distribution_family import MaxAdverseExcursion, MaxFavorableExcursion
+from factors.ma import BIAS, MADispersion, MADistance, MAPosition, MASlope
 from factors.meta_factor import (
     CombineFactor,
     CompositeRankFactor,
-    ConditionSpec,
     ConditionalFactor,
+    ConditionSpec,
+    MultiConditionalFactor,
     NegateFactor,
     TransformFactor,
-    MultiConditionalFactor,
 )
+from factors.price_momentum import (
+    HighPointPosition,
+    LowPointPosition,
+    TimeSeriesMomentum,
+)
+from factors.price_return import PriceReturn
+from factors.reversal import ExtremeReversal, ShortTermReversal, VolumeReversal
+from factors.rsrs import RsrsFactor
+from factors.trend_r2 import TrendR2Factor
 from factors.volatility import Volatility
 from factors.volatility_family import AvgDrawdown
 from factors.volume_family import VolumePriceCorrelation, VolumeStd
-from factors.price_return import PriceReturn
-from factors.price_momentum import HighPointPosition, LowPointPosition, TimeSeriesMomentum
-from factors.ma import MAPosition, MADispersion, MADistance, MASlope, BIAS
-from factors.reversal import ShortTermReversal, ExtremeReversal, VolumeReversal
-from factors.daily_rebound import DailyRebound
-from factors.average_amount import AverageAmount
-
 
 # ====================================================================
-# 因子定义: TrendR2_120_r2_rm5 × C2_MAE40_z120_neg
+# 因子定义: C2 (MAE_40__zscore_120__neg)
 # ====================================================================
-
-# ── F3: TrendR2_120_r2__rolling_mean_5 ──
-trend_r2_120 = TrendR2Factor(window=120, output="r2")
-f3_factor = TransformFactor(dependency=trend_r2_120, transform="rolling_mean", window=5)
-
 
 # ── C2: MAE_40__zscore_120__neg ──
 mae_20 = MaxAdverseExcursion(window=20)
@@ -118,30 +118,29 @@ pr_20_3_filter = MultiConditionalFactor(
 # ── 反波动率加权所用的波动率因子 ──
 vol20 = Volatility(window=20)
 
-# ── RankFilters ──
-vol60 = Volatility(window=60, annualize=False)
-vol120 = Volatility(window=120, annualize=False)
-RANK_FILTERS: tuple[RankFilter, ...] = make_rank_filters(vol252, (0.0, 0.1, 0.2, 0.3))
-RANK_FILTERS_60: tuple[RankFilter, ...] = make_rank_filters(vol60, (0.0, 0.1, 0.2, 0.3))
-RANK_FILTERS_120: tuple[RankFilter, ...] = make_rank_filters(vol120, (0.0, 0.1, 0.2, 0.3))
-RANK_FILTERS_60_120 = RANK_FILTERS_60 + RANK_FILTERS_120
+# ── RankFilters (TR/close 逐日归一化: mean(TR_t/close_t), 标准 ATR%) ──
+atr25_tr_pct = AverageTrueRange(window=25, normalize_by_close=True, normalize_first=True)
+atr60_tr_pct = AverageTrueRange(window=60, normalize_by_close=True, normalize_first=True)
+atr120_tr_pct = AverageTrueRange(window=120, normalize_by_close=True, normalize_first=True)
+atr252_tr_pct = AverageTrueRange(window=252, normalize_by_close=True, normalize_first=True)
 
-RANK_FILTERS_120_high = (
-    RankFilter(vol120, 0.4, 0.1),
-    RankFilter(vol120, 0.5, 0.1),
-    RankFilter(vol120, 0.6, 0.1),
-    RankFilter(vol120, 0.4, 0),
-    RankFilter(vol120, 0.5, 0),
-    RankFilter(vol120, 0.6, 0),
-)
+RANK_FILTERS_ATR_TR_PCT25: tuple[RankFilter, ...] = make_rank_filters(atr25_tr_pct, (0.0, 0.1, 0.2, 0.3))
+RANK_FILTERS_ATR_TR_PCT60: tuple[RankFilter, ...] = make_rank_filters(atr60_tr_pct, (0.0, 0.1, 0.2, 0.3))
+RANK_FILTERS_ATR_TR_PCT120: tuple[RankFilter, ...] = make_rank_filters(atr120_tr_pct, (0.0, 0.1, 0.2, 0.3))
+RANK_FILTERS_ATR_TR_PCT252: tuple[RankFilter, ...] = make_rank_filters(atr252_tr_pct, (0.0, 0.1, 0.2, 0.3))
+RANK_FILTERS_ATR_TR_PCT = RANK_FILTERS_ATR_TR_PCT25 + RANK_FILTERS_ATR_TR_PCT60 + RANK_FILTERS_ATR_TR_PCT120 + RANK_FILTERS_ATR_TR_PCT252
 
 # ====================================================================
 # 共享管道（所有因子必须在此，才能被预计算）
 # ====================================================================
+trend_r2_20 = TrendR2Factor(window=20, output="r2")
 SHARED_PIPELINE: tuple = (
     vol252,
-    vol60,
-    vol120,
+    trend_r2_20,
+    atr25_tr_pct,
+    atr60_tr_pct,
+    atr120_tr_pct,
+    atr252_tr_pct,
 )
 
 
@@ -150,18 +149,24 @@ SHARED_PIPELINE: tuple = (
 # ====================================================================
 SHARED_STOP_RULES: tuple[StopRuleSpec, ...] = (
 )
+c2_cond = ConditionalFactor(
+    signal=c2_factor,
+    condition=trend_r2_20,
+    op="lt",
+    threshold=0.5
+)
 
 
 
 # ====================================================================
-# 组定义
+# 组定义（测试目标: TR/close 归一化 RankFilter）
 # ====================================================================
 GROUPS: list[tuple] = [
-    # ── vol 全组合（16 组/窗口 × 3 窗口 = 48 组）──
-    # 高阈值组可自行追加: RANK_FILTERS_120_high
-    # *[(f"c2_vol_rank_filter_60_{rf.name}", c2_factor, (), (rf,),) for rf in RANK_FILTERS_60],
-    *[(f"c2_vol_rank_filter_120_a_{rf.exclude_above_pct}_b_{rf.exclude_below_pct}", c2_factor, (), (rf,),) for rf in [RankFilter(vol120, 0.3, 0.1)]],
-    # *[(f"c2_vol_rank_filter_252_{rf.name}", c2_factor, (), (rf,),) for rf in RANK_FILTERS],
+    # ── TR/close 逐日归一化后滚动 (mean(TR_t/close_t)) 全组合（16 组/窗口 × 4 窗口 = 64 组）──
+    *[(f"c2_atr_tr_pct_rank_filter_25_{rf.name}", c2_factor, (), (rf,),) for rf in RANK_FILTERS_ATR_TR_PCT25],
+    *[(f"c2_atr_tr_pct_rank_filter_60_{rf.name}", c2_factor, (), (rf,),) for rf in RANK_FILTERS_ATR_TR_PCT60],
+    *[(f"c2_atr_tr_pct_rank_filter_120_{rf.name}", c2_factor, (), (rf,),) for rf in RANK_FILTERS_ATR_TR_PCT120],
+    *[(f"c2_atr_tr_pct_rank_filter_252_{rf.name}", c2_factor, (), (rf,),) for rf in RANK_FILTERS_ATR_TR_PCT252],
 ]
 
 
@@ -197,9 +202,9 @@ WEIGHT_ALLOCATORS: tuple = (
 # ====================================================================
 # 执行参数
 # ====================================================================
-OUTPUT_BASE_DIR: str = "/mnt/c/Users/wyg/Documents/invest/backtest/c2_vol_rank_filter_15"
-BASENAME_TAG: str = "c2_vol_rank_filter_15"
-TITLE: str = "宽动量基线回测 — c2_vol_rank_filter_15"
+OUTPUT_BASE_DIR: str = "/mnt/c/Users/wyg/Documents/invest/backtest/c2_atr_rank_filter"
+BASENAME_TAG: str = "c2_atr_rank_filter"
+TITLE: str = "宽动量基线回测 — c2_atr_rank_filter"
 START_DATE: str = "2020-01-01"
 END_DATE: str = "2026-07-17"
 # START_DATES = ("2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05", "2020-01-06", "2020-01-07", "2020-01-08")
