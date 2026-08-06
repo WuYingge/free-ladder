@@ -31,7 +31,10 @@ class ChangeSinceNewHigh(BaseFactor):
     
     def get_merged_dep_data(self, data: pd.DataFrame) -> pd.DataFrame:
         merged_data = data.copy()
-        merged_data["NewHigh"] = self.get_dependency_results(data)[self.dependencies[0]]
+        # get_dependency_results 返回 list[(factor, series)]，需按 id 索引
+        # （与 DerivedFactor.build_input_frame 的写法保持一致）
+        dep_map = {id(dep): result for dep, result in self.get_dependency_results(data)}
+        merged_data["NewHigh"] = dep_map[id(self.dependencies[0])]
         return merged_data
     
     def calc_returns_from_first_high(self, df: pd.DataFrame) -> pd.Series[Any]:
@@ -62,11 +65,9 @@ class ChangeSinceNewHigh(BaseFactor):
         # 5. 计算涨幅（除法，结果可能为 inf 但 close 通常非零）
         pct = (df["close"] - base_filled) / base_filled
         
-        # 6. 生成结果字符串：仅当有基准且不是第一个 1 本身时格式化
-        df["change_since_new_high"] = np.where(
-            base_filled.notna(),
-            pct.apply(lambda x: f"{x:.2%}"),  # 格式化为百分比字符串
-            ""                                 # 其余行留空
-        )
+        # 6. 数值化输出：仅当有基准时保留涨幅数值，其余为 NaN。
+        #    框架约定因子输出必须为数值列（回测引擎用 to_numeric 解析排名列），
+        #    不能返回格式化百分比字符串（会被解析为 NaN 导致全部标的被剔除）。
+        df["change_since_new_high"] = pct.where(base_filled.notna())
         # Match the framework requirement: factor output Series name must equal factor output name.
         return df["change_since_new_high"].rename(self.get_output_name())

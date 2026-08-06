@@ -30,12 +30,46 @@ from factors.rsrs import RsrsFactor
 from factors.volatility import Volatility
 from factors.ma import MAPosition
 from factors.trend_r2 import TrendR2Factor
+from factors.price_momentum import (
+    RiskAdjustedReturn,
+    TimeSeriesMomentum,
+    IntradayMomentum,
+    OvernightReturn,
+    HighPointPosition,
+    LowPointPosition,
+)
+from factors.breakout_family import (
+    NewHighContinuous,
+    NewLowContinuous,
+    DonchianChannelPosition,
+    ChandelierExit,
+)
+from factors.new_high import NewHigh
+from factors.change_since_new_high import ChangeSinceNewHigh
 
 
 # ====================================================================
 # 1. 因子定义
 # ====================================================================
 pr20 = PriceReturn(window=20)
+
+# ── 价格动量（收益类）──
+rar20         = RiskAdjustedReturn(window=20)   # 滚动 Sharpe：N 日收益 / N 日波动率
+tsm252        = TimeSeriesMomentum(window=252)  # 时序动量二元：N 日收益 > 0 → 1
+intraday_mom  = IntradayMomentum()              # 日内动量 (close-open)/open
+overnight_ret = OvernightReturn()               # 隔夜跳空收益
+
+# ── 路径动量（位置类）──
+hpp20      = HighPointPosition(window=20)        # 高点位置：N 日最高价出现在第几天（0~1）
+lpp20      = LowPointPosition(window=20)         # 低点位置：值越高低点越近（弱势），Top-N 选强应取负
+donchian20 = DonchianChannelPosition(window=20)  # 唐奇安通道位置（0~1）
+
+# ── 新高突破类 ──
+nh50      = NewHigh(high_window=50, low_window=25)  # 输出状态 {2=首买, 1=买, 0=持有, -1=卖}
+csnh50_25 = ChangeSinceNewHigh(long_period=50, short_period=25)  # 自首个新高以来的涨幅（值稀疏）
+nhc50     = NewHighContinuous(window=50)           # 收盘相对 N 日最高点的距离（连续）
+nlc50     = NewLowContinuous(window=50)            # 收盘相对 N 日最低点的距离（反向信号）
+chandelier = ChandelierExit(n=22, atr_window=22)   # 吊灯止损偏离（ATR 单位）
 
 
 # ====================================================================
@@ -54,7 +88,7 @@ SHARED_PIPELINE: tuple = (vol20,)
 SlopeR2 = CombineFactor(
     factor_a = trend_slope,
     factor_b = trend_r2,
-    method = "product"
+    method = "product",
 )
 
 
@@ -92,6 +126,21 @@ IC_SELECTION_MODE: str = "icir"          # "icir"=IC_IR 或 "ic"=IC 均值
 GROUPS: list[tuple] = [
     ("PR20", pr20, NO_FILTERS, ()),
     ("SlopeR2", SlopeR2, NO_FILTERS, ()),
+    # ── 价格动量（收益类）──
+    ("RiskAdjustedReturn20", rar20, NO_FILTERS, ()),
+    ("TSM252", tsm252, NO_FILTERS, ()),
+    ("IntradayMomentum", intraday_mom, NO_FILTERS, ()),
+    ("OvernightReturn", overnight_ret, NO_FILTERS, ()),
+    # ── 路径动量（位置类）──
+    ("HPP20", hpp20, NO_FILTERS, ()),
+    ("LPP20", lpp20, NO_FILTERS, ()),
+    ("Donchian20", donchian20, NO_FILTERS, ()),
+    # ── 新高突破类 ──
+    ("NewHigh_50_25", nh50, NO_FILTERS, ()),
+    ("ChangeSinceNewHigh", csnh50_25, NO_FILTERS, ()),
+    ("NewHighContinuous50", nhc50, NO_FILTERS, ()),
+    ("NewLowContinuous50", nlc50, NO_FILTERS, ()),
+    ("ChandelierExit", chandelier, NO_FILTERS, ()),
 ]
 
 
@@ -135,7 +184,7 @@ OUTPUT_BASE_DIR: str = "/mnt/c/Users/wyg/Documents/invest/backtest"
 TITLE: str = "PR20 × 4标的 Top-1 回测"
 
 # ── 输出目录名称 tag（替换默认的 "{n}g"）──
-BASENAME_TAG: str = "simple_several_symbols"
+BASENAME_TAG: str = "several_factor_for_simple_symbols"
 
 # ── 回测日期区间（单区间模式）──
 START_DATE: str = "2020-01-01"
@@ -156,6 +205,7 @@ SYMBOLS: tuple[str, ...] | None = (
     "513180", # 恒生科技ETF
     "159928", # 消费ETF
     "159981", # 能源化工ETF
+    # "512800", # 银行ETF
 )
 
 # ── 并发 ──
