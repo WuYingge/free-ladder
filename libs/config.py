@@ -21,3 +21,4 @@ class DataPath:
     INDEX_NAME_LIST_DF: str = os.getenv("INDEX_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "index_name_list.csv")
     STOCK_NAME_LIST_DF: str = os.getenv("STOCK_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "stock_name_list.csv")
     ETF_INDEX_MAP_CSV: str = os.getenv("ETF_INDEX_MAP_CSV") or os.path.join(DATA_DIR, "const", "etf_index_map.csv")
+    ETF_POOL_SEMANTIC_CSV: str = os.getenv("ETF_POOL_SEMANTIC_CSV") or os.path.join(DATA_DIR, "const", "etf_pool_semantic_20260808.csv")

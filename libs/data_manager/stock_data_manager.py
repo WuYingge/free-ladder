@@ -21,6 +21,7 @@ from utils.interval_utils import intervals
 STOCK_UPDATE_POOL_SIZE = 15
 STOCK_HISTORY_START = datetime.datetime(1990, 1, 1)
 STOCK_HISTORY_SLICE_DAYS = 365
+STOCK_HISTORY_SLICE_MAX_RETRIES = 5
 PROXY_INIT_STAGGER_SECONDS = max(float(os.getenv("PROXY_INIT_STAGGER_SECONDS") or "2.0"), 0.0)
 
 
@@ -206,6 +207,36 @@ def _concat_stock_history_frames(frames: list[pd.DataFrame]) -> pd.DataFrame:
     return combined.reset_index(drop=True)
 
 
+def _fetch_stock_history_with_retry(
+    symbol: str,
+    start_date: datetime.datetime,
+    end_date: datetime.datetime,
+    max_retries: int = STOCK_HISTORY_SLICE_MAX_RETRIES,
+) -> pd.DataFrame | None:
+    """Fetch one time slice with retries (aligned with ETF-side logic).
+
+    Retry interval uses exponential backoff (same formula as
+    ``etf_data_manager._fetch_slices_with_retry``). Returns None when all
+    retries are exhausted so the caller can skip this slice instead of
+    failing the whole symbol.
+    """
+    for retry_idx in range(max_retries):
+        try:
+            frame = _fetch_stock_history(symbol=symbol, start_date=start_date, end_date=end_date)
+            # An empty frame is a valid outcome (e.g. symbol not listed yet);
+            # only exceptions trigger retries, mirroring the ETF path.
+            return frame
+        except Exception as err:
+            retries_left = max_retries - retry_idx - 1
+            print(
+                f"Retrying {symbol} {start_date:%Y%m%d}-{end_date:%Y%m%d} "
+                f"due to {err}, {retries_left} retries left"
+            )
+            if retries_left > 0:
+                intervals(min(0.5 * (2 ** retry_idx), 8.0))
+    return None
+
+
 def _fetch_stock_history_in_slices(
     symbol: str,
     start_date: datetime.datetime,
@@ -214,14 +245,21 @@ def _fetch_stock_history_in_slices(
 ) -> pd.DataFrame:
     total_days = (end_date.date() - start_date.date()).days + 1
     if total_days <= max_slice_days:
-        return _fetch_stock_history(symbol=symbol, start_date=start_date, end_date=end_date)
+        frame = _fetch_stock_history_with_retry(symbol=symbol, start_date=start_date, end_date=end_date)
+        return frame if frame is not None else _empty_stock_history_frame()
 
     frames: list[pd.DataFrame] = []
     for slice_start, slice_end in _generate_stock_history_slices(
         start_date=start_date, end_date=end_date, max_slice_days=max_slice_days,
     ):
-        frame = _fetch_stock_history(symbol=symbol, start_date=slice_start, end_date=slice_end)
-        if frame is not None and not frame.empty:
+        frame = _fetch_stock_history_with_retry(symbol=symbol, start_date=slice_start, end_date=slice_end)
+        if frame is None:
+            print(
+                f"Failed to get {symbol} for slice {slice_start:%Y%m%d}-{slice_end:%Y%m%d}, "
+                "skip this slice"
+            )
+            continue
+        if not frame.empty:
             frames.append(frame)
     return _concat_stock_history_frames(frames)
 
