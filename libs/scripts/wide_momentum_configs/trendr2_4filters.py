@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from backtesting.wide_momentum_baseline import (
+    RankFilter,
     ThresholdFilter,
     StopRuleSpec,
     equal_weight_allocator,
@@ -58,6 +59,7 @@ drop3 = MinDailyReturn(window=3)                     # 近 3 日最小单日收�
 
 # 反波动率加权所用（alloc_inv_vol 需要预计算）
 vol20 = Volatility(window=20)
+vol60 = Volatility(window=60)
 
 
 # ====================================================================
@@ -66,12 +68,13 @@ vol20 = Volatility(window=20)
 # 排名因子 (trend_r2) 由引擎自动预计算，无需放入；
 # 其余过滤器字段因子与权重因子必须在此列出。
 SHARED_PIPELINE: tuple = (
-    # vol20,
-    ma10,
+    vol20,
+    vol60,
+    # ma10,
     vol_ratio20,
     # drop3,
-    trend_r2,
-    mfi14
+    # trend_r2,
+    # mfi14
 )
 
 
@@ -102,9 +105,9 @@ FILT_MFI = ThresholdFilter(
 FULL_FILTERS = (
     FILT_R2, 
     FILT_MFI,
-    # FILT_MA10, 
+    FILT_MA10, 
     FILT_VOL, 
-    # FILT_DROP
+    FILT_DROP
 )
 
 
@@ -127,14 +130,14 @@ IC_SELECTION_MODE: str = "icir"
 # ====================================================================
 # (label, ranking_factor, builtin_filters, cross_sectional_filters)
 GROUPS: list[tuple] = [
-    # ("MFI14_R2GT0.5_MFI_LT80", mfi14, (FILT_R2, FILT_VOL,), ()),
+    ("MFI14_vol_lt_1.8x_ma20", mfi14, (FILT_VOL,), (RankFilter(factor=vol60, exclude_above_pct=0.1),)),
     # ("PR20_R2GT0.5_MFI_LT80", pr20, (FILT_R2, FILT_VOL,), ()),
-    ("ker5", ker5, (), ()),
-    ("ker20", ker20, (), ()),
-    ("ker5_R2GT0.5_MFI_LT80", ker5, (FILT_R2, FILT_VOL,), ()),
-    ("ker20_R2GT0.5_MFI_LT80", ker20, (FILT_R2, FILT_VOL,), ()),
-    ("ker5_MA10", ker5, (FILT_MA10,), ()),
-    ("ker20_MA10", ker20, (FILT_MA10,), ()),
+    # ("ker5", ker5, (), ()),
+    # ("ker20", ker20, (), ()),
+    # ("ker5_R2GT0.5_MFI_LT80", ker5, (FILT_R2, FILT_VOL,), ()),
+    # ("ker20_R2GT0.5_MFI_LT80", ker20, (FILT_R2, FILT_VOL,), ()),
+    # ("ker5_MA10", ker5, (FILT_MA10,), ()),
+    # ("ker20_MA10", ker20, (FILT_MA10,), ()),
 ]
 # for fil in FULL_FILTERS:
 #     GROUPS += [(f"TrendR2XSlope_{fil.name}", trend_prod, (fil,), ()),
