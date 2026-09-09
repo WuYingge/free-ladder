@@ -174,3 +174,65 @@ def get_all_stock_code() -> set[str]:
         c for c in codes
         if not c.startswith(("2", "4", "8", "9"))
     }
+
+
+# ---------------------------------------------------------------------------
+# Daily valuation (RPT_VALUEANALYSIS_DET, 东财数据中心)
+# ↓ 单个股每日 总市值/流通市值/流通A股股本, 数据自 2018-01-02 起
+# ---------------------------------------------------------------------------
+
+_STOCK_DAILY_BASIC_FILE_URL = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+_STOCK_DAILY_BASIC_REPORT = "RPT_VALUEANALYSIS_DET"
+
+
+def get_stock_daily_basic_em(
+    symbol: str = "000001",
+    start_date: str = "20160101",
+    end_date: str = "20500101",
+) -> pd.DataFrame:
+    """
+    东方财富-个股每日市值/股本 (东财数据中心 RPT_VALUEANALYSIS_DET)
+    https://data.eastmoney.com/stock/stockdetail/000001.html
+
+    :param symbol: 股票代码 (6 位)
+    :param start_date: 开始日期 (YYYYMMDD), 接口实际数据自 2018-01-02 起
+    :param end_date: 结束日期 (YYYYMMDD)
+    :return: 标准列 date/circ_mv/total_mv/float_share, DatetimeIndex 升序
+             (circ_mv=流通市值 元, total_mv=总市值 元, float_share=流通A股 股)
+    """
+    start_fmt = pd.Timestamp(start_date).strftime("%Y-%m-%d")
+    end_fmt = pd.Timestamp(end_date).strftime("%Y-%m-%d")
+    params = {
+        "reportName": _STOCK_DAILY_BASIC_REPORT,
+        "columns": "ALL",
+        "filter": (
+            f'(SECURITY_CODE="{str(symbol).zfill(6)}")'
+            f"(TRADE_DATE>='{start_fmt}')(TRADE_DATE<='{end_fmt}')"
+        ),
+        "pageSize": "5000",
+        "pageNumber": "1",
+    }
+    r = request_get_via_proxy(_STOCK_DAILY_BASIC_FILE_URL, timeout=20, params=params, max_proxy_retries=3)
+    data_json = r.json()
+    result = data_json.get("result") or {}
+    rows = result.get("data") or []
+    if not rows:
+        return pd.DataFrame(
+            columns=["circ_mv", "total_mv", "float_share"],
+            index=pd.DatetimeIndex([], name="date"),
+        )
+
+    temp_df = pd.DataFrame(rows)
+    # 返回按 TRADE_DATE 降序, 翻转为升序
+    temp_df = temp_df.sort_values("TRADE_DATE", ascending=True)
+    # 注意: 先建帧再设索引 (dict 构造时传 index= 会按标签对齐导致 NaN)
+    parsed = pd.DataFrame(
+        {
+            "circ_mv": pd.to_numeric(temp_df["NOTLIMITED_MARKETCAP_A"], errors="coerce"),
+            "total_mv": pd.to_numeric(temp_df["TOTAL_MARKET_CAP"], errors="coerce"),
+            "float_share": pd.to_numeric(temp_df["FREE_SHARES_A"], errors="coerce"),
+        }
+    )
+    parsed.index = pd.to_datetime(temp_df["TRADE_DATE"])
+    parsed.index.name = "date"
+    return parsed

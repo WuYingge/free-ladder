@@ -11,6 +11,7 @@ import tqdm
 
 from config import DataPath
 from core.models.stock_daily_data import StockDailyData
+from data_manager.datasets import DATASETS, merge_extra_datasets, resolve_enabled_datasets
 from data_manager.providers.stock_list_provider import STOCK_LIST
 from fetcher.stock import get_stock_certain_date_data
 from fetcher.utils import generate_time_slices_alternative
@@ -450,13 +451,72 @@ def stock_data_iter() -> Iterator[StockDailyData]:
             continue
 
 
-def get_stock_data_by_symbol(symbol: str) -> StockDailyData:
+def _with_datetime_index(df: pd.DataFrame) -> pd.DataFrame:
+    """把 from_csv 读入的 df 统一为 date 索引 (与 transer_stock_to_model 一致)。"""
+    if "date" in df.columns:
+        df = df.copy()
+        df["date"] = pd.to_datetime(df["date"])
+        return df.set_index("date").sort_index()
+    if isinstance(df.index, pd.DatetimeIndex):
+        return df.sort_index()
+    raise ValueError("stock data 必须含 date 列或 DatetimeIndex")
+
+
+def get_stock_data_by_symbol(
+    symbol: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    with_ochl: bool = True,
+    with_basic: bool = False,
+) -> StockDailyData:
+    """
+    统一读取: 行情 + 可选扩展数据集 (默认行为与旧版完全一致)。
+
+    :param start_date/end_date: 返回前统一日期裁剪 (含边界)
+    :param with_ochl: False 时 OHLCV 列以 NaN 占位 (纯扩展数据集读取)
+    :param with_basic: True 时合并 data/daily_basic 的
+                       circ_mv(流通市值)/total_mv(总市值)/float_share(流通股本)
+    """
     fp = get_symbol_fp(symbol)
-    return StockDailyData.from_csv(fp)
+    base = StockDailyData.from_csv(fp)
+    enabled = resolve_enabled_datasets(with_basic=with_basic)
+    merged = merge_extra_datasets(_with_datetime_index(base.data), symbol, enabled)
+    if not with_ochl:
+        for col in StockDailyData.REQUIRED_COLUMNS:
+            merged[col] = float("nan")
+    ingested = {
+        dataset.flag: (dataset.key in enabled)
+        for dataset in DATASETS.values()
+    }
+    obj = StockDailyData(
+        merged,
+        symbol=symbol,
+        name=base.name,
+        require_quote=with_ochl,
+        metadata={"datasets": {"ochl": with_ochl, **ingested}},
+    )
+    if start_date is not None or end_date is not None:
+        obj = obj.slice_date_range(start_date, end_date)
+    return obj
 
 
-def get_stock_data_by_symbols(symbols: list[str]) -> list[StockDailyData]:
-    return [get_stock_data_by_symbol(s) for s in symbols]
+def get_stock_data_by_symbols(
+    symbols: list[str],
+    start_date: str | None = None,
+    end_date: str | None = None,
+    with_ochl: bool = True,
+    with_basic: bool = False,
+) -> list[StockDailyData]:
+    return [
+        get_stock_data_by_symbol(
+            s,
+            start_date=start_date,
+            end_date=end_date,
+            with_ochl=with_ochl,
+            with_basic=with_basic,
+        )
+        for s in symbols
+    ]
 
 
 # ---------------------------------------------------------------------------

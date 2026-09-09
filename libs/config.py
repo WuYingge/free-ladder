@@ -13,6 +13,7 @@ class DataPath:
     DEFAULT_PATH: str = os.getenv("DEFAULT_PATH") or os.path.join(DATA_DIR, "etf_data")
     INDEX_PATH: str = os.getenv("INDEX_PATH") or os.path.join(DATA_DIR, "index")
     STOCK_PATH: str = os.getenv("STOCK_PATH") or os.path.join(DATA_DIR, "stock_data")
+    DAILY_BASIC_PATH: str = os.getenv("DAILY_BASIC_PATH") or os.path.join(DATA_DIR, "daily_basic")
     BAK_PATH: str = os.getenv("BAK_PATH") or os.path.join(DATA_DIR, "data-bak")
     DEFAULT_WINDOWS_PATH: str = os.getenv("DEFAULT_WINDOWS_PATH") or ""
     CALANDAR_DF: str = os.getenv("CALANDAR_DF") or os.path.join(DATA_DIR, "const", "calandar_df.csv")

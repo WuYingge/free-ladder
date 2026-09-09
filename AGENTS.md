@@ -55,10 +55,15 @@ A quantitative investment analysis toolkit. `libs/` contains reusable implementa
 | `libs/backtesting/` | Backtrader feeds, strategies, batch execution, performance | `engine.py`, `timing_batch.py`, `data.py`, `performance.py`, `strategies/` |
 | `libs/factors/` | Signal generation (timing & portfolio) | `base_factor.py`, `rsrs.py`, `new_high.py`, `average_true_range.py`, `portfolio/` |
 | `libs/core/models/` | Typed wrappers: `EtfData`, `IndexDailyData`, `FinancialData` | `data_base.py`, `etf_daily_data.py`, `daily_quote_data.py` |
-| `libs/data_manager/` | Persist, update, load ETF/index CSV datasets | `etf_data_manager.py`, `index_data_manager.py`, `providers/` |
+| `libs/data_manager/` | Persist, update, load ETF/index CSV datasets | `etf_data_manager.py`, `index_data_manager.py`, `daily_basic_manager.py`, `datasets.py`, `providers/` |
 | `libs/fetcher/` | Fetch ETF/index market data from EastMoney / Akshare | `etf.py`, `index.py`, `utils.py` |
 | `libs/proxy/` | Proxy pool management for data fetching | `proxy.py` |
 | `libs/config.py` | Shared paths and env settings (`DataPath`) | `config.py` |
+
+> `data/daily_basic/<code>.csv`（`date,circ_mv,total_mv,float_share`，与 stock_data 同代码集）：
+> 2018-01-02 起为东财 `RPT_VALUEANALYSIS_DET` 真值；2016-2017 与退市股为成交额/换手率估算段。
+> 统一 getter（`get_stock_data_by_symbol(..., with_basic=True)`）按需合并进 `StockDailyData`，
+> 扩展数据集注册在 `libs/data_manager/datasets.py`（每个时序 CSV 对应一个 `withXXX` 开关）。
 
 ### Data Flow
 

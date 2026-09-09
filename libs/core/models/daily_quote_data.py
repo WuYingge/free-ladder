@@ -32,12 +32,13 @@ class DailyQuoteData(FinancialData):
         metadata: Optional[Dict[str, Any]] = None,
         symbol: Optional[str] = None,
         name: str = "",
+        require_quote: bool = True,
     ):
         super().__init__(data, metadata)
         self.symbol = symbol
         self.name = name
 
-        if not self.validate_data():
+        if require_quote and not self.validate_data():
             missing = [col for col in self.REQUIRED_COLUMNS if col not in self._data.columns]
             raise ValueError(
                 f"Data validation failed for {self.__class__.__name__}(symbol={self.symbol!r}). "
