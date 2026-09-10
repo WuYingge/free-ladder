@@ -47,6 +47,7 @@ A quantitative investment analysis toolkit. `libs/` contains reusable implementa
   - `tranfer_etf_columns.py` — ETF 列格式转换
   - `rename_data.py` — 数据文件重命名
   - `generate_wide_momentum_configs.py` — 从 factors_to_analyze.csv 批量生成 config
+  - `update_sw_industry_clf.py` — 刷新申万行业分类历史 CSV（data/const/stock_sw_industry_clf.csv）
 
 ### Key Modules
 
@@ -56,7 +57,7 @@ A quantitative investment analysis toolkit. `libs/` contains reusable implementa
 | `libs/factors/` | Signal generation (timing & portfolio) | `base_factor.py`, `rsrs.py`, `new_high.py`, `average_true_range.py`, `portfolio/` |
 | `libs/core/models/` | Typed wrappers: `EtfData`, `IndexDailyData`, `FinancialData` | `data_base.py`, `etf_daily_data.py`, `daily_quote_data.py` |
 | `libs/data_manager/` | Persist, update, load ETF/index CSV datasets | `etf_data_manager.py`, `index_data_manager.py`, `daily_basic_manager.py`, `datasets.py`, `providers/` |
-| `libs/fetcher/` | Fetch ETF/index market data from EastMoney / Akshare | `etf.py`, `index.py`, `utils.py` |
+| `libs/fetcher/` | Fetch ETF/index/stock market data from EastMoney / Akshare | `etf.py`, `index.py`, `stock.py`, `industry.py`, `utils.py` |
 | `libs/proxy/` | Proxy pool management for data fetching | `proxy.py` |
 | `libs/config.py` | Shared paths and env settings (`DataPath`) | `config.py` |
 
@@ -64,6 +65,18 @@ A quantitative investment analysis toolkit. `libs/` contains reusable implementa
 > 2018-01-02 起为东财 `RPT_VALUEANALYSIS_DET` 真值；2016-2017 与退市股为成交额/换手率估算段。
 > 统一 getter（`get_stock_data_by_symbol(..., with_basic=True)`）按需合并进 `StockDailyData`，
 > 扩展数据集注册在 `libs/data_manager/datasets.py`（每个时序 CSV 对应一个 `withXXX` 开关）。
+
+> `data/const/stock_sw_industry_clf.csv`（申万官方全市场个股行业分类历史：
+> `symbol,start_date,industry_code,level1_name,level2_name,level3_name,update_time`，含退市股；
+> `start_date`=归属生效日，可做时点回溯防未来函数；6 位行业代码按前 2/4/6 位切片即申万一/二/三级档位；
+> 名称按生效时代匹配对应版本标准表（2021-07-30 起 → `sw_industry_standard_2021.csv`；
+> 2014-02-21 起 → `sw_industry_standard_2014.csv`（28 一级/104 二级/227 三级，自官网修订对照表旧侧提取）；
+> 更早时代按代码跨版近似回退。行命名覆盖率 85.7%（2021/2014 时代均 100%））：
+> 抓取 `libs/fetcher/industry.py::get_stock_sw_industry_clf_hist`（官网 xls 走代理，需 `verify=False`），
+> 刷新入口 `libs/scripts/update_sw_industry_clf.py`，provider `data_manager.providers.sw_industry_provider.SW_INDUSTRY`
+> （`get_mapping(asof)` / `get_industry` / `get_group_series` 供 alpha101 `indneutralize`；`get_events` 供按日合并）。
+> 与行情合并：`get_stock_data_by_symbol(..., with_industry=True)` 按日 point-in-time 并入
+> `industry_code/level1_name/level2_name/level3_name`（经 `data_manager/datasets.py` 事件式 asof 注册，见 with_basic 同款开关）。
 
 ### Data Flow
 

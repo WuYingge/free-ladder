@@ -3,9 +3,12 @@
 
 每个"与某资产同代码集、按日对齐"的扩展数据集注册一项, 统一 getter
 (`get_stock_data_by_symbol` 等) 通过 `with_xxx` 开关按需加载合并。
-本次注册: basic (daily_basic 市值/股本)。
+已注册:
+  * basic     (with_basic)      daily_basic 市值/股本: 逐日 CSV, 按日期精确 left join
+  * industry  (with_industry)   申万行业归属: 变动事件帧 (date=生效日),
+                                按日向后取最近生效事件 (point-in-time, 防未来函数)
 
-合并语义: 以主行情日期为轴 left join, 缺失行留 NaN 不强填;
+合并语义: 以主行情日期为轴, 缺失行留 NaN/数据集指定填充值不强填;
 `df.attrs["datasets"]` 记录本次已加载的数据集 key。
 """
 
@@ -23,6 +26,11 @@ class TimeSeriesDataset:
     flag: str                         # getter 参数名 (如 "with_basic")
     columns: tuple[str, ...]          # 加载后应包含的列
     loader: Callable[[str], pd.DataFrame]  # symbol -> date 索引 DataFrame
+    # True: loader 返回"变动事件帧"(index=生效日), 合并时按日期向后取最近事件
+    #       (point-in-time); False: 逐日帧, 按日期精确 left join
+    point_in_time: bool = False
+    # 合并后用于填充缺失列的标量 (默认 NaN, 保持与旧版一致)
+    fill_value: object | None = None
 
 
 def _empty_columns(columns: tuple[str, ...]) -> pd.DataFrame:
@@ -39,12 +47,27 @@ def _lazy_basic_loader(symbol: str) -> pd.DataFrame:
     return load_daily_basic(symbol)
 
 
+def _lazy_industry_loader(symbol: str) -> pd.DataFrame:
+    # 延迟导入避免模块级循环 (sw_industry_manager -> providers -> ...)
+    from data_manager.providers.sw_industry_provider import SW_INDUSTRY
+
+    return SW_INDUSTRY.get_events(symbol)
+
+
 DATASETS: dict[str, TimeSeriesDataset] = {
     "basic": TimeSeriesDataset(
         key="basic",
         flag="with_basic",
         columns=("circ_mv", "total_mv", "float_share"),
         loader=_lazy_basic_loader,
+    ),
+    "industry": TimeSeriesDataset(
+        key="industry",
+        flag="with_industry",
+        columns=("industry_code", "level1_name", "level2_name", "level3_name"),
+        loader=_lazy_industry_loader,
+        point_in_time=True,
+        fill_value="",  # 行业归属缺失/未上市 → 空串, 而非 NaN
     ),
 }
 
@@ -58,18 +81,56 @@ def resolve_enabled_datasets(**kwargs: bool) -> set[str]:
     return enabled
 
 
+def merge_point_in_time(
+    base_df: pd.DataFrame,
+    events_df: pd.DataFrame,
+    columns: tuple[str, ...],
+) -> pd.DataFrame:
+    """把事件帧按日向后合并 (point-in-time) 到主行情, 返回新 DataFrame。
+
+    :param base_df: date 索引、按日升序的主行情
+    :param events_df: date 索引(生效日)、升序的事件帧 (列含 columns)
+    :param columns: 需并入的列
+    :return: 与 base_df 等长的合并结果 (含全部原列); 生效日早于首事件的
+             日期/无任何事件 → 该行列缺失 (调用方按 fill_value 处理)
+    """
+    result = base_df.copy()
+    new_cols = [c for c in columns if c not in result.columns]
+    if not new_cols:
+        return result
+    result = result.sort_index()
+    events = events_df.copy()
+    if "start_date" in events.columns:
+        # 允许"生效日在列中"的宽松输入; 常规 loader 返回的已是日期索引
+        events["start_date"] = pd.to_datetime(events["start_date"], errors="coerce")
+        events = events.set_index("start_date")
+    events = events.sort_index()
+    events = events[~events.index.duplicated(keep="last")]
+    if events.empty:
+        return result
+    merged = pd.merge_asof(
+        result,
+        events[new_cols],
+        left_index=True,
+        right_index=True,
+        direction="backward",
+    )
+    return merged
+
+
 def merge_extra_datasets(
     base_df: pd.DataFrame,
     symbol: str,
     enabled: set[str],
 ) -> pd.DataFrame:
     """
-    把启用的扩展数据集按 date 索引 left join 到主行情。
+    把启用的扩展数据集按 date 索引合并到主行情。
 
     :param base_df: date 索引的主行情 DataFrame
     :param symbol: 标的代码
     :param enabled: 启用的数据集 key 集合
-    :return: 合并后的 DataFrame; 数据集缺文件时补 NaN 列, 保证下游列访问安全。
+    :return: 合并后的 DataFrame; 数据集缺文件时补缺失列 (NaN 或数据集 fill_value),
+             保证下游列访问安全。
     """
     result = base_df.copy()
     for key in enabled:
@@ -77,6 +138,19 @@ def merge_extra_datasets(
         if dataset is None:
             raise ValueError(f"未知数据集: {key}")
         extra = dataset.loader(symbol)
+        if dataset.point_in_time:
+            if extra is None or extra.empty:
+                for col in dataset.columns:
+                    if col not in result.columns:
+                        result[col] = dataset.fill_value
+                continue
+            merged = merge_point_in_time(result, extra, dataset.columns)
+            result = merged
+            if dataset.fill_value is not None:
+                for col in dataset.columns:
+                    if col in result.columns:
+                        result[col] = result[col].fillna(dataset.fill_value)
+            continue
         if extra is None or extra.empty:
             for col in dataset.columns:
                 if col not in result.columns:

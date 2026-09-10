@@ -21,5 +21,8 @@ class DataPath:
     ETF_NAME_LIST_DF: str = os.getenv("ETF_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "etf_name_list.csv")
     INDEX_NAME_LIST_DF: str = os.getenv("INDEX_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "index_name_list.csv")
     STOCK_NAME_LIST_DF: str = os.getenv("STOCK_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "stock_name_list.csv")
+    STOCK_SW_INDUSTRY_CLF_CSV: str = os.getenv("STOCK_SW_INDUSTRY_CLF_CSV") or os.path.join(DATA_DIR, "const", "stock_sw_industry_clf.csv")
+    STOCK_SW_INDUSTRY_STANDARD_CSV: str = os.getenv("STOCK_SW_INDUSTRY_STANDARD_CSV") or os.path.join(DATA_DIR, "const", "sw_industry_standard_2021.csv")
+    STOCK_SW_INDUSTRY_STANDARD_2014_CSV: str = os.getenv("STOCK_SW_INDUSTRY_STANDARD_2014_CSV") or os.path.join(DATA_DIR, "const", "sw_industry_standard_2014.csv")
     ETF_INDEX_MAP_CSV: str = os.getenv("ETF_INDEX_MAP_CSV") or os.path.join(DATA_DIR, "const", "etf_index_map.csv")
     ETF_POOL_SEMANTIC_CSV: str = os.getenv("ETF_POOL_SEMANTIC_CSV") or os.path.join(DATA_DIR, "const", "etf_pool_semantic_20260808.csv")

@@ -468,6 +468,7 @@ def get_stock_data_by_symbol(
     end_date: str | None = None,
     with_ochl: bool = True,
     with_basic: bool = False,
+    with_industry: bool = False,
 ) -> StockDailyData:
     """
     统一读取: 行情 + 可选扩展数据集 (默认行为与旧版完全一致)。
@@ -476,10 +477,14 @@ def get_stock_data_by_symbol(
     :param with_ochl: False 时 OHLCV 列以 NaN 占位 (纯扩展数据集读取)
     :param with_basic: True 时合并 data/daily_basic 的
                        circ_mv(流通市值)/total_mv(总市值)/float_share(流通股本)
+    :param with_industry: True 时按日并入申万行业归属 (point-in-time, 以当日
+                         生效的分类计): industry_code(6 位代码) 及
+                          level1_name/level2_name/level3_name(2021 版名称,
+                          旧版时代代码无名称 → 空串)
     """
     fp = get_symbol_fp(symbol)
     base = StockDailyData.from_csv(fp)
-    enabled = resolve_enabled_datasets(with_basic=with_basic)
+    enabled = resolve_enabled_datasets(with_basic=with_basic, with_industry=with_industry)
     merged = merge_extra_datasets(_with_datetime_index(base.data), symbol, enabled)
     if not with_ochl:
         for col in StockDailyData.REQUIRED_COLUMNS:
@@ -506,6 +511,7 @@ def get_stock_data_by_symbols(
     end_date: str | None = None,
     with_ochl: bool = True,
     with_basic: bool = False,
+    with_industry: bool = False,
 ) -> list[StockDailyData]:
     return [
         get_stock_data_by_symbol(
@@ -514,6 +520,7 @@ def get_stock_data_by_symbols(
             end_date=end_date,
             with_ochl=with_ochl,
             with_basic=with_basic,
+            with_industry=with_industry,
         )
         for s in symbols
     ]
