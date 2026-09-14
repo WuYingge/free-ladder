@@ -468,7 +468,16 @@ def get_stock_data_by_symbol(
     end_date: str | None = None,
     with_ochl: bool = True,
     with_basic: bool = False,
+    with_adj_factor: bool = False,
     with_industry: bool = False,
+    with_financial: bool = False,
+    with_income: bool = False,
+    with_balance: bool = False,
+    with_cashflow: bool = False,
+    with_forecast: bool = False,
+    with_share_capital: bool = False,
+    with_dividend: bool = False,
+    with_holder_num: bool = False,
 ) -> StockDailyData:
     """
     统一读取: 行情 + 可选扩展数据集 (默认行为与旧版完全一致)。
@@ -477,14 +486,37 @@ def get_stock_data_by_symbol(
     :param with_ochl: False 时 OHLCV 列以 NaN 占位 (纯扩展数据集读取)
     :param with_basic: True 时合并 data/daily_basic 的
                        circ_mv(流通市值)/total_mv(总市值)/float_share(流通股本)
+    :param with_adj_factor: True 时按日并入 data/adj_factor 的
+                          close_raw(不复权收盘)/adj_factor(后复权因子)。
+                          行情价格是后复权、成交额成交量是不复权口径, 二者相差
+                          该因子 —— 算 vwap 等跨口径量时必需
+                          (vwap = value/(volume*100)*adj_factor)
     :param with_industry: True 时按日并入申万行业归属 (point-in-time, 以当日
                          生效的分类计): industry_code(6 位代码) 及
                           level1_name/level2_name/level3_name(2021 版名称,
                           旧版时代代码无名称 → 空串)
+    :param with_financial: True 时一键并入 data/financial 全部财务表, 按
+                          ann_date(首次公告日) 时点对齐: 公告日之前该期财务
+                          数据不可见 → 防前视偏差; 同一公告日多行保留首版
+    :param with_income/with_balance/with_cashflow/with_forecast/with_share_capital/
+           with_dividend/with_holder_num: 单表精细开关 (可只取其中几张表)
     """
     fp = get_symbol_fp(symbol)
     base = StockDailyData.from_csv(fp)
-    enabled = resolve_enabled_datasets(with_basic=with_basic, with_industry=with_industry)
+    flags = {
+        "with_basic": with_basic,
+        "with_adj_factor": with_adj_factor,
+        "with_industry": with_industry,
+        "with_financial": with_financial,
+        "with_income": with_income,
+        "with_balance": with_balance,
+        "with_cashflow": with_cashflow,
+        "with_forecast": with_forecast,
+        "with_share_capital": with_share_capital,
+        "with_dividend": with_dividend,
+        "with_holder_num": with_holder_num,
+    }
+    enabled = resolve_enabled_datasets(**flags)
     merged = merge_extra_datasets(_with_datetime_index(base.data), symbol, enabled)
     if not with_ochl:
         for col in StockDailyData.REQUIRED_COLUMNS:
@@ -511,7 +543,16 @@ def get_stock_data_by_symbols(
     end_date: str | None = None,
     with_ochl: bool = True,
     with_basic: bool = False,
+    with_adj_factor: bool = False,
     with_industry: bool = False,
+    with_financial: bool = False,
+    with_income: bool = False,
+    with_balance: bool = False,
+    with_cashflow: bool = False,
+    with_forecast: bool = False,
+    with_share_capital: bool = False,
+    with_dividend: bool = False,
+    with_holder_num: bool = False,
 ) -> list[StockDailyData]:
     return [
         get_stock_data_by_symbol(
@@ -520,7 +561,16 @@ def get_stock_data_by_symbols(
             end_date=end_date,
             with_ochl=with_ochl,
             with_basic=with_basic,
+            with_adj_factor=with_adj_factor,
             with_industry=with_industry,
+            with_financial=with_financial,
+            with_income=with_income,
+            with_balance=with_balance,
+            with_cashflow=with_cashflow,
+            with_forecast=with_forecast,
+            with_share_capital=with_share_capital,
+            with_dividend=with_dividend,
+            with_holder_num=with_holder_num,
         )
         for s in symbols
     ]

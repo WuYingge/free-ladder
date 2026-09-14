@@ -20,3 +20,8 @@ dependencies = [
 
 [tool.uv]
 index-url = "https://mirrors.aliyun.com/pypi/simple/"
+
+[tool.pytest.ini_options]
+# 测试以 `core` / `data_manager` / `factors` 等顶层包名导入 libs 下的实现,
+# 必须把 libs 加入 sys.path, 否则 `pytest libs/` 会在收集阶段 ImportError。
+pythonpath = ["libs"]

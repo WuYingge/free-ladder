@@ -6,8 +6,14 @@ Alpha101 扫描器 CLI (Alpha101 Scan CLI)
 复用现有 factor_analysis 的 IC / 分组 / 多空 / 质量分析。
 
 用法:
-    # 默认：全部可计算因子（当前 5 个代表），ETF 池，快速模式
+    # 默认：注册表内全部 101 个因子（按数据可用性自动跳过 cap/vwap/行业缺失的），ETF 池
     python libs/scripts/run_alpha101_scan.py
+
+    # 只跑不需要 vwap、不需要行业的子集（ETF 池常用）
+    python libs/scripts/run_alpha101_scan.py --only-plain
+
+    # 股票池全量（含 18 个行业中性化公式；需先备好行业分类与 adj_factor）
+    python libs/scripts/run_alpha101_scan.py --universe stock --alpha 001 002 003
 
     # 指定因子 + 股票池
     python libs/scripts/run_alpha101_scan.py --alpha 001 101 --universe stock
@@ -54,8 +60,11 @@ from factor_analysis.predictive import run_predictive_analysis
 from factor_analysis.quality import run_quality_analysis
 from factor_analysis.reporter import generate_and_save_reports
 from factors.alpha101 import (
+    ALPHA101_REGISTRY,
     Alpha101Factor,
+    build_alpha101_inputs,
     build_alpha101_panel,
+    data_requirements_summary,
     get_alpha_spec,
     get_computable_alpha_ids,
 )
@@ -75,6 +84,27 @@ def build_universe(universe_kind: str, symbols: list[str] | None):
 def _cap_available(universe) -> bool:
     """探测 daily_basic 是否已落盘（抽样前 20 只，避免全量加载）。"""
     from data_manager.daily_basic_manager import get_fp
+
+    sample = universe.list_symbols()[:20]
+    if not sample:
+        return False
+    return any(Path(get_fp(s)).exists() for s in sample)
+
+
+def _industry_available(universe) -> bool:
+    """探测申万行业分类是否覆盖该池（抽样前 20 只）——ETF 池天然无行业分类。"""
+    from data_manager.providers.sw_industry_provider import SW_INDUSTRY
+
+    mapping = SW_INDUSTRY.get_mapping()
+    if mapping.empty:
+        return False
+    sample = {str(s).zfill(6) for s in universe.list_symbols()[:20]}
+    return bool(sample & set(mapping["symbol"]))
+
+
+def _vwap_available(universe) -> bool:
+    """探测 data/adj_factor 是否已覆盖该池（抽样前 20 只）——没有因子就算不出 vwap。"""
+    from data_manager.adj_factor_manager import get_fp
 
     sample = universe.list_symbols()[:20]
     if not sample:
@@ -107,6 +137,30 @@ def run_alpha101_scan(
 
     universe = build_universe(universe_kind, symbols)
     cap_available = _cap_available(universe)
+    vwap_available = _vwap_available(universe)
+    industry_available = _industry_available(universe)
+    if alpha_ids and len(alpha_ids) > 20:
+        summary = data_requirements_summary()
+        print(f"注册表: {summary['total']} 个公式（需 vwap {summary['needs_vwap']} / "
+              f"需行业 {summary['needs_industry']} / 需 cap {summary['uses_cap']} / "
+              f"无附加依赖 {summary['plain']}）")
+    # 面板只构建一次（101 个 alpha 复用同一份全池输入，避免重复加载）
+    pending = [
+        aid for aid in alpha_ids
+        if not (get_alpha_spec(aid).uses_cap and not cap_available)
+        and not (get_alpha_spec(aid).needs_vwap and not vwap_available)
+        and not (get_alpha_spec(aid).needs_industry and not industry_available)
+    ]
+    shared_inputs = None
+    if pending:
+        need_ind = any(get_alpha_spec(aid).needs_industry for aid in pending)
+        print(f"\n构建共享面板（{len(pending)} 个 alpha 复用; 行业标签={'是' if need_ind else '否'}）...")
+        shared_inputs = build_alpha101_inputs(
+            universe, start_date=start_date, end_date=end_date,
+            max_workers=max_workers, needs_industry=need_ind,
+        )
+        print(f"  → {shared_inputs.close.shape[1]} 标的, {shared_inputs.close.shape[0]} 交易日")
+
     all_results: dict[str, Any] = {}
 
     for alpha_id in alpha_ids:
@@ -115,6 +169,14 @@ def run_alpha101_scan(
 
         if spec.uses_cap and not cap_available:
             print(f"跳过 Alpha#{alpha_id}：依赖 cap 但 daily_basic 市值数据不可用。")
+            continue
+        if spec.needs_vwap and not vwap_available:
+            print(f"跳过 Alpha#{alpha_id}：依赖 vwap 但 data/adj_factor 复权因子不可用"
+                  f"（先跑 libs/scripts/update_adj_factor.py）。")
+            continue
+        if spec.needs_industry and not industry_available:
+            print(f"跳过 Alpha#{alpha_id}：需要申万 level-{spec.needs_industry} 行业中性化，"
+                  f"但该池无行业分类（股票池先跑 libs/scripts/update_sw_industry_clf.py）。")
             continue
 
         print(f"\n===== Alpha#{alpha_id} ({factor.get_output_name()}) =====")
@@ -138,6 +200,8 @@ def run_alpha101_scan(
                 start_date=start_date,
                 end_date=end_date,
                 max_workers=max_workers,
+                needs_industry=bool(spec.needs_industry),
+                inputs=shared_inputs,
             )
         except Exception as exc:  # noqa: BLE001
             print(f"  ✗ 面板构建失败: {type(exc).__name__}: {exc}")
@@ -212,7 +276,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Alpha101 扫描器 — 横截面 alpha 因子分析",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--alpha", nargs="*", default=None, help="alpha id 列表（默认全部可计算）")
+    parser.add_argument("--alpha", nargs="*", default=None, help="alpha id 列表（默认全部 101 个，按数据可用性跳过）")
+    parser.add_argument("--only-plain", action="store_true",
+                        help="只跑无附加依赖（不用 vwap/行业/cap）的公式子集")
     parser.add_argument("--universe", type=str, default="etf", choices=["etf", "stock"])
     parser.add_argument("--symbols", nargs="*", default=None, help="标的列表（默认默认池）")
     parser.add_argument("--layers", nargs="*", type=int, default=[1, 2, 3])
@@ -230,8 +296,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    alpha_ids = args.alpha
+    if args.only_plain and alpha_ids is None:
+        alpha_ids = [
+            aid
+            for aid, spec in ALPHA101_REGISTRY.items()
+            if not (spec.needs_vwap or spec.needs_industry or spec.uses_cap)
+        ]
     run_alpha101_scan(
-        alpha_ids=args.alpha,
+        alpha_ids=alpha_ids,
         universe_kind=args.universe,
         symbols=args.symbols,
         layers=tuple(args.layers),
