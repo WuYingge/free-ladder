@@ -2319,10 +2319,57 @@ def factor_threshold_stop(
     return rule
 
 
+# ---------------------------------------------------------------------------
+# ETF 名称映射（rebalance_log 内建中文名称）
+# ---------------------------------------------------------------------------
+_WEIGHT_COLUMNS_NAMED = ("current_weights", "target_weights", "executed_weights_open")
+
+
+def _symbol_to_name(symbol: str) -> str:
+    """映射单个 symbol → ETF 中文名称，查不到时回退为 symbol 本身。"""
+    name = ETF_LIST.get_name(symbol)
+    return name or symbol
+
+
+def _translate_symbol_list(value: Any) -> Any:
+    """将 symbol 列表翻译为名称列表；非列表原样返回。"""
+    if not isinstance(value, list):
+        return value
+    return [_symbol_to_name(s) for s in value]
+
+
+def _translate_weights_keys(value: Any) -> Any:
+    """将 symbol → 权重的字典 key 翻译为名称；非字典原样返回。"""
+    if not isinstance(value, dict):
+        return value
+    return {_symbol_to_name(k): v for k, v in value.items()}
+
+
+def add_etf_names_to_rebalance_log(rebalance_df: pd.DataFrame) -> pd.DataFrame:
+    """为调仓日志 DataFrame 内建 ETF 中文名称列。
+
+    新增列：
+    - selected_names：selected_symbols 列表中每个 symbol 对应的 ETF 名称；
+    - {col}_named（col ∈ current_weights/target_weights/executed_weights_open）：
+      权重字典的 key 由 symbol 替换为名称，权重值不变。
+
+    空 DataFrame 或缺少对应列时跳过，原样返回副本。
+    """
+    if rebalance_df.empty:
+        return rebalance_df.copy()
+    df = rebalance_df.copy()
+    if "selected_symbols" in df.columns:
+        df["selected_names"] = df["selected_symbols"].apply(_translate_symbol_list)
+    for column in _WEIGHT_COLUMNS_NAMED:
+        if column in df.columns:
+            df[f"{column}_named"] = df[column].apply(_translate_weights_keys)
+    return df
+
+
 def _finalize_rebalance_log(
     rebalance_entries: list[dict[str, Any]],
 ) -> pd.DataFrame:
-    """为调仓日志补充换手率和持有期收益。"""
+    """为调仓日志补充换手率、持有期收益，并内建 ETF 中文名称列。"""
 
     previous_target_weights: Optional[dict[str, float]] = None
     for entry in rebalance_entries:
@@ -2354,7 +2401,7 @@ def _finalize_rebalance_log(
     for column in ("signal_date", "execution_date"):
         if column in rebalance_df.columns:
             rebalance_df[column] = pd.to_datetime(rebalance_df[column])
-    return rebalance_df
+    return add_etf_names_to_rebalance_log(rebalance_df)
 
 
 def _compute_drawdown_details(equity: pd.Series) -> dict[str, Any]:
@@ -3065,9 +3112,13 @@ def _prepare_rebalance_log_for_csv(rebalance_df: pd.DataFrame) -> pd.DataFrame:
     csv_df = rebalance_df.copy()
     for column in (
         "selected_symbols",
+        "selected_names",
         "current_weights",
+        "current_weights_named",
         "target_weights",
+        "target_weights_named",
         "executed_weights_open",
+        "executed_weights_open_named",
         "active_candidate_filters",
     ):
         if column in csv_df.columns:

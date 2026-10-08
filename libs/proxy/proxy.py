@@ -50,6 +50,9 @@ class ProxyProvider:
     expire_key: str | None = "expire"
     reuse_until_expired: bool = False
     default_ttl_seconds: int | None = None
+    # 固定网关模式:不拉取 IP 列表,代理 URL 由 PROXY_GATEWAY_URL 整体提供
+    # (如 DataImpulse: http://user:pass@gw.dataimpulse.com:823),出口 IP 由网关轮换。
+    is_gateway: bool = False
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,8 @@ class ProxySettings:
     static_ttl_seconds: int
     static_failure_cooldown_seconds: float
     shared_cache_dir: str | None = None
+    # 固定网关模式下的完整代理 URL(含认证),非空时启用网关模式
+    gateway_url: str | None = None
 
 
 @dataclass
@@ -82,6 +87,7 @@ PROXY_PROVIDERS: dict[str, ProxyProvider] = {
         reuse_until_expired=True,
         default_ttl_seconds=DEFAULT_STATIC_PROXY_TTL_SECONDS,
     ),
+    "gateway": ProxyProvider(name="gateway", is_gateway=True),
 }
 
 PROXY_PROVIDER_FAMILIES: dict[str, str] = {
@@ -113,10 +119,54 @@ def _validate_provider_api_url(provider: ProxyProvider, api_url: str):
 
 
 class ProxyAccount:
+    @staticmethod
+    def _load_tuning(provider: ProxyProvider) -> tuple[int, int, float, str]:
+        unbind_time = int(os.getenv("PROXY_UNBIND_TIME") or "600")
+        static_ttl_seconds = int(
+            os.getenv("PROXY_STATIC_TTL_SECONDS")
+            or provider.default_ttl_seconds
+            or DEFAULT_STATIC_PROXY_TTL_SECONDS
+        )
+        static_failure_cooldown_seconds = float(
+            os.getenv("PROXY_STATIC_FAILURE_COOLDOWN_SECONDS")
+            or DEFAULT_STATIC_PROXY_FAILURE_COOLDOWN_SECONDS
+        )
+        shared_cache_dir = (
+            (os.getenv("PROXY_SHARED_CACHE_DIR") or "").strip()
+            or DEFAULT_SHARED_PROXY_CACHE_DIR
+        )
+        return unbind_time, static_ttl_seconds, static_failure_cooldown_seconds, shared_cache_dir
+
     @classmethod
     def load(cls) -> ProxySettings:
         provider_name = (os.getenv("PROXY_PROVIDER") or "hailiang").strip().lower()
         provider = PROXY_PROVIDERS.get(provider_name) or ProxyProvider(name=provider_name)
+
+        # 网关模式:PROXY_PROVIDER=gateway,或直接提供 PROXY_GATEWAY_URL
+        # (如 http://user:pass@gw.dataimpulse.com:823)。设置 PROXY_GATEWAY_URL 即启用。
+        gateway_url = (os.getenv("PROXY_GATEWAY_URL") or "").strip()
+        if provider.is_gateway or gateway_url:
+            if not gateway_url:
+                raise EnvironmentError(
+                    f"gateway provider '{provider.name}' requires PROXY_GATEWAY_URL, "
+                    "e.g. http://user:pass@host:port"
+                )
+            (
+                unbind_time,
+                static_ttl_seconds,
+                static_failure_cooldown_seconds,
+                shared_cache_dir,
+            ) = cls._load_tuning(provider)
+            return ProxySettings(
+                provider=provider,
+                api_url="",
+                gateway_url=gateway_url,
+                unbind_time=unbind_time,
+                static_ttl_seconds=max(static_ttl_seconds, 1),
+                static_failure_cooldown_seconds=max(static_failure_cooldown_seconds, 0.0),
+                shared_cache_dir=shared_cache_dir,
+            )
+
         api_url = (
             os.getenv("PROXY_API_URL")
             or os.getenv("PROXY_ENCRYPT_URL")
@@ -128,17 +178,12 @@ class ProxyAccount:
                 "set PROXY_API_URL or PROXY_ENCRYPT_URL"
             )
         _validate_provider_api_url(provider, api_url)
-        unbind_time = int(os.getenv("PROXY_UNBIND_TIME") or "600")
-        static_ttl_seconds = int(
-            os.getenv("PROXY_STATIC_TTL_SECONDS")
-            or provider.default_ttl_seconds
-            or DEFAULT_STATIC_PROXY_TTL_SECONDS
-        )
-        static_failure_cooldown_seconds = float(
-            os.getenv("PROXY_STATIC_FAILURE_COOLDOWN_SECONDS")
-            or DEFAULT_STATIC_PROXY_FAILURE_COOLDOWN_SECONDS
-        )
-        shared_cache_dir = (os.getenv("PROXY_SHARED_CACHE_DIR") or "").strip() or DEFAULT_SHARED_PROXY_CACHE_DIR
+        (
+            unbind_time,
+            static_ttl_seconds,
+            static_failure_cooldown_seconds,
+            shared_cache_dir,
+        ) = cls._load_tuning(provider)
         return ProxySettings(
             provider=provider,
             api_url=api_url,
@@ -278,6 +323,9 @@ class ProxyPool:
         self.start_time = int(time.time())
         self.active_proxy: ProxyLease | None = None
         self.bad_proxy_keys: set[str] = set()
+        self.gateway_proxy: dict[str, str] | None = None
+        if self._is_gateway():
+            self.gateway_proxy = _build_string_proxy_mapping(self.settings.gateway_url or "")
         try:
             self.pool = self._get_proxies()
         except Exception as err:
@@ -292,6 +340,10 @@ class ProxyPool:
 
     def _is_static_pool(self) -> bool:
         return self.settings.provider.reuse_until_expired
+
+    def _is_gateway(self) -> bool:
+        """固定网关模式:代理 URL 来自配置,不拉取 IP 列表、不参与池轮换。"""
+        return bool(self.settings.gateway_url)
 
     def _get_shared_cache_path(self) -> str | None:
         if not self._is_static_pool() or not self.settings.shared_cache_dir:
@@ -445,11 +497,17 @@ class ProxyPool:
         return [lease for lease in leases if lease.key not in self.bad_proxy_keys]
 
     def _get_proxies(self) -> list[ProxyLease]:
+        if self._is_gateway():
+            if not self.gateway_proxy:
+                raise RuntimeError("gateway proxy URL is not configured")
+            return [ProxyLease(proxy=self.gateway_proxy)]
         if self._is_static_pool():
             return self._get_shared_static_proxies()
         return self._fetch_proxies_from_api()
 
     def get_proxy(self):
+        if self._is_gateway():
+            return self.gateway_proxy
         now = time.time()
         self._purge_expired(now)
         if self._check_timeout() or (not self.pool and self.active_proxy is None):
@@ -484,12 +542,16 @@ class ProxyPool:
         return int(time.time()) - self.start_time + 20 > self.unbindTime
 
     def refresh(self):
+        if self._is_gateway():
+            return
         self.start_time = int(time.time())
         self.active_proxy = None
         self.bad_proxy_keys.clear()
         self.pool = self._get_proxies()
 
     def mark_success(self, proxy: dict[str, str] | None):
+        if self._is_gateway():
+            return
         proxy_key = _proxy_key(proxy)
         if not proxy_key:
             return
@@ -507,6 +569,8 @@ class ProxyPool:
         self.active_proxy = lease
 
     def mark_failure(self, proxy: dict[str, str] | None):
+        if self._is_gateway():
+            return
         proxy_key = _proxy_key(proxy)
         if not proxy_key:
             return

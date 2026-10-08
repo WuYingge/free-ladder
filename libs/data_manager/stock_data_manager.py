@@ -11,6 +11,7 @@ import tqdm
 
 from config import DataPath
 from core.models.stock_daily_data import StockDailyData
+from data_manager.datasets import DATASETS, merge_extra_datasets, resolve_enabled_datasets
 from data_manager.providers.stock_list_provider import STOCK_LIST
 from fetcher.stock import get_stock_certain_date_data
 from fetcher.utils import generate_time_slices_alternative
@@ -21,6 +22,7 @@ from utils.interval_utils import intervals
 STOCK_UPDATE_POOL_SIZE = 15
 STOCK_HISTORY_START = datetime.datetime(1990, 1, 1)
 STOCK_HISTORY_SLICE_DAYS = 365
+STOCK_HISTORY_SLICE_MAX_RETRIES = 5
 PROXY_INIT_STAGGER_SECONDS = max(float(os.getenv("PROXY_INIT_STAGGER_SECONDS") or "2.0"), 0.0)
 
 
@@ -206,6 +208,36 @@ def _concat_stock_history_frames(frames: list[pd.DataFrame]) -> pd.DataFrame:
     return combined.reset_index(drop=True)
 
 
+def _fetch_stock_history_with_retry(
+    symbol: str,
+    start_date: datetime.datetime,
+    end_date: datetime.datetime,
+    max_retries: int = STOCK_HISTORY_SLICE_MAX_RETRIES,
+) -> pd.DataFrame | None:
+    """Fetch one time slice with retries (aligned with ETF-side logic).
+
+    Retry interval uses exponential backoff (same formula as
+    ``etf_data_manager._fetch_slices_with_retry``). Returns None when all
+    retries are exhausted so the caller can skip this slice instead of
+    failing the whole symbol.
+    """
+    for retry_idx in range(max_retries):
+        try:
+            frame = _fetch_stock_history(symbol=symbol, start_date=start_date, end_date=end_date)
+            # An empty frame is a valid outcome (e.g. symbol not listed yet);
+            # only exceptions trigger retries, mirroring the ETF path.
+            return frame
+        except Exception as err:
+            retries_left = max_retries - retry_idx - 1
+            print(
+                f"Retrying {symbol} {start_date:%Y%m%d}-{end_date:%Y%m%d} "
+                f"due to {err}, {retries_left} retries left"
+            )
+            if retries_left > 0:
+                intervals(min(0.5 * (2 ** retry_idx), 8.0))
+    return None
+
+
 def _fetch_stock_history_in_slices(
     symbol: str,
     start_date: datetime.datetime,
@@ -214,14 +246,21 @@ def _fetch_stock_history_in_slices(
 ) -> pd.DataFrame:
     total_days = (end_date.date() - start_date.date()).days + 1
     if total_days <= max_slice_days:
-        return _fetch_stock_history(symbol=symbol, start_date=start_date, end_date=end_date)
+        frame = _fetch_stock_history_with_retry(symbol=symbol, start_date=start_date, end_date=end_date)
+        return frame if frame is not None else _empty_stock_history_frame()
 
     frames: list[pd.DataFrame] = []
     for slice_start, slice_end in _generate_stock_history_slices(
         start_date=start_date, end_date=end_date, max_slice_days=max_slice_days,
     ):
-        frame = _fetch_stock_history(symbol=symbol, start_date=slice_start, end_date=slice_end)
-        if frame is not None and not frame.empty:
+        frame = _fetch_stock_history_with_retry(symbol=symbol, start_date=slice_start, end_date=slice_end)
+        if frame is None:
+            print(
+                f"Failed to get {symbol} for slice {slice_start:%Y%m%d}-{slice_end:%Y%m%d}, "
+                "skip this slice"
+            )
+            continue
+        if not frame.empty:
             frames.append(frame)
     return _concat_stock_history_frames(frames)
 
@@ -412,13 +451,129 @@ def stock_data_iter() -> Iterator[StockDailyData]:
             continue
 
 
-def get_stock_data_by_symbol(symbol: str) -> StockDailyData:
+def _with_datetime_index(df: pd.DataFrame) -> pd.DataFrame:
+    """把 from_csv 读入的 df 统一为 date 索引 (与 transer_stock_to_model 一致)。"""
+    if "date" in df.columns:
+        df = df.copy()
+        df["date"] = pd.to_datetime(df["date"])
+        return df.set_index("date").sort_index()
+    if isinstance(df.index, pd.DatetimeIndex):
+        return df.sort_index()
+    raise ValueError("stock data 必须含 date 列或 DatetimeIndex")
+
+
+def get_stock_data_by_symbol(
+    symbol: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    with_ochl: bool = True,
+    with_basic: bool = False,
+    with_adj_factor: bool = False,
+    with_industry: bool = False,
+    with_financial: bool = False,
+    with_income: bool = False,
+    with_balance: bool = False,
+    with_cashflow: bool = False,
+    with_forecast: bool = False,
+    with_share_capital: bool = False,
+    with_dividend: bool = False,
+    with_holder_num: bool = False,
+) -> StockDailyData:
+    """
+    统一读取: 行情 + 可选扩展数据集 (默认行为与旧版完全一致)。
+
+    :param start_date/end_date: 返回前统一日期裁剪 (含边界)
+    :param with_ochl: False 时 OHLCV 列以 NaN 占位 (纯扩展数据集读取)
+    :param with_basic: True 时合并 data/daily_basic 的
+                       circ_mv(流通市值)/total_mv(总市值)/float_share(流通股本)
+    :param with_adj_factor: True 时按日并入 data/adj_factor 的
+                          close_raw(不复权收盘)/adj_factor(后复权因子)。
+                          行情价格是后复权、成交额成交量是不复权口径, 二者相差
+                          该因子 —— 算 vwap 等跨口径量时必需
+                          (vwap = value/(volume*100)*adj_factor)
+    :param with_industry: True 时按日并入申万行业归属 (point-in-time, 以当日
+                         生效的分类计): industry_code(6 位代码) 及
+                          level1_name/level2_name/level3_name(2021 版名称,
+                          旧版时代代码无名称 → 空串)
+    :param with_financial: True 时一键并入 data/financial 全部财务表, 按
+                          ann_date(首次公告日) 时点对齐: 公告日之前该期财务
+                          数据不可见 → 防前视偏差; 同一公告日多行保留首版
+    :param with_income/with_balance/with_cashflow/with_forecast/with_share_capital/
+           with_dividend/with_holder_num: 单表精细开关 (可只取其中几张表)
+    """
     fp = get_symbol_fp(symbol)
-    return StockDailyData.from_csv(fp)
+    base = StockDailyData.from_csv(fp)
+    flags = {
+        "with_basic": with_basic,
+        "with_adj_factor": with_adj_factor,
+        "with_industry": with_industry,
+        "with_financial": with_financial,
+        "with_income": with_income,
+        "with_balance": with_balance,
+        "with_cashflow": with_cashflow,
+        "with_forecast": with_forecast,
+        "with_share_capital": with_share_capital,
+        "with_dividend": with_dividend,
+        "with_holder_num": with_holder_num,
+    }
+    enabled = resolve_enabled_datasets(**flags)
+    merged = merge_extra_datasets(_with_datetime_index(base.data), symbol, enabled)
+    if not with_ochl:
+        for col in StockDailyData.REQUIRED_COLUMNS:
+            merged[col] = float("nan")
+    ingested = {
+        dataset.flag: (dataset.key in enabled)
+        for dataset in DATASETS.values()
+    }
+    obj = StockDailyData(
+        merged,
+        symbol=symbol,
+        name=base.name,
+        require_quote=with_ochl,
+        metadata={"datasets": {"ochl": with_ochl, **ingested}},
+    )
+    if start_date is not None or end_date is not None:
+        obj = obj.slice_date_range(start_date, end_date)
+    return obj
 
 
-def get_stock_data_by_symbols(symbols: list[str]) -> list[StockDailyData]:
-    return [get_stock_data_by_symbol(s) for s in symbols]
+def get_stock_data_by_symbols(
+    symbols: list[str],
+    start_date: str | None = None,
+    end_date: str | None = None,
+    with_ochl: bool = True,
+    with_basic: bool = False,
+    with_adj_factor: bool = False,
+    with_industry: bool = False,
+    with_financial: bool = False,
+    with_income: bool = False,
+    with_balance: bool = False,
+    with_cashflow: bool = False,
+    with_forecast: bool = False,
+    with_share_capital: bool = False,
+    with_dividend: bool = False,
+    with_holder_num: bool = False,
+) -> list[StockDailyData]:
+    return [
+        get_stock_data_by_symbol(
+            s,
+            start_date=start_date,
+            end_date=end_date,
+            with_ochl=with_ochl,
+            with_basic=with_basic,
+            with_adj_factor=with_adj_factor,
+            with_industry=with_industry,
+            with_financial=with_financial,
+            with_income=with_income,
+            with_balance=with_balance,
+            with_cashflow=with_cashflow,
+            with_forecast=with_forecast,
+            with_share_capital=with_share_capital,
+            with_dividend=with_dividend,
+            with_holder_num=with_holder_num,
+        )
+        for s in symbols
+    ]
 
 
 # ---------------------------------------------------------------------------

@@ -49,6 +49,7 @@ def test_proxy_account_prefers_generic_api_url(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("PROXY_PROVIDER", "luotuo")
     monkeypatch.setenv("PROXY_API_URL", "https://proxy.example/luotuo")
     monkeypatch.delenv("PROXY_ENCRYPT_URL", raising=False)
+    monkeypatch.delenv("PROXY_GATEWAY_URL", raising=False)
     monkeypatch.setenv("PROXY_UNBIND_TIME", "900")
 
     settings = ProxyAccount.load()
@@ -62,6 +63,7 @@ def test_proxy_account_keeps_legacy_encrypt_url(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.delenv("PROXY_PROVIDER", raising=False)
     monkeypatch.delenv("PROXY_API_URL", raising=False)
     monkeypatch.setenv("PROXY_ENCRYPT_URL", "https://proxy.example/hailiang")
+    monkeypatch.delenv("PROXY_GATEWAY_URL", raising=False)
     monkeypatch.delenv("PROXY_UNBIND_TIME", raising=False)
 
     settings = ProxyAccount.load()
@@ -80,6 +82,7 @@ def test_proxy_account_rejects_provider_api_url_family_mismatch(
         "https://www.lthttp.com/iplist?key=test&count=1&isAuth=false",
     )
     monkeypatch.delenv("PROXY_ENCRYPT_URL", raising=False)
+    monkeypatch.delenv("PROXY_GATEWAY_URL", raising=False)
 
     with pytest.raises(EnvironmentError, match="does not match PROXY_API_URL"):
         ProxyAccount.load()
@@ -298,3 +301,72 @@ def test_static_proxy_pool_reuses_shared_cache_across_instances(
 
     assert first_pool.get_proxy() == second_pool.get_proxy()
     assert requester.calls == [("https://proxy.example/shared-static", 8)]
+
+
+def test_gateway_provider_loads_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("PROXY_PROVIDER", "gateway")
+    monkeypatch.setenv("PROXY_GATEWAY_URL", "http://user:pass@gw.dataimpulse.com:823")
+    monkeypatch.delenv("PROXY_API_URL", raising=False)
+    monkeypatch.delenv("PROXY_ENCRYPT_URL", raising=False)
+
+    settings = ProxyAccount.load()
+
+    assert settings.provider.name == "gateway"
+    assert settings.provider.is_gateway
+    assert settings.gateway_url == "http://user:pass@gw.dataimpulse.com:823"
+    assert settings.api_url == ""
+
+
+def test_gateway_mode_activates_when_gateway_url_set(monkeypatch: pytest.MonkeyPatch):
+    # 任意 provider 名 + PROXY_GATEWAY_URL 也直接启用网关模式(配置驱动,无需注册 provider)
+    monkeypatch.setenv("PROXY_PROVIDER", "dataimpulse")
+    monkeypatch.setenv("PROXY_GATEWAY_URL", "http://user:pass@gw.dataimpulse.com:823")
+    monkeypatch.delenv("PROXY_API_URL", raising=False)
+    monkeypatch.delenv("PROXY_ENCRYPT_URL", raising=False)
+
+    settings = ProxyAccount.load()
+
+    assert settings.provider.name == "dataimpulse"
+    assert settings.gateway_url == "http://user:pass@gw.dataimpulse.com:823"
+    assert settings.api_url == ""
+
+
+def test_gateway_provider_requires_gateway_url(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("PROXY_PROVIDER", "gateway")
+    monkeypatch.delenv("PROXY_GATEWAY_URL", raising=False)
+    monkeypatch.delenv("PROXY_API_URL", raising=False)
+    monkeypatch.delenv("PROXY_ENCRYPT_URL", raising=False)
+
+    with pytest.raises(EnvironmentError, match="PROXY_GATEWAY_URL"):
+        ProxyAccount.load()
+
+
+def test_gateway_pool_returns_constant_proxy_without_any_api_call():
+    settings = ProxySettings(
+        provider=PROXY_PROVIDERS["gateway"],
+        api_url="",
+        gateway_url="http://user:pass@gw.dataimpulse.com:823",
+        unbind_time=600,
+        static_ttl_seconds=900,
+        static_failure_cooldown_seconds=30.0,
+    )
+    # 网关模式不应触发任何列表 API 调用
+    requester = _RequesterStub({"code": "0", "data": []})
+    pool = ProxyPool(settings=settings, requester=requester)
+
+    expected_proxy = {
+        "http": "http://user:pass@gw.dataimpulse.com:823",
+        "https": "http://user:pass@gw.dataimpulse.com:823",
+    }
+    assert requester.calls == []
+    assert pool.get_proxy() == expected_proxy
+
+    # success/failure/refresh 均不影响恒定返回,且不触发 API 拉取
+    proxy = pool.get_proxy()
+    pool.mark_success(proxy)
+    assert pool.get_proxy() == expected_proxy
+    pool.mark_failure(proxy)
+    assert pool.get_proxy() == expected_proxy
+    pool.refresh()
+    assert pool.get_proxy() == expected_proxy
+    assert requester.calls == []

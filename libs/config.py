@@ -13,6 +13,8 @@ class DataPath:
     DEFAULT_PATH: str = os.getenv("DEFAULT_PATH") or os.path.join(DATA_DIR, "etf_data")
     INDEX_PATH: str = os.getenv("INDEX_PATH") or os.path.join(DATA_DIR, "index")
     STOCK_PATH: str = os.getenv("STOCK_PATH") or os.path.join(DATA_DIR, "stock_data")
+    DAILY_BASIC_PATH: str = os.getenv("DAILY_BASIC_PATH") or os.path.join(DATA_DIR, "daily_basic")
+    FINANCIAL_DIR: str = os.getenv("FINANCIAL_DIR") or os.path.join(DATA_DIR, "financial")
     BAK_PATH: str = os.getenv("BAK_PATH") or os.path.join(DATA_DIR, "data-bak")
     DEFAULT_WINDOWS_PATH: str = os.getenv("DEFAULT_WINDOWS_PATH") or ""
     CALANDAR_DF: str = os.getenv("CALANDAR_DF") or os.path.join(DATA_DIR, "const", "calandar_df.csv")
@@ -20,4 +22,9 @@ class DataPath:
     ETF_NAME_LIST_DF: str = os.getenv("ETF_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "etf_name_list.csv")
     INDEX_NAME_LIST_DF: str = os.getenv("INDEX_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "index_name_list.csv")
     STOCK_NAME_LIST_DF: str = os.getenv("STOCK_NAME_LIST_DF") or os.path.join(DATA_DIR, "const", "stock_name_list.csv")
+    STOCK_SW_INDUSTRY_CLF_CSV: str = os.getenv("STOCK_SW_INDUSTRY_CLF_CSV") or os.path.join(DATA_DIR, "const", "stock_sw_industry_clf.csv")
+    STOCK_SW_INDUSTRY_STANDARD_CSV: str = os.getenv("STOCK_SW_INDUSTRY_STANDARD_CSV") or os.path.join(DATA_DIR, "const", "sw_industry_standard_2021.csv")
+    STOCK_SW_INDUSTRY_STANDARD_2014_CSV: str = os.getenv("STOCK_SW_INDUSTRY_STANDARD_2014_CSV") or os.path.join(DATA_DIR, "const", "sw_industry_standard_2014.csv")
     ETF_INDEX_MAP_CSV: str = os.getenv("ETF_INDEX_MAP_CSV") or os.path.join(DATA_DIR, "const", "etf_index_map.csv")
+    ETF_POOL_SEMANTIC_CSV: str = os.getenv("ETF_POOL_SEMANTIC_CSV") or os.path.join(DATA_DIR, "const", "etf_pool_semantic_20260808.csv")
+    ADJ_FACTOR_PATH: str = os.getenv("ADJ_FACTOR_PATH") or os.path.join(DATA_DIR, "adj_factor")
